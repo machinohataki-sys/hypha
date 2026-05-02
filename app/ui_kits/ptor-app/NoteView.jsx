@@ -32,7 +32,73 @@ class DeepenErrorBoundary extends React.Component {
   }
 }
 
-function NoteView({ rel, onBack, viewMode = 'evolution' }) {
+// v0.4.0 — top-level NoteView error boundary. v0.3.x had blank-screen
+// failures when a child component crashed silently — user saw cream paper
+// with no error. This catches anything below NoteView and prints the error
+// + component stack inline so future bugs surface their own diagnostic
+// without requiring DevTools console.
+class NoteViewErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null, info: null }; }
+  static getDerivedStateFromError(error) { return { error: error, info: null }; }
+  componentDidCatch(error, info) {
+    console.error('[noteview-error-boundary] NoteView crashed:', error);
+    console.error('[noteview-error-boundary] component stack:', info && info.componentStack);
+    this.setState({ info });
+  }
+  render() {
+    if (this.state.error) {
+      const msg = String(this.state.error.message || this.state.error);
+      const stack = this.state.info ? String(this.state.info.componentStack || '').slice(0, 400) : '';
+      return (
+        <div style={{
+          flex: 1, padding: '48px',
+          fontFamily: '"EB Garamond", "Noto Serif SC", Georgia, serif',
+          color: 'var(--verdict-flag, #c46a5d)',
+          overflow: 'auto',
+        }}>
+          <div style={{
+            maxWidth: 720, margin: '0 auto',
+            borderLeft: '3px solid var(--verdict-flag, #c46a5d)',
+            paddingLeft: 18,
+          }}>
+            <p style={{ fontStyle: 'italic', fontSize: 16, marginBottom: 12 }}>
+              this lesson view crashed while rendering.
+            </p>
+            <p style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12, color: 'var(--ink-muted)', marginBottom: 12 }}>
+              {msg}
+            </p>
+            {stack && (
+              <pre style={{
+                fontFamily: '"JetBrains Mono", monospace', fontSize: 11,
+                color: 'var(--ink-faint)', whiteSpace: 'pre-wrap',
+                background: 'color-mix(in srgb, var(--brass-mid) 6%, transparent)',
+                padding: 12, borderRadius: 2, overflow: 'auto', maxHeight: 240,
+              }}>{stack}</pre>
+            )}
+            <p style={{ fontStyle: 'italic', fontSize: 13, marginTop: 14, color: 'var(--ink-muted)' }}>
+              please share this with Victor — paste the message + stack above.
+              press Esc / pick another note in the sidebar to recover.
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Outer NoteView entry — wraps the actual implementation in the v0.4.0
+// error boundary so a child render crash surfaces an inline error card
+// (with stack + actionable message) instead of a blank cream rectangle.
+function NoteView(props) {
+  return (
+    <NoteViewErrorBoundary>
+      <NoteViewInner {...props} />
+    </NoteViewErrorBoundary>
+  );
+}
+
+function NoteViewInner({ rel, onBack, viewMode = 'evolution' }) {
   const [body, setBody] = React.useState('');
   const [meta, setMeta] = React.useState(null);
   const [mode, setMode] = React.useState('render'); // 'render' | 'edit'
