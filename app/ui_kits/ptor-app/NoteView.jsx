@@ -3637,6 +3637,230 @@ function ConceptLogbookPanel({ slug, conceptId, currentRel, onClose, onPickLesso
   );
 }
 
+// AtlasMindMapPanel — v0.3 lacquerware mindmap. Cross-lesson view of every
+// concept ever seen in this curriculum. Concentric layout by settled state
+// (substrate-as-position, not arbitrary force-directed): inner ring =
+// settled, then referenced, then introduced, drifted on the periphery.
+// Edges = co-occurrence count in same lesson. Hand-rolled SVG (no
+// third-party graph lib — Hypha rejects motion-library imports per
+// Motion v1 §H). Click a node → opens its biography panel.
+function AtlasMindMapPanel({ slug, currentRel, onClose, onPickConcept }) {
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [hoverTerm, setHoverTerm] = React.useState(null);
+  const W = 340, H = 480, CX = W / 2, CY = H / 2;
+  const RINGS = { settled: 60, referenced: 110, introduced: 170, drifted: 215 };
+
+  React.useEffect(() => {
+    if (!slug || !window.ptor || !window.ptor.hypha || !window.ptor.hypha.atlasCurriculumView) {
+      setLoading(false); return;
+    }
+    let alive = true;
+    setLoading(true);
+    window.ptor.hypha.atlasCurriculumView(slug)
+      .then(r => { if (alive) { setData(r); setLoading(false); } })
+      .catch(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [slug]);
+
+  // Deterministic angle per term so layout is stable across renders.
+  const hashAngle = (term) => {
+    let h = 0;
+    for (let i = 0; i < term.length; i++) h = ((h << 5) - h + term.charCodeAt(i)) | 0;
+    return ((h % 360) + 360) % 360;
+  };
+
+  const concepts = (data && data.ok && data.concepts) || [];
+  const edges = (data && data.ok && data.edges) || [];
+  const totalLessons = (data && data.totalLessons) || 0;
+
+  // Position each concept by state ring + deterministic angle.
+  // Same-state concepts spread evenly; angle hash adds visual variety.
+  const positioned = React.useMemo(() => {
+    const byState = { settled: [], referenced: [], introduced: [], drifted: [] };
+    for (const c of concepts) (byState[c.state] || byState.introduced).push(c);
+    const out = {};
+    for (const [state, list] of Object.entries(byState)) {
+      const r = RINGS[state] || 170;
+      const N = list.length;
+      list.sort((a, b) => a.term.localeCompare(b.term));
+      list.forEach((c, i) => {
+        // Spread evenly + small hash-based wobble so layout isn't perfectly geometric.
+        const baseAngle = (i / Math.max(1, N)) * 360;
+        const wobble = ((hashAngle(c.term) % 30) - 15);
+        const ang = (baseAngle + wobble) * Math.PI / 180;
+        out[c.term] = {
+          x: CX + r * Math.cos(ang),
+          y: CY + r * Math.sin(ang),
+          state, c,
+        };
+      });
+    }
+    return out;
+  }, [concepts]);
+
+  const stateColor = {
+    settled:    'var(--brass-bright)',
+    referenced: 'var(--brass-mid)',
+    introduced: 'var(--ink-muted)',
+    drifted:    'var(--ink-faint)',
+  };
+
+  return (
+    <div style={{
+      flex: 1, minHeight: 0, overflowY: 'auto',
+      padding: '16px 14px 24px',
+      fontFamily: '"EB Garamond", "Noto Serif SC", Georgia, serif',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 8 }}>
+        <button
+          onClick={onClose}
+          style={{
+            background: 'transparent', border: 'none', padding: 0,
+            fontFamily: 'inherit', fontStyle: 'italic', fontSize: 13,
+            color: 'var(--ink-faint)', cursor: 'pointer',
+            borderBottom: '1px solid transparent', transition: 'border-color 200ms, color 200ms',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--brass-bright)'; e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--ink-faint)'; e.currentTarget.style.borderBottomColor = 'transparent'; }}
+        >← back to atlas</button>
+        <span style={{ flex: 1 }} />
+        <span style={{
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase',
+          color: 'var(--ink-faint)', fontVariantNumeric: 'tabular-nums',
+        }}>{concepts.length} concepts · {totalLessons} lessons</span>
+      </div>
+
+      {loading && (
+        <p style={{ fontStyle: 'italic', color: 'var(--ink-faint)', fontSize: 13, padding: 24, textAlign: 'center' }}>
+          assembling cross-lesson atlas…
+        </p>
+      )}
+      {!loading && concepts.length === 0 && (
+        <p style={{ fontStyle: 'italic', color: 'var(--ink-faint)', fontSize: 13, padding: 24, textAlign: 'center' }}>
+          no concepts yet — the mindmap grows as lessons accumulate.
+        </p>
+      )}
+      {!loading && concepts.length > 0 && (
+        <>
+          <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', maxHeight: 480 }}>
+            {/* Concentric ring guides — 1px hairlines, very low opacity */}
+            {Object.entries(RINGS).map(([state, r]) => (
+              <circle key={state} cx={CX} cy={CY} r={r}
+                fill="none" stroke="var(--brass-mid)"
+                strokeOpacity={0.08} strokeWidth={0.5} />
+            ))}
+            {/* Edges — drawn first so nodes overlay them */}
+            {edges.map((e, i) => {
+              const a = positioned[e.a], b = positioned[e.b];
+              if (!a || !b) return null;
+              const opacity = Math.min(0.35, 0.05 + e.weight * 0.06);
+              const isHovered = hoverTerm === e.a || hoverTerm === e.b;
+              return (
+                <line key={i}
+                  x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+                  stroke="var(--brass-mid)"
+                  strokeWidth={isHovered ? 1 : 0.5}
+                  strokeOpacity={isHovered ? 0.6 : opacity}
+                />
+              );
+            })}
+            {/* Nodes */}
+            {concepts.map(c => {
+              const p = positioned[c.term];
+              if (!p) return null;
+              const isHovered = hoverTerm === c.term;
+              const r = c.state === 'settled' ? 4 : c.state === 'referenced' ? 3.2 : 2.6;
+              const labelOpacity = isHovered ? 1 : (c.state === 'settled' ? 0.92 : c.state === 'referenced' ? 0.72 : 0.5);
+              const labelDx = p.x > CX ? 7 : -7;
+              const labelAnchor = p.x > CX ? 'start' : 'end';
+              return (
+                <g key={c.term}
+                   onMouseEnter={() => setHoverTerm(c.term)}
+                   onMouseLeave={() => setHoverTerm(prev => prev === c.term ? null : prev)}
+                   onClick={() => { if (typeof onPickConcept === 'function') onPickConcept(c.term); }}
+                   style={{ cursor: 'pointer' }}>
+                  <circle cx={p.x} cy={p.y} r={isHovered ? r + 1.5 : r}
+                    fill={stateColor[c.state] || 'var(--ink-muted)'}
+                    fillOpacity={c.state === 'drifted' ? 0.5 : 1}
+                    style={{ transition: 'r 220ms cubic-bezier(0.22, 1, 0.36, 1)' }}
+                  />
+                  <text x={p.x + labelDx} y={p.y + 3.5}
+                    fontFamily='"EB Garamond", "Noto Serif SC", Georgia, serif'
+                    fontStyle="italic"
+                    fontSize={isHovered ? 11.5 : 10.5}
+                    fill={c.state === 'settled' ? 'var(--ink-title)' : 'var(--ink-muted)'}
+                    fillOpacity={labelOpacity}
+                    textAnchor={labelAnchor}
+                    style={{ pointerEvents: 'none', textDecoration: c.state === 'drifted' ? 'line-through' : 'none' }}
+                  >
+                    {c.term}
+                  </text>
+                </g>
+              );
+            })}
+            {/* Center label — totals echo */}
+            <text x={CX} y={CY + 4}
+              fontFamily='"JetBrains Mono", monospace'
+              fontSize={9} fill="var(--ink-faint)"
+              textAnchor="middle" letterSpacing="0.16em"
+              style={{ textTransform: 'uppercase' }}
+            >atlas</text>
+          </svg>
+
+          {/* Hover snippet — appears below SVG, no chrome */}
+          <div style={{
+            minHeight: 36, padding: '8px 4px 0',
+            fontStyle: 'italic', fontSize: 12.5, color: 'var(--ink-muted)',
+            lineHeight: 1.5,
+          }}>
+            {hoverTerm && positioned[hoverTerm] && (
+              <>
+                <span style={{ color: stateColor[positioned[hoverTerm].state], fontStyle: 'italic' }}>
+                  {hoverTerm}
+                </span>
+                <span style={{ color: 'var(--ink-faint)' }}> · {positioned[hoverTerm].state} · {positioned[hoverTerm].c.lessonCount} lesson{positioned[hoverTerm].c.lessonCount === 1 ? '' : 's'}</span>
+                {positioned[hoverTerm].c.snippet && (
+                  <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--ink-muted)' }}>
+                    "{positioned[hoverTerm].c.snippet}"
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Ring legend */}
+          <div style={{
+            display: 'flex', gap: 14, marginTop: 8, paddingTop: 12,
+            borderTop: '1px solid color-mix(in srgb, var(--brass-mid) 14%, transparent)',
+            fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
+            letterSpacing: '0.12em', textTransform: 'uppercase',
+            color: 'var(--ink-faint)',
+            flexWrap: 'wrap',
+          }}>
+            {[
+              { state: 'settled',    label: 'settled' },
+              { state: 'referenced', label: 'referenced' },
+              { state: 'introduced', label: 'introduced' },
+              { state: 'drifted',    label: 'drifted' },
+            ].map(s => (
+              <span key={s.state} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: stateColor[s.state],
+                  opacity: s.state === 'drifted' ? 0.5 : 1,
+                }} />
+                {s.label}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ConceptAtlas({ rel }) {
   const [atlas, setAtlas] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -3646,6 +3870,9 @@ function ConceptAtlas({ rel }) {
   // whole curriculum. Triggered by double-click on a chip (single-click
   // still cycles state — existing behavior).
   const [biographyTerm, setBiographyTerm] = React.useState(null);
+  // v0.3 — mindmap toggle. When true, swap chip list for cross-lesson SVG
+  // mindmap (concentric layout by settled state). Click a node → biography.
+  const [mapMode, setMapMode] = React.useState(false);
   // 金句 drag-tear state. dropActive: true while a hypha-quote drag hovers the
   // panel — shows brass dashed affordance ring. expandedQuoteId: which quote's
   // insight editor is open. draftInsight: in-progress textarea content.
@@ -3956,6 +4183,19 @@ function ConceptAtlas({ rel }) {
       />
     );
   }
+  // v0.3 — when mapMode true, render cross-lesson mindmap. Click node → opens
+  // biography for that concept (chains into the v0.2.1 logbook surface).
+  if (mapMode) {
+    const slug = rel ? rel.split(/[\\/]/)[0] : '';
+    return (
+      <AtlasMindMapPanel
+        slug={slug}
+        currentRel={rel}
+        onClose={() => setMapMode(false)}
+        onPickConcept={(term) => { setMapMode(false); setBiographyTerm(term); }}
+      />
+    );
+  }
 
   return (
     <div
@@ -3982,8 +4222,26 @@ function ConceptAtlas({ rel }) {
         margin: '0 0 14px',
         color: 'var(--brass-bright)',
         fontSize: 11,
+        display: 'flex', alignItems: 'baseline', gap: 8,
       }}>
-        概念地图 · {totalLive} 个{quotes.length > 0 ? ` · 金句 ${quotes.length}` : ''}
+        <span>概念地图 · {totalLive} 个{quotes.length > 0 ? ` · 金句 ${quotes.length}` : ''}</span>
+        <span style={{ flex: 1 }} />
+        {/* v0.3 — open mindmap (cross-lesson concentric SVG). Italic, brass-bright on hover. */}
+        <button
+          onClick={() => setMapMode(true)}
+          title="view all concepts as a cross-lesson mindmap"
+          style={{
+            background: 'transparent', border: 'none', padding: 0,
+            fontFamily: '"EB Garamond", "Noto Serif SC", serif',
+            fontStyle: 'italic', fontSize: 12,
+            letterSpacing: 0, textTransform: 'none',
+            color: 'var(--brass-mid)', cursor: 'pointer',
+            borderBottom: '1px solid transparent',
+            transition: 'border-color 200ms, color 200ms',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--brass-bright)'; e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--brass-mid)'; e.currentTarget.style.borderBottomColor = 'transparent'; }}
+        >view as map →</button>
       </div>
 
       {/* 金句 (Golden Quotes) section — drag-tear extractions from tutor messages.

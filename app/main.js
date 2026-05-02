@@ -1754,6 +1754,72 @@ ipcMain.handle('variance:get', (_e, { rel } = {}) => {
   return matches[0];
 });
 
+// v0.3 — atlas:curriculum-view. Merges all lesson atlases in a slug into
+// one cross-lesson concept set + edges. Concept's "final state" = latest
+// non-null state across all lessons (settled wins over referenced wins
+// over introduced; drifted is preserved). Edges = pairs of concepts that
+// co-occurred in the same lesson, weight = co-occurrence count.
+// Powers the lacquerware mindmap (v0.3 of post-lesson studio) — the
+// only visualization cuflow/OpenMAIC structurally cannot ship.
+ipcMain.handle('atlas:curriculum-view', (_e, { slug } = {}) => {
+  if (!slug) return { ok: false, error: 'slug required' };
+  const state = vault.readJSON(`${slug}/state.json`, null);
+  if (!state || !Array.isArray(state.lessonRels)) return { ok: false, error: 'curriculum not found' };
+  const concepts = {};   // term → { term, state, lessonCount, lessonIdxs[], snippet, settledAt }
+  const coOccur = {};    // 'a||b' (sorted) → count
+  const STATE_RANK = { drifted: 0, introduced: 1, referenced: 2, settled: 3 };
+  for (let idx = 0; idx < state.lessonRels.length; idx++) {
+    const atlas = vault.readJSON(_atlasPath(slug, idx), null);
+    if (!atlas || !atlas.concepts) continue;
+    const lessonTerms = [];
+    for (const [term, c] of Object.entries(atlas.concepts)) {
+      if (!c) continue;
+      const s = c.state || 'introduced';
+      lessonTerms.push(term);
+      if (!concepts[term]) {
+        concepts[term] = {
+          term,
+          state: s,
+          lessonCount: 1,
+          lessonIdxs: [idx],
+          snippet: (c.snippet || '').slice(0, 200),
+          settledAt: s === 'settled' ? idx : null,
+        };
+      } else {
+        const prev = concepts[term];
+        prev.lessonCount += 1;
+        prev.lessonIdxs.push(idx);
+        if ((STATE_RANK[s] || 0) > (STATE_RANK[prev.state] || 0)) {
+          prev.state = s;
+          if (s === 'settled') prev.settledAt = idx;
+        }
+        if (!prev.snippet && c.snippet) prev.snippet = (c.snippet || '').slice(0, 200);
+      }
+    }
+    // Pairwise co-occurrence in this lesson.
+    for (let i = 0; i < lessonTerms.length; i++) {
+      for (let j = i + 1; j < lessonTerms.length; j++) {
+        const a = lessonTerms[i], b = lessonTerms[j];
+        const key = a < b ? `${a}||${b}` : `${b}||${a}`;
+        coOccur[key] = (coOccur[key] || 0) + 1;
+      }
+    }
+  }
+  const edges = Object.entries(coOccur)
+    .map(([key, weight]) => {
+      const [a, b] = key.split('||');
+      return { a, b, weight };
+    })
+    .filter(e => e.weight >= 1);
+  return {
+    ok: true,
+    slug,
+    totalLessons: state.lessonRels.length,
+    concepts: Object.values(concepts),
+    edges,
+  };
+});
+
 // v0.2 — concept-logbook:get. Per-concept biography assembled from every
 // lesson's atlas in this curriculum. Returns timeline of when this concept
 // was introduced, settled, and which lessons referenced it. The user clicks

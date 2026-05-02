@@ -194,6 +194,7 @@ contextBridge.exposeInMainWorld('ptor', {
     // timeline assembled across all lesson atlases in the curriculum.
     varianceGet: (rel) => ipcRenderer.invoke('variance:get', { rel }),
     conceptLogbook: (slug, conceptId) => ipcRenderer.invoke('concept-logbook:get', { slug, conceptId }),
+    atlasCurriculumView: (slug) => ipcRenderer.invoke('atlas:curriculum-view', { slug }),
     onCurriculumProgress: (cb) => {
       const handler = (_e, payload) => cb(payload);
       ipcRenderer.on('curriculum:progress', handler);
