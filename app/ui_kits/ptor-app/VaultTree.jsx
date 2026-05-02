@@ -33,6 +33,11 @@ function VaultTree({ active, onSelect, viewMode }) {
   const [importOpen, setImportOpen] = React.useState(false);
   const [chainOpen, setChainOpen] = React.useState(false);  // Lacquer Loop W7 chain planner modal
   const [vaultName, setVaultName] = React.useState('');     // last segment of vault root, e.g. "beiking"
+  // Recall-mode "+" popover. evolution/settings: + jumps straight to Learn.
+  // Recall: + opens this 3-item menu (Compose / Bring in / New shelf) — note
+  // management makes sense here because recall = the storage / library mode.
+  const [actionMenu, setActionMenu] = React.useState(false);
+  const actionWrapRef = React.useRef(null);
 
   // CRUD UI state. Only one of these is non-null at a time (mutually exclusive).
   // composeIn: { folder } — inline new-note input under that folder
@@ -133,20 +138,21 @@ function VaultTree({ active, onSelect, viewMode }) {
     return () => window.removeEventListener('hypha:open-tutor-customize', onCustomize);
   }, []);
 
-  // Click outside / Esc closes ctx menu + cancels rename/compose. The "+"
-  // button no longer opens a popover (it goes straight to Learn input) so
-  // the actionMenu / actionWrapRef branches were removed 2026-05-01.
+  // Click outside / Esc closes the recall "+" menu + ctxMenu.
   React.useEffect(() => {
-    if (!ctxMenu) return;
-    const onDocClick = () => setCtxMenu(null);
+    if (!actionMenu && !ctxMenu) return;
+    const onDocClick = (e) => {
+      if (actionMenu && actionWrapRef.current && !actionWrapRef.current.contains(e.target)) setActionMenu(false);
+      if (ctxMenu) setCtxMenu(null);
+    };
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
-      setCtxMenu(null);
+      setActionMenu(false); setCtxMenu(null);
     };
     document.addEventListener('mousedown', onDocClick);
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('mousedown', onDocClick); document.removeEventListener('keydown', onKey); };
-  }, [ctxMenu]);
+  }, [actionMenu, ctxMenu]);
 
   // Disarm delete after 2s of inaction
   React.useEffect(() => {
@@ -212,13 +218,13 @@ function VaultTree({ active, onSelect, viewMode }) {
       WebkitBackdropFilter: 'var(--glass-blur)',
       overflow: 'hidden auto',
     }}>
-      {/* Vault header — 大字 italic Garamond vault 名 + 右侧 "+" 直接进入
-          创建课程流程。2026-05-01 council 决议：删除中介菜单（Compose / Bring
-          in / New shelf 改走文件夹右键 ctxMenu）。"+" 在千金认知 = "新课程"，
-          多一层菜单是无用 chrome 且 modal-card 在 atlas-day 下背景撞色。点击：
-          (1) 切回 evolution mode（如在 settings/recall），(2) 立即弹 Learn 输入。
-          行底 brass hairline 锚定 header。 */}
-      <div style={{
+      {/* Vault header — vault 名 + mode-aware "+" 按钮。
+          - evolution / settings → "+" = New course (跳到 evolution + 弹 Learn)
+          - recall → "+" = note management menu (Compose / Bring in / New shelf)
+          recall 是 storage 模式，note 操作放这里语义对；evolution 是学习模式，
+          + 当然是新课程。menu 背景用 var(--bg-base)（paper register），跟当前
+          theme 一致，不再用 modal-card 在 atlas-day 下撞色。 */}
+      <div ref={actionWrapRef} style={{
         position: 'relative',
         padding: '2px 16px 12px',
         margin: '0 0 10px',
@@ -236,30 +242,93 @@ function VaultTree({ active, onSelect, viewMode }) {
         <span style={{ flex: 1 }} />
         <button
           onClick={() => {
-            // 唯一意图：创建课程。先切回 evolution mode（settings/recall →
-            // evolution），再开 Learn 输入框。App.jsx 监听 hypha:open-evolution。
+            if (viewMode === 'recall') {
+              setActionMenu(v => !v);
+              return;
+            }
+            // evolution / settings → New course
             try { window.dispatchEvent(new CustomEvent('hypha:open-evolution')); } catch (_) {}
             setLearnTopic('');
           }}
-          title="New course"
-          aria-label="New course"
+          title={viewMode === 'recall' ? 'Add note' : 'New course'}
+          aria-label={viewMode === 'recall' ? 'Add note' : 'New course'}
+          aria-expanded={viewMode === 'recall' ? actionMenu : undefined}
           style={{
-            background: 'transparent',
+            background: actionMenu ? 'color-mix(in srgb, var(--brass-mid) 12%, transparent)' : 'transparent',
             border: 'none', cursor: 'pointer',
             padding: 0, width: 22, height: 22, borderRadius: 11,
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--ink-faint)',
-            opacity: 0.62,
+            color: actionMenu ? 'var(--brass-bright)' : 'var(--ink-faint)',
+            opacity: actionMenu ? 1 : 0.62,
             transition: 'opacity 220ms cubic-bezier(0.22, 1, 0.36, 1), color 220ms, background 220ms',
           }}
           onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--brass-bright)'; }}
-          onMouseLeave={e => { e.currentTarget.style.opacity = '0.62'; e.currentTarget.style.color = 'var(--ink-faint)'; }}
+          onMouseLeave={e => { if (!actionMenu) { e.currentTarget.style.opacity = '0.62'; e.currentTarget.style.color = 'var(--ink-faint)'; } }}
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
             <line x1="6" y1="2" x2="6" y2="10" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
             <line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
           </svg>
         </button>
+        {viewMode === 'recall' && actionMenu && (
+          <div style={{
+            position: 'absolute',
+            top: 32, right: 8,
+            // Paper-register: matches whatever theme is active (day / atlas-day).
+            // No more dark modal-card crash on light surfaces.
+            background: 'var(--bg-base)',
+            border: '1px solid color-mix(in srgb, var(--brass-mid) 28%, transparent)',
+            borderRadius: 2,
+            boxShadow: '0 6px 20px -4px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08)',
+            padding: '6px 0',
+            minWidth: 200,
+            zIndex: 200,
+            animation: 'va-menu-rise 200ms cubic-bezier(0.22, 1, 0.36, 1)',
+          }}>
+            <style>{`
+              @keyframes va-menu-rise { from { opacity: 0; transform: translateY(-4px) } to { opacity: 1; transform: none } }
+            `}</style>
+            {[
+              { label: 'Compose',   sub: 'a blank page',                 onClick: () => {
+                  const firstFolder = VAULT[0] && VAULT[0].folder;
+                  if (firstFolder) {
+                    setComposeIn({ folder: firstFolder });
+                    setOpen(prev => ({ ...prev, [firstFolder]: true }));
+                  } else {
+                    setComposeShelf('');
+                  }
+                  setActionMenu(false);
+                } },
+              { label: 'Bring in',  sub: 'Bear · Obsidian · Notion',     onClick: () => { setImportOpen(true); setActionMenu(false); } },
+              { label: 'New shelf', sub: 'a new section',                onClick: () => { setComposeShelf(''); setActionMenu(false); } },
+            ].map((item, i) => (
+              <button
+                key={i}
+                onClick={item.onClick}
+                style={{
+                  display: 'block', width: '100%',
+                  padding: '9px 18px',
+                  background: 'transparent', border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontFamily: '"EB Garamond", "Noto Serif SC", serif',
+                  color: 'var(--ink-primary)',
+                  transition: 'background 200ms',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--brass-mid) 9%, transparent)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <div style={{ fontSize: 14.5, fontStyle: 'italic', color: 'var(--ink-title)' }}>{item.label}</div>
+                <div style={{
+                  fontSize: 11.5, color: 'var(--ink-faint)',
+                  marginTop: 2, fontStyle: 'italic',
+                  fontFamily: '"EB Garamond", "Noto Serif SC", serif',
+                  opacity: 0.7,
+                }}>{item.sub}</div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {window.ImportDialog && (
         <window.ImportDialog
