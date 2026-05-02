@@ -2888,9 +2888,15 @@ ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, prio
     // it shapes link COUNT and pacing. Distinct from feasibility tier
     // (nearly-impossible/possible/easy) which shapes prompt tone + alternatives.
     const userPacingTier = (tier === 'gentle' || tier === 'heroic') ? tier : 'moderate';
+    // v0.6.6 — classify archetype + pass through so planChain can shape the
+    // chain by archetype phase pattern (TECH-CONCEPT vs MINDSET vs HUMANITIES
+    // chains have very different structural shapes — see agent.js planChain).
+    let chainArchetype = 'TECH-CONCEPT';
+    try { chainArchetype = await _hyphaAgent.classifyArchetype(goal, '', settings); } catch (_) {}
     const chain = await _hyphaAgent.planChain(goal, {
       tier: verdict.tier,
       pacingTier: userPacingTier,
+      archetype: chainArchetype,
       ratio: verdict.ratio.p50,
       gap: verdict.gap,
       missing_prerequisites: prior.missing_prerequisites,

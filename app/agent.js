@@ -1527,7 +1527,7 @@ async function scoreProbe(topic, goal, answers, settings) {
 }
 
 async function planChain(goal, ctx, settings) {
-  const { tier, pacingTier, ratio, gap, missing_prerequisites, timeWeeks, dailyHours, intrinsicLoad, pComplete, lang } = ctx;
+  const { tier, pacingTier, ratio, gap, missing_prerequisites, timeWeeks, dailyHours, intrinsicLoad, pComplete, lang, archetype } = ctx;
   // Detect output language: explicit ctx.lang wins; else auto-detect from goal text.
   const detectedLang = (lang === 'zh' || lang === 'en') ? lang
     : (/[一-龥]/.test(String(goal || '')) ? 'zh' : 'en');
@@ -1551,17 +1551,101 @@ async function planChain(goal, ctx, settings) {
     ? 'OUTPUT LANGUAGE: Chinese (Simplified). All "topic", "rationale", "exit_criterion", "warning", "alternatives.lower_target_to" fields MUST be in Chinese. Match the user\'s register (formal academic Chinese, NOT casual). Numbers + technical terms (eigenvalue, BKT, etc.) may stay in English when natural.'
     : 'OUTPUT LANGUAGE: English. All fields in English.';
   const profileBlock = userProfileBlock(settings && settings.userProfile);
+  // v0.6.6 — archetype-aware chain shape. Without the archetype hint, the LLM
+  // defaults to operational/scheduling tasks (especially for MINDSET goals
+  // where self-help training data dominates). Inject the archetype's frontier
+  // window + the corresponding chain-shape so the LLM mirrors the curriculum-
+  // level phase template at chain level.
+  let chainShapeBlock = '';
+  let archetypeFrontierLine = '';
+  if (archetype) {
+    try {
+      const tmpl = loadArchetypeTemplate(archetype);
+      if (tmpl && tmpl.frontier_definition && tmpl.frontier_definition.prompt_anchor) {
+        archetypeFrontierLine = `Frontier window: ${tmpl.frontier_definition.prompt_anchor}\n`;
+      }
+    } catch (_) {}
+    const SHAPES = {
+      'TECH-CONCEPT': 'foundations → tools → mechanisms → frontier → synthesis (ultimate)',
+      'TECH-PROC':    'primitives → patterns → tradeoffs → frontier → synthesis (ultimate)',
+      'LANG-ACQ':     'phonology → high-frequency → patterns → native register → synthesis (ultimate)',
+      'HUMANITIES':   'context → claims → counter-claims → frontier → synthesis (ultimate)',
+      'DECL-MASS':    'scaffold → anchor cases → patterns → recent finds → synthesis (ultimate)',
+      'MINDSET':      'origin → decisions → heuristics → edge cases → synthesis (ultimate)',
+    };
+    if (SHAPES[archetype]) {
+      chainShapeBlock = `\n═══ ARCHETYPE CHAIN-SHAPE (binding) ═══\nArchetype = ${archetype}\n${archetypeFrontierLine}Per this archetype, the chain prefers shape: ${SHAPES[archetype]}\n═══════════════════════════════════════\n`;
+    }
+  }
+
+  // v0.6.6 — TECH-PROC is the one archetype where operational/procedural verbs
+  // are CORRECT (drill primitives, build artifacts). Other 5 archetypes need
+  // knowledge-content links. exit_criterion phrasing branches accordingly.
+  const isProceduralArchetype = archetype === 'TECH-PROC' || archetype === 'LANG-ACQ';
+  const exitCriterionGuidance = isProceduralArchetype
+    ? '- exit_criterion: 1 sentence testable claim — for ' + archetype + ' archetype, a behavior the learner can EXECUTE ("ship a working X app" / "sustain 5-min Y dialogue"). Procedural skill outcome.'
+    : '- exit_criterion: 1 sentence testable claim — an EXPLANATION/DERIVATION/ARGUMENT the learner can PRODUCE ("explain X from atoms naming Y theorems" / "argue for/against Z citing N primary sources"). Knowledge outcome, not behavior. Avoid "establish habit", "set up tool", "track progress" — these are infrastructure not knowledge.';
+
   const sys = `${HYPHA_FULL}${profileBlock}You design a LEARNING CHAIN of 3-8 topics that bridges the student from their current state to an ambitious learning goal. Use the STUDENT PROFILE block above (if present) to set the chain's starting point — if the student already has experience the chain would normally start from, COMPRESS or DROP those prerequisite links. Output JSON: { "links": [{ "topic": string, "duration_weeks": float, "role": "prerequisite"|"core"|"ultimate", "rationale": string, "exit_criterion": string }], "warning": string|null, "alternatives": { "extend_time_to_weeks": int|null, "lower_target_to": string|null } }.
 
 ${langInstruction}
+
+═══ CHAIN-LINK CONTENT TYPE (binding — read FIRST before any rule below) ═══
+
+EVERY link is a body of substantive KNOWLEDGE with a literature and a depth ceiling — NOT a process, habit, schedule, tool, or technique-of-studying. Each link is something the student LEARNS (acquires understanding of), not something they DO (execute as behavior).
+
+Self-reference rule (HARD): Hypha itself is the delivery substrate — daily lessons, scheduling, atlas/mind-mapping, habit formation, spaced-repetition, ghost-lesson materialization, source retrieval, reflection journaling. These are NEVER chain links. The chain provides the SUBSTANCE that fills Hypha's delivery; do not list Hypha's mechanisms AS the substance.
+
+Spawn test: each link must be authorable as a 25-150 lesson curriculum with distinct, non-overlapping lesson content. If you can't write 30 lessons under the proposed link title, the link is operational fluff — replace it with the underlying knowledge domain.
+
+FORBIDDEN as link topics (operational fluff):
+- "establish/build/maintain habit" / "建立习惯" / "习惯化" / "养成"
+- "set/follow schedule" / "时间触发器" / "每日 X 分钟" / "日程"
+- "create mind-map / atlas / outline" / "思维导图" / "知识图谱构建" / "学习地图"
+- "track/measure/record progress" / "进度追踪" / "完成度记录"
+- "configure tool / set up app / use Hypha to..." / "配置工具" / "设置环境"
+- "Fogg's recipe / habit stacking / atomic habits / GTD / pomodoro" — these are META-frameworks about HOW to study, not CONTENT to study
+- "find a study group / accountability partner" / "学习伙伴"
+- "develop growth mindset / metacognition" — UNLESS the GOAL itself is psychology AND the link names a specific theory + literature (Dweck 2006, Flavell 1979, etc.); then it becomes content
+
+REQUIRED for non-ultimate links:
+- Names a recognized sub-discipline, named framework with literature, era of intellectual production, author's corpus, or technique with documented practice tradition
+- Has measurable knowledge endpoints (concepts mastered, distinctions sharpened, primary sources read, mechanisms re-derivable from atoms)
+- Maps cleanly to the archetype phase shape below
+
+Examples (TECH-CONCEPT goal: "build a reasoning LLM from scratch"):
+GOOD chain:
+  L1: 信息论与概率分布基础 (Shannon, KL, mutual information)
+  L2: Transformer 架构核心机制 (attention, positional encoding, layer norm)
+  L3: 训练动力学与优化 (gradient flow, lr schedules, RLHF)
+  L4: 推理时 scaling: chain-of-thought + tool-use + self-consistency
+  L5 (ultimate): build a reasoning LLM from scratch
+BAD (LLM's default failure mode — NEVER produce):
+  L1: 建立每日 25 分钟编码习惯 (operational — REJECTED)
+  L2: 配置 Jupyter + GPU 环境 (tool config — REJECTED)
+  L3: 阅读 transformer 论文并做思维导图 (Hypha self-reference — REJECTED)
+
+Examples (MINDSET goal: "have Buffett's investing mindset"):
+GOOD (per MINDSET archetype: origin → decisions → heuristics → edge cases):
+  L1: 价值投资思想史 (Graham 1934 → Fisher 1958 → Buffett's letters 1965-)
+  L2: 巴菲特经典决策剖析 (See's Candy 1972, Coca-Cola 1988, GEICO 1996)
+  L3: 巴菲特启发法 (margin of safety, circle of competence, Mr. Market)
+  L4: 模型崩坏边界 (Berkshire textile mill, US Air, Solomon Brothers)
+  L5 (ultimate): have Buffett's investing mindset
+BAD (NEVER produce):
+  L1: 建立每日阅读习惯 (REJECTED — operational)
+  L2: 制作思维导图整理思想 (REJECTED — Hypha's atlas feature)
+  L3: 学习 Fogg 习惯触发器 (REJECTED — META-framework about HOW)
+═══════════════════════════════════════════════════════════
+${chainShapeBlock}
 
 Hard rules:
 - Sum of duration_weeks across all links = ${timeWeeks} (HARD constraint).${tierGuide}
 - Last link.role = "ultimate" with topic ≈ the user's goal verbatim (preserve user's wording).
 - Earlier links bridge the gap from current state to the goal — use the missing_prerequisites list as priority order.
-- topic: 4-12 words, CONCRETE + SPECIFIC. Forbidden: "math basics" / "fundamentals" / "introduction to X" alone. Required: name a specific mechanism, technique, paper, or distinction.
+- topic: 4-12 words, CONCRETE + SPECIFIC. Forbidden generics: "math basics" / "fundamentals" / "introduction to X" alone. Forbidden operational: anything from the FORBIDDEN list above. Required: name a specific knowledge domain, theorem-set, author's corpus, or technique with literature.
 - rationale: 1 sentence — why THIS link before the next.
-- exit_criterion: 1 sentence testable claim (a concrete behavior the learner should be able to perform).
+${exitCriterionGuidance}
 - Tier = "${tier}" (feasibility ratio P50 = ${ratio}, P(complete) ≈ ${pComplete}). ${tierGuidance[tier]}
 ${tier === 'nearly-impossible' ? `- "warning" MUST be non-null: explain in plain user-language that time is too tight (ratio ${ratio} below 0.7 threshold). "alternatives.extend_time_to_weeks" = ${Math.ceil(timeWeeks * 2)}; "alternatives.lower_target_to" = a concrete less-ambitious version of the goal (1 sentence, same language as output).` : ''}
 - Order: prerequisites first (most foundational first), then core, then ultimate.
@@ -1576,19 +1660,90 @@ Gap to goal: ${gap} (0 = already there, 1 = zero foundation)
 Missing prerequisites identified: ${(missing_prerequisites || []).join(', ') || '(none specified)'}
 
 Return JSON now.`;
+  // v0.6.6 — operational-fluff detection. If the LLM ignores the prompt
+  // and produces a habit/schedule/tool-config link, we either regenerate
+  // once (with the violations called out) OR ship with quality_warnings
+  // so the renderer can surface a "may be operational fluff — refuse?" UI.
+  // TECH-PROC + LANG-ACQ archetypes legitimately have procedural verbs;
+  // skip the audit for those (whitelist).
+  const FORBIDDEN_PATTERNS = [
+    /\b(establish|build|maintain|cultivate|develop)\b\s*(?:a|the)?\s*(?:daily\s+|weekly\s+)?\b(habit|routine|schedule|rhythm|ritual)\b/i,
+    /(?:形成|建立|养成|培养)\s*\S{0,8}?(习惯|常规|节奏|惯例)/,
+    /(?:每日|每天)\s*\d+\s*(?:分钟|小时|min|hour)/i,
+    /\b(time|daily|weekly)\s*trigger\b/i,
+    /(时间|每日|日程|节奏)\s*触发器/,
+    /\b(create|build|make|draw)\b\s*(?:a|the)?\s*\b(mind\s*map|atlas|outline|knowledge\s*graph)\b/i,
+    /(制作|构建|绘制|建立)\s*\S{0,8}?(思维导图|知识图谱|学习地图|atlas)/,
+    /\b(track|measure|record|monitor)\s*\S{0,16}?\s*(progress|completion|metrics|进度|完成度|进展)/i,
+    /(追踪|测量|记录|监控)\s*\S{0,8}?(进度|完成度|进展|进展度)/,
+    /\b(fogg(?:'s)?(?:\s+\w+)?(?:\s+recipe|\s+model)?|atomic\s+habits|gtd|getting\s+things\s+done|pomodoro)\b/i,
+    /\b(configure|set\s*up|install)\s*\S{0,16}?\s*(tool|environment|app|setup|environment)/i,
+    /(配置|设置|搭建)\s*\S{0,8}?(工具|环境|应用)/,
+    /\b(find|join)\s+(a\s+)?(study\s+group|accountability\s+partner|learning\s+buddy)\b/i,
+    /(找|加入)\s*\S{0,4}?(学习小组|学习伙伴|搭子)/,
+  ];
+  const skipAudit = isProceduralArchetype;  // TECH-PROC + LANG-ACQ keep procedural verbs
+  function _auditChain(links) {
+    if (skipAudit) return [];
+    const violations = [];
+    (links || []).forEach((l, i) => {
+      if (!l || !l.topic) return;
+      // Last link = ultimate goal, exempt (it IS the user's goal verbatim,
+      // even if vague — that's the whole point of the chain).
+      if (l.role === 'ultimate' || i === links.length - 1) return;
+      for (const re of FORBIDDEN_PATTERNS) {
+        if (re.test(String(l.topic))) {
+          violations.push({ idx: i, topic: l.topic, pattern: re.source });
+          break;
+        }
+      }
+    });
+    return violations;
+  }
+
+  let parsed = { links: [], warning: 'plan failed', alternatives: null };
   try {
     const raw = await llmJSON(
       [{ role: 'system', content: sys }, { role: 'user', content: user }],
       settings,
       { json: true, temperature: 0.4, max_tokens: 3500 }
     );
-    const p = JSON.parse(raw);
-    return {
-      links: Array.isArray(p.links) ? p.links : [],
-      warning: p.warning || null,
-      alternatives: p.alternatives || null,
-    };
-  } catch (_) { return { links: [], warning: 'plan failed', alternatives: null }; }
+    parsed = JSON.parse(raw);
+  } catch (_) {
+    return { links: [], warning: 'plan failed', alternatives: null };
+  }
+
+  // Audit + regenerate-once if violations.
+  let violations = _auditChain(parsed.links);
+  if (violations.length > 0) {
+    try {
+      const violationsList = violations.map(v => `  L${v.idx + 1}: "${v.topic}"`).join('\n');
+      const correctionUser = `${user}
+
+CRITICAL: your previous attempt produced these OPERATIONAL FLUFF links that violate the CHAIN-LINK CONTENT TYPE rule:
+${violationsList}
+
+These are NOT knowledge bodies — they are habit/schedule/tool-config tasks. Each violation must be replaced with a substantive knowledge domain that has a literature and a depth ceiling. Re-emit the full chain JSON with the violations replaced. Do NOT introduce new operational fluff.`;
+      const raw2 = await llmJSON(
+        [{ role: 'system', content: sys }, { role: 'user', content: correctionUser }],
+        settings,
+        { json: true, temperature: 0.3, max_tokens: 3500 }
+      );
+      const parsed2 = JSON.parse(raw2);
+      const violations2 = _auditChain(parsed2.links);
+      if (violations2.length === 0 || violations2.length < violations.length) {
+        parsed = parsed2;
+        violations = violations2;
+      }
+    } catch (_) { /* regenerate failed; ship original with warnings */ }
+  }
+
+  return {
+    links: Array.isArray(parsed.links) ? parsed.links : [],
+    warning: parsed.warning || null,
+    alternatives: parsed.alternatives || null,
+    quality_warnings: violations.length > 0 ? violations : null,
+  };
 }
 
 // Lacquer Loop W4 — frozen quiz bank generator. Produces N free-recall questions
