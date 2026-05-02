@@ -1737,6 +1737,63 @@ ipcMain.handle('lesson-adaptations:weekly-summary', (_e, { slug } = {}) => {
   };
 });
 
+// v0.2 — variance:get. Read the LATEST variance entry for a given lesson
+// rel from `<slug>/variances.jsonl`. Returns null if no variance computed
+// yet (curriculum predates v0.2 ship, or finish didn't fire compute).
+ipcMain.handle('variance:get', (_e, { rel } = {}) => {
+  if (!rel) return null;
+  const note = vault.read(rel);
+  if (!note) return null;
+  const fm = note.frontmatter || {};
+  const slug = fm.topic_slug || rel.split(/[\\/]/)[0];
+  const log = vault.readJSONL(`${slug}/variances.jsonl`);
+  if (!Array.isArray(log) || log.length === 0) return null;
+  const matches = log.filter(r => r && r.lessonRel === rel);
+  if (matches.length === 0) return null;
+  matches.sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+  return matches[0];
+});
+
+// v0.2 — concept-logbook:get. Per-concept biography assembled from every
+// lesson's atlas in this curriculum. Returns timeline of when this concept
+// was introduced, settled, and which lessons referenced it. The user clicks
+// a concept in the right rail → this assembles the concept's "ship log"
+// across the entire curriculum (Lung's CONCEPT_AS_VESSEL).
+ipcMain.handle('concept-logbook:get', (_e, { slug, conceptId } = {}) => {
+  if (!slug || !conceptId) return { ok: false, error: 'slug + conceptId required' };
+  const state = vault.readJSON(`${slug}/state.json`, null);
+  if (!state || !Array.isArray(state.lessonRels)) return { ok: false, error: 'curriculum not found' };
+  const term = String(conceptId).toLowerCase().trim();
+  const entries = [];
+  for (let idx = 0; idx < state.lessonRels.length; idx++) {
+    const atlasP = _atlasPath(slug, idx);
+    const atlas = vault.readJSON(atlasP, null);
+    if (!atlas || !atlas.concepts) continue;
+    const c = atlas.concepts[term] || atlas.concepts[conceptId];
+    if (!c) continue;
+    const lessonRel = state.lessonRels[idx];
+    const lesson = vault.read(lessonRel);
+    const lessonTitle = lesson
+      ? (lesson.frontmatter && lesson.frontmatter.title) ||
+        (lesson.body.match(/^# (.+)$/m) || [])[1] ||
+        `Lesson ${idx + 1}`
+      : `Lesson ${idx + 1}`;
+    entries.push({
+      idx,
+      lessonRel,
+      lessonTitle: String(lessonTitle).replace(/^"|"$/g, ''),
+      state: c.state || 'introduced',
+      firstSeenTurn: c.first_seen_turn || null,
+      settledAtTurn: c.settled_at_turn || null,
+      occurrences: c.occurrences || 0,
+      snippet: (c.snippet || '').slice(0, 220),
+      distilled: !!(lesson && lesson.frontmatter && lesson.frontmatter.date_distilled
+                    && String(lesson.frontmatter.date_distilled).trim() !== 'null'),
+    });
+  }
+  return { ok: true, conceptId: term, entries };
+});
+
 // quote:delete — remove a 金句 from atlas.quotes. Phase 2.3 (council 2026-05-01).
 // If the quote had an insight, the 用户灵感 section entry STAYS (it's history;
 // we don't retroactively rewrite past notes). atlas.quotes loses the row only.
@@ -1929,6 +1986,42 @@ ipcMain.handle('lesson:finish', async (_e, { rel, userInsight, sessionFile, mode
     scheduler.touchConcept(newState, idx, predictionSuccess);
 
     vault.writeJSON(`${slug}/state.json`, newState);
+
+    // v0.2 — Variance Card. Compute the just-finished lesson's drift from
+    // the user's declared goal (state.goal collected at curriculum-create).
+    // Diff = settled-by-user concepts vs original intent. Output appended to
+    // `<slug>/variances.jsonl` (Lung's REGISTRAR_STREAM) — VarianceCard in
+    // NoteView reads the latest entry for this lesson rel and renders above
+    // the dual-layer note. Fresh mode only (continuation = revisit, no new
+    // intent-vs-delivery vector). Fire-and-forget so finish doesn't block.
+    try {
+      if (effectiveMode === 'fresh' && newState.goal) {
+        const atlasNow = vault.readJSON(_atlasPath(slug, idx), null);
+        const settled = atlasNow && atlasNow.concepts
+          ? Object.entries(atlasNow.concepts)
+              .filter(([_, c]) => c && c.state === 'settled')
+              .map(([term]) => term)
+          : [];
+        const lessonTitle = fm.title || (note.body.match(/^# (.+)$/m) || [])[1] || `Lesson ${idx + 1}`;
+        const variance = await _hyphaAgent.computeVariance({
+          goal: newState.goal,
+          topicSlug: slug,
+          delivered: settled,
+          timeCommit: newState.timeCommit || 'open-ended',
+          lessonTitle,
+        }, settings);
+        vault.appendJSONL(`${slug}/variances.jsonl`, {
+          ts: new Date().toISOString(),
+          idx,
+          lessonRel: rel,
+          ...variance,
+          deliveredCount: settled.length,
+          delivered: settled.slice(0, 10),
+        });
+      }
+    } catch (err) {
+      console.error('[variance] compute failed (non-fatal):', err.message);
+    }
 
     _hyphaAppendEvent('lesson_finish', { topic: slug, idx, rel, mode: effectiveMode });
     // Phase 3.1 — adapt-after-finish trigger lives renderer-side (NoteView.jsx

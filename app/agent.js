@@ -1204,6 +1204,74 @@ Return JSON.`;
   } catch (_) { return { score: 0, reason: 'judge error' }; }
 }
 
+// computeVariance — given the user's declared learning intent (from
+// curriculum-create welcome form) and the just-finished lesson's atlas-delta,
+// return a 1-line "intent echo + drift summary" that will render at the top
+// of the distilled note (Variance Card, v0.2). The card answers: "did this
+// lesson move you toward your stated goal, or did you wander?"
+//
+// Inputs:
+//   goal         — string from state.json (curriculum-create welcome form)
+//   topicSlug    — curriculum slug, for echo
+//   delivered    — array of concept terms whose settled_at_turn fell in this
+//                  lesson's session-turn range (already computed by caller)
+//   timeCommit   — 'a-week' | 'a-month' | '3-months' | 'open-ended'
+//   lessonTitle  — string, current lesson
+//
+// Output (parsed JSON):
+//   { intentEcho:   string (1 sentence, paraphrases the goal in 千金 register)
+//   , driftSummary: string (1-2 sentences, factual not motivational)
+//   , onTrack:      'on' | 'drifting' | 'detour'
+//   , driftReason:  string (≤1 sentence, why drift if any)
+//   }
+//
+// Cost: ~250 tokens out, ~$0.0002 with GLM, ~$0.005 with Sonnet. Low temp.
+async function computeVariance({ goal, topicSlug, delivered, timeCommit, lessonTitle }, settings) {
+  const sys = `You read a learner's declared goal + a list of concepts they actually settled in one lesson, and produce a 1-card "variance" report.
+
+Your voice: editorial, factual, manuscript register (Hypha's brand). NO motivational language. No "great job!" No "keep going!" Treat the learner as a serious adult auditing their own progress.
+
+Forbidden words: AI, LLM, model, prompt. Forbidden phrases: "you're doing great", "fantastic progress", any exclamation marks.
+
+Output STRICT JSON:
+  intentEcho: 1-sentence paraphrase of the user's goal (≤20 words)
+  driftSummary: 1-2 sentences, factual. Cite specific delivered concepts. Note if direction matches the goal.
+  onTrack: "on" | "drifting" | "detour" — your judgement
+  driftReason: ≤1 sentence; if onTrack="on", leave empty string`;
+
+  const userMsg = `Topic: ${topicSlug}
+Lesson title: ${lessonTitle || '(untitled)'}
+Time commitment: ${timeCommit || 'open-ended'}
+Declared goal: ${goal || '(no explicit goal set)'}
+Concepts settled this lesson: ${(delivered || []).slice(0, 15).join(', ') || '(none — learner did not settle independently)'}
+
+Output the JSON variance card.`;
+
+  try {
+    const raw = await llmJSON(
+      [{ role: 'system', content: sys }, { role: 'user', content: userMsg }],
+      settings,
+      { json: true, temperature: 0.2, max_tokens: 400, fn: 'computeVariance' }
+    );
+    const parsed = JSON.parse(raw);
+    return {
+      intentEcho: String(parsed.intentEcho || '').trim().slice(0, 200),
+      driftSummary: String(parsed.driftSummary || '').trim().slice(0, 400),
+      onTrack: ['on', 'drifting', 'detour'].includes(parsed.onTrack) ? parsed.onTrack : 'on',
+      driftReason: String(parsed.driftReason || '').trim().slice(0, 200),
+    };
+  } catch (err) {
+    return {
+      intentEcho: goal ? goal.slice(0, 100) : '',
+      driftSummary: delivered && delivered.length
+        ? `this lesson settled ${delivered.length} concept${delivered.length === 1 ? '' : 's'}: ${delivered.slice(0, 5).join(', ')}.`
+        : 'this lesson settled no concepts independently.',
+      onTrack: 'on',
+      driftReason: '',
+    };
+  }
+}
+
 module.exports = {
   harvest,
   clarifyQuestions,
@@ -1224,5 +1292,6 @@ module.exports = {
   extractAtlasDelta,
   generateQuizBank,
   scoreQuizAnswer,
+  computeVariance,
   adaptLessonGoal,
 };

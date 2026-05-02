@@ -189,6 +189,11 @@ contextBridge.exposeInMainWorld('ptor', {
     // server for current balance + free-quota status.
     authOpenLogin: (url) => ipcRenderer.invoke('auth:open-login', { url }),
     hyphaCloudMe: () => ipcRenderer.invoke('hypha-cloud:me'),
+    // v0.2 — Variance Card + Concept Logbook. Variance = latest entry from
+    // <slug>/variances.jsonl matching this lesson rel. Logbook = per-concept
+    // timeline assembled across all lesson atlases in the curriculum.
+    varianceGet: (rel) => ipcRenderer.invoke('variance:get', { rel }),
+    conceptLogbook: (slug, conceptId) => ipcRenderer.invoke('concept-logbook:get', { slug, conceptId }),
     onCurriculumProgress: (cb) => {
       const handler = (_e, payload) => cb(payload);
       ipcRenderer.on('curriculum:progress', handler);

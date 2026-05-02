@@ -3181,6 +3181,70 @@ function ChatBody({ text, streaming, error, isUser, quotedRanges }) {
 // "continue from here" to fork a continuation session.
 // ============================================================================
 
+// VarianceCard — v0.2 post-lesson studio. Reads <slug>/variances.jsonl via
+// the variance:get IPC and renders a single card showing intent echo +
+// drift summary + on-track judgement. Renders nothing if no variance was
+// computed (curriculum predates v0.2 or finish handler skipped). 千金
+// register: italic Garamond, brass + teal accents, no chrome rectangles.
+function VarianceCard({ rel }) {
+  const [variance, setVariance] = React.useState(null);
+  const [loaded, setLoaded] = React.useState(false);
+  React.useEffect(() => {
+    if (!rel || !window.ptor || !window.ptor.hypha || !window.ptor.hypha.varianceGet) {
+      setLoaded(true); return;
+    }
+    let alive = true;
+    window.ptor.hypha.varianceGet(rel)
+      .then(v => { if (alive) { setVariance(v); setLoaded(true); } })
+      .catch(() => { if (alive) { setLoaded(true); } });
+    return () => { alive = false; };
+  }, [rel]);
+  if (!loaded || !variance) return null;
+  const trackColor = variance.onTrack === 'detour'   ? 'var(--accent-teal, #4D8B9A)'
+                    : variance.onTrack === 'drifting' ? 'var(--brass-mid, #a0876e)'
+                    : 'var(--brass-bright, #c4a890)';
+  const trackLabel = variance.onTrack === 'detour'   ? 'detour'
+                   : variance.onTrack === 'drifting' ? 'drifting'
+                   : 'on track';
+  const date = variance.ts ? variance.ts.slice(0, 10) : '';
+  return (
+    <div style={{
+      maxWidth: 720, margin: '0 auto 18px', padding: '14px 22px',
+      borderLeft: `2px solid ${trackColor}`,
+      background: 'color-mix(in srgb, var(--brass-mid) 5%, transparent)',
+      fontFamily: '"EB Garamond", "Noto Serif SC", Georgia, serif',
+    }}>
+      <div style={{
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase',
+        color: 'var(--ink-faint)', marginBottom: 6,
+      }}>
+        variance · <span style={{ color: trackColor }}>{trackLabel}</span>
+        {date && <span style={{ marginLeft: 12, opacity: 0.6 }}>{date}</span>}
+      </div>
+      {variance.intentEcho && (
+        <p style={{
+          margin: '0 0 8px', fontStyle: 'italic', fontSize: 15,
+          color: 'var(--ink-muted)', lineHeight: 1.5,
+        }}>
+          intent: <span style={{ color: 'var(--ink-title)' }}>{variance.intentEcho}</span>
+        </p>
+      )}
+      {variance.driftSummary && (
+        <p style={{
+          margin: 0, fontSize: 15, color: 'var(--ink-primary)', lineHeight: 1.6,
+        }}>{variance.driftSummary}</p>
+      )}
+      {variance.driftReason && variance.onTrack !== 'on' && (
+        <p style={{
+          margin: '6px 0 0', fontSize: 13, fontStyle: 'italic',
+          color: 'var(--ink-muted)', lineHeight: 1.5,
+        }}>{variance.driftReason}</p>
+      )}
+    </div>
+  );
+}
+
 function LessonHistoryView({ rel, meta, onReread }) {
   const [sessions, setSessions] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -3271,6 +3335,7 @@ function LessonHistoryView({ rel, meta, onReread }) {
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '18px 0' }}>
         <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 32px' }}>
+          <VarianceCard rel={rel} />
           {loading && (
             <div style={{ fontStyle: 'italic', fontSize: 14, color: 'var(--ink-faint)', padding: 24, textAlign: 'center' }}>loading sessions…</div>
           )}
