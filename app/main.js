@@ -42,6 +42,64 @@ function reinforce() {
 const isDev = process.argv.includes('--dev');
 const ROOT = __dirname;
 
+// Update checker — production only. Polls GitHub Releases for our repo every
+// hour. If a newer tag is found, shows a native dialog that opens the Release
+// page in the user's browser. This is a deliberate 70% auto-update solution:
+// full Squirrel-based silent auto-update requires code signing ($99-300/yr
+// for Apple + Windows certs); pre-revenue we can't justify it. Once Hypha
+// Cloud has paying users, we add signing + true silent updater.
+if (app.isPackaged) {
+  setTimeout(() => checkForUpdate().catch(e => console.error('[update]', e.message)), 30_000);
+  setInterval(() => checkForUpdate().catch(e => console.error('[update]', e.message)), 60 * 60 * 1000);
+}
+
+let _updateNotifiedFor = null;
+
+async function checkForUpdate() {
+  const pkg = require('../package.json');
+  const repoMatch = (pkg.repository && pkg.repository.url || '').match(/github\.com[/:]([^/]+)\/([^/.]+)/);
+  if (!repoMatch) return;
+  const [, owner, repo] = repoMatch;
+  const url = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
+  const fetchFn = (typeof fetch === 'function') ? fetch : require('node-fetch');
+  const res = await fetchFn(url, {
+    headers: {
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'Hypha-update-checker',
+    },
+  });
+  if (!res.ok) return;
+  const data = await res.json();
+  const latest = String(data.tag_name || '').replace(/^v/, '');
+  const current = pkg.version;
+  if (!latest || !semverGt(latest, current)) return;
+  if (_updateNotifiedFor === latest) return;       // don't nag every hour
+  _updateNotifiedFor = latest;
+  const win = BrowserWindow.getAllWindows()[0];
+  const choice = await dialog.showMessageBox(win || null, {
+    type: 'info',
+    title: 'Hypha update available',
+    message: `Hypha ${latest} is available (you have ${current}).`,
+    detail: 'Click "Download" to open the releases page in your browser. Quit Hypha, replace the folder, then re-launch — your notes and progress are kept (they live in %APPDATA%\\Hypha\\data).',
+    buttons: ['Download', 'Later'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (choice.response === 0) {
+    shell.openExternal(data.html_url || `https://github.com/${owner}/${repo}/releases/latest`);
+  }
+}
+
+function semverGt(a, b) {
+  const pa = a.split('.').map(n => parseInt(n, 10) || 0);
+  const pb = b.split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return true;
+    if ((pa[i] || 0) < (pb[i] || 0)) return false;
+  }
+  return false;
+}
+
 // Production data root: when packaged (.exe / .dmg / .AppImage), the project's
 // `data/` directory is read-only inside asar — vault writes would fail. Redirect
 // HYPHA_DATA to <userData>/data so notes / curricula / settings survive

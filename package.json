@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "Hypha — the NOTE AGENT. Internal codename: ptor2. For self-directed researchers and bachelor-foundation learners.",
   "main": "app/main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/machinohataki-sys/hypha.git"
+  },
+  "homepage": "https://github.com/machinohataki-sys/hypha",
+  "bugs": {
+    "url": "https://github.com/machinohataki-sys/hypha/issues"
+  },
   "bin": {
     "hypha": "bin/hypha-cli.js"
   },
