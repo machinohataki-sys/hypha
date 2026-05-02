@@ -50,10 +50,9 @@ function VaultTree({ active, onSelect, viewMode }) {
   const [ctxMenu, setCtxMenu] = React.useState(null);
   const [renameTarget, setRenameTarget] = React.useState(null);
   const [deleteArm, setDeleteArm] = React.useState(null);
-  // Hypha — Learn flow. learnTopic: null | string (current input draft).
-  // learnStatus: null | 'harvesting' | 'designing' | 'writing-lessons' | 'error'
-  const [learnTopic, setLearnTopic] = React.useState(null);
-  const [learnStatus, setLearnStatus] = React.useState(null);
+  // Hypha — Learn flow used to live here as an inline input. Removed
+  // 2026-05-01 in favor of TabContent's full welcome form (topic + goal +
+  // time + chain-link), which is the canonical course-creation surface.
   // Customize Tutor — null | { slug, profile, personas } when editing a folder's tutor profile.
   const [tutorEdit, setTutorEdit] = React.useState(null);
   const [tutorSaved, setTutorSaved] = React.useState(false);
@@ -136,6 +135,16 @@ function VaultTree({ active, onSelect, viewMode }) {
     };
     window.addEventListener('hypha:open-tutor-customize', onCustomize);
     return () => window.removeEventListener('hypha:open-tutor-customize', onCustomize);
+  }, []);
+
+  // 2026-05-01: ChainPlanner is mounted here (chainOpen state below) but the
+  // welcome screen in TabContent.jsx triggers it via custom event so the
+  // chain link can live INSIDE the topic→goal→time form rather than as a
+  // sibling of it (per user feedback "plan a chain 包含在完整流程中").
+  React.useEffect(() => {
+    const onOpenChain = () => setChainOpen(true);
+    window.addEventListener('hypha:open-chain-planner', onOpenChain);
+    return () => window.removeEventListener('hypha:open-chain-planner', onOpenChain);
   }, []);
 
   // Click outside / Esc closes the recall "+" menu + ctxMenu.
@@ -246,9 +255,14 @@ function VaultTree({ active, onSelect, viewMode }) {
               setActionMenu(v => !v);
               return;
             }
-            // evolution / settings → New course
+            // evolution / settings → New course. Show welcome screen by:
+            // (1) switching viewMode to evolution, (2) clearing the active
+            // note so the right panel falls back to TabContent's form view
+            // (TopicInput → Goal textarea → Time commit → continue). The
+            // welcome screen is the canonical entry point — there's no
+            // longer a parallel inline Learn input in the vault tree.
             try { window.dispatchEvent(new CustomEvent('hypha:open-evolution')); } catch (_) {}
-            setLearnTopic('');
+            if (typeof onSelect === 'function') onSelect(null);
           }}
           title={viewMode === 'recall' ? 'Add note' : 'New course'}
           aria-label={viewMode === 'recall' ? 'Add note' : 'New course'}
@@ -353,103 +367,14 @@ function VaultTree({ active, onSelect, viewMode }) {
           onCancel={() => setComposeShelf(null)}
         />
       )}
-      {/* Hypha — Learn input. Topic → curriculum:create. Italic Garamond, no chrome. */}
-      {learnTopic !== null && (
-        <div style={{
-          padding: '10px 16px 14px',
-          borderBottom: '1px solid color-mix(in srgb, var(--brass-mid) 14%, transparent)',
-          margin: '0 0 8px',
-        }}>
-          <input
-            autoFocus
-            value={learnTopic}
-            placeholder="what do you want to learn?"
-            disabled={!!learnStatus && learnStatus !== 'error'}
-            onChange={e => setLearnTopic(e.target.value)}
-            onKeyDown={async (e) => {
-              if (e.key === 'Escape') { setLearnTopic(null); setLearnStatus(null); return; }
-              if (e.key === 'Enter') {
-                const t = (learnTopic || '').trim();
-                if (!t || !window.ptor || !window.ptor.hypha) return;
-                setLearnStatus('harvesting');
-                let unsub = null;
-                try {
-                  unsub = window.ptor.hypha.onCurriculumProgress((p) => {
-                    if (p && p.stage) setLearnStatus(p.stage);
-                  });
-                  const r = await window.ptor.hypha.curriculumCreate(t, 'intermediate');
-                  if (unsub) unsub();
-                  if (r && r.ok) {
-                    setLearnTopic(null);
-                    setLearnStatus(null);
-                    refresh();
-                    if (r.lessonRels && r.lessonRels[0] && typeof onPick === 'function') onPick(r.lessonRels[0]);
-                  } else {
-                    setLearnStatus('error');
-                  }
-                } catch (err) {
-                  if (unsub) unsub();
-                  setLearnStatus('error');
-                }
-              }
-            }}
-            style={{
-              width: '100%',
-              background: 'transparent',
-              color: 'var(--ink-title)',
-              border: 'none',
-              borderBottom: '1px solid color-mix(in srgb, var(--brass-mid) 32%, transparent)',
-              fontFamily: '"EB Garamond", "Noto Serif SC", "Cormorant Garamond", Georgia, serif',
-              fontStyle: 'italic',
-              fontSize: 17,
-              padding: '4px 0',
-              outline: 'none',
-            }}
-          />
-          <div style={{
-            marginTop: 8,
-            fontFamily: '"EB Garamond", "Noto Serif SC", serif',
-            fontStyle: 'italic',
-            fontSize: 12,
-            color: 'var(--ink-faint)',
-            minHeight: 16,
-          }}>
-            {learnStatus === 'harvesting' && 'gathering sources from the better parts of the web…'}
-            {learnStatus === 'designing' && 'arranging a sequence of lessons…'}
-            {learnStatus === 'writing-lessons' && 'writing lesson stubs to the vault…'}
-            {learnStatus === 'error' && (
-              <span style={{ color: 'var(--verdict-flag)' }}>
-                couldn't begin — check api key in settings, or press esc to cancel.
-              </span>
-            )}
-            {!learnStatus && (
-              <>
-                press enter to begin · esc to cancel
-                {/* In-flow link to chain planner. 2026-05-01 user feedback:
-                    chain planner belongs INSIDE the course-creation flow, not
-                    as a parallel top-level menu item. Click → close Learn,
-                    open ChainPlannerView modal; chain planner creates its own
-                    curriculum, so no need to round-trip back to this input. */}
-                {' · '}
-                <button
-                  onClick={() => { setLearnTopic(null); setChainOpen(true); }}
-                  style={{
-                    background: 'transparent', border: 'none', padding: 0,
-                    font: 'inherit', fontStyle: 'italic',
-                    color: 'var(--brass-bright)',
-                    cursor: 'pointer',
-                    borderBottom: '1px solid transparent',
-                    transition: 'border-color 200ms',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderBottomColor = 'transparent'; }}
-                  title="if your goal is bigger than one course — plan a chain of prerequisites first"
-                >plan a chain →</button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      {/* 2026-05-01: vault tree's inline Learn input was deleted as a
+          duplicate of TabContent's welcome screen form (which has topic +
+          goal + time-commit + chain-planner link in one place). The "+"
+          button now just clears the active note + jumps to evolution mode,
+          letting TabContent's `phase === 'form'` view render naturally on
+          the right. learnTopic / learnStatus state retained briefly for
+          backwards-compat in case onCurriculumProgress event fires while
+          welcome-screen is mid-create — but the input UI is gone. */}
       {VAULT.length === 0 && (
         <div style={{
           padding: '22px 16px', fontFamily: '"EB Garamond", "Cormorant Garamond", Georgia, serif',

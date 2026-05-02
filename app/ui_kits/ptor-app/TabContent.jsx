@@ -938,14 +938,40 @@ function HyphaEvolutionWelcome({ onPick }) {
                 width: '100%', background: 'color-mix(in srgb, var(--brass-mid) 10%, transparent)',
                 color: 'var(--ink-title)', border: 'none',
                 borderRadius: '14px 18px 14px 18px',
-                padding: '14px 18px', marginBottom: 24,
+                padding: '14px 18px', marginBottom: 8,
                 fontFamily: 'inherit', fontStyle: 'italic', fontSize: 16,
                 lineHeight: 1.5,
                 outline: 'none',
                 resize: 'vertical', minHeight: 70, maxHeight: 200,
-                boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brass-mid) 22%, transparent)',
+                boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brass-bright) 22%, transparent)',
               }}
             />
+
+            {/* In-flow chain planner link — only path to ChainPlannerView,
+                belongs INSIDE the welcome flow per user feedback (plan-a-chain
+                is a step of course creation, not a sibling of it). VaultTree
+                listens for `hypha:open-chain-planner` and opens the modal. */}
+            <div style={{
+              marginBottom: 24,
+              fontFamily: 'inherit', fontStyle: 'italic', fontSize: 13,
+              color: 'var(--ink-faint)',
+            }}>
+              the goal feels bigger than one curriculum?{' '}
+              <button
+                type="button"
+                onClick={() => { try { window.dispatchEvent(new CustomEvent('hypha:open-chain-planner')); } catch (_) {} }}
+                style={{
+                  background: 'transparent', border: 'none', padding: 0,
+                  font: 'inherit', fontStyle: 'italic',
+                  color: 'var(--brass-bright)', cursor: 'pointer',
+                  borderBottom: '1px solid transparent',
+                  transition: 'border-color 200ms',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderBottomColor = 'transparent'; }}
+                title="break it into a chain of prerequisites first — Hypha plans a sequence of courses from your starting point to the goal"
+              >plan a chain →</button>
+            </div>
 
             <label style={{
               display: 'block', fontFamily: '"Cormorant Garamond", "EB Garamond", Georgia, serif',
