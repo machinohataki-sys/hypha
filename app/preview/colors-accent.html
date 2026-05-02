@@ -1,0 +1,28 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .swatch {
+    flex: 1;
+    height: 132px;
+    border-radius: 14px;
+    box-shadow: inset 0 1px 0 rgba(232,196,176,0.10), inset 0 0 0 1px rgba(168,133,109,0.18);
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 12px;
+  }
+  .swatch .name { font-family: var(--font-serif); font-style: italic; font-size: 17px; }
+  .swatch .hex  { font-family: var(--font-mono); font-size: 11px; opacity: 0.78; margin-top: 2px; }
+  .s1 { background: rgba(232,196,176,0.22) }
+  .s2 { background: #b48b9a; }
+  .s3 { background: #5fa67a; }
+  .s4 { background: #c46a5d; }
+  .s1 .name, .s1 .hex { color: #f2e6da; }
+  .s2 .name, .s2 .hex, .s3 .name, .s3 .hex, .s4 .name, .s4 .hex { color: #1a1410; }
+</style></head>
+<body><div class="card" style="background: var(--espresso-2);">
+  <div class="row">
+    <div class="swatch s1"><div class="name">blush</div><div class="hex">rgba(232,196,176,.22)</div></div>
+    <div class="swatch s2"><div class="name">hush</div><div class="hex">#b48b9a</div></div>
+    <div class="swatch s3"><div class="name">verdict · clean</div><div class="hex">#5fa67a</div></div>
+    <div class="swatch s4"><div class="name">verdict · flag</div><div class="hex">#c46a5d</div></div>
+  </div>
+</div></body></html>

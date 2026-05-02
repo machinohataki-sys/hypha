@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+  <meta charset="utf-8">
+  <title>PTOR — UI kit</title>
+  <link rel="stylesheet" href="../../colors_and_type.css?v=2">
+  <style>
+    html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; }
+    /* Smooth boot fade-in: start invisible (Electron window bg shows through —
+       set to #1a1410 in main.js, matching night theme), fade in only after
+       React has painted the first child of #root. Eliminates the "flash of
+       bare bg before content" on refresh per user 2026-04-29 反馈. */
+    body {
+      background: var(--bg-page); background-color: var(--bg-base);
+      opacity: 0;
+      transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    body.app-ready { opacity: 1; }
+    #root { width: 100%; height: 100%; display: flex; }
+
+    /* Auto-hiding scrollbars — alpha is driven from JS (rAF tween) via the
+       inline custom property --scrollbar-alpha on the scrolled element.
+       Chromium does NOT honor `transition` on ::-webkit-scrollbar-thumb
+       (steps discretely instead of interpolating), so we paint each frame
+       manually. Default alpha = 0 (invisible at rest). */
+    *::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-corner { background: transparent; }
+    *::-webkit-scrollbar-thumb {
+      background-color: rgba(var(--scroll-rgb), var(--scrollbar-alpha, 0));
+      border-radius: 5px;
+      border: 3px solid transparent;
+      background-clip: padding-box;
+    }
+    /* Firefox — same custom-property mechanism */
+    * { scrollbar-width: thin; scrollbar-color: rgba(var(--scroll-rgb), var(--scrollbar-alpha, 0)) transparent; }
+  </style>
+  <script>
+    /* Smooth scrollbar fade — JS rAF tween of --scrollbar-alpha on the
+       scrolled element. Curve B per spec: stop → 50ms debounce → 3000ms
+       cubic ease-out fade to 0. Chromium repaints scrollbar pseudo on
+       every custom-property update, so we get a real per-frame
+       interpolation that the native transition path refuses to do. */
+    (() => {
+      const FADE_MS = 3000;
+      const PEAK_ALPHA = 0.32;
+      const HOLD_AFTER_SCROLL = 50;
+      const tracked = new WeakMap();
+      const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+      function ensure(el) {
+        let s = tracked.get(el);
+        if (!s) { s = { alpha: 0, raf: 0, fadeTimer: 0 }; tracked.set(el, s); }
+        return s;
+      }
+      function setAlpha(el, a) {
+        el.style.setProperty('--scrollbar-alpha', a);
+        ensure(el).alpha = a;
+      }
+      function startFade(el) {
+        const s = ensure(el);
+        cancelAnimationFrame(s.raf);
+        const startAlpha = s.alpha;
+        if (startAlpha <= 0) return;
+        const startT = performance.now();
+        const tick = (now) => {
+          const p = Math.min(1, (now - startT) / FADE_MS);
+          const a = startAlpha * (1 - easeOutCubic(p));
+          setAlpha(el, a);
+          if (p < 1) s.raf = requestAnimationFrame(tick);
+          else setAlpha(el, 0);
+        };
+        s.raf = requestAnimationFrame(tick);
+      }
+
+      document.addEventListener('scroll', (e) => {
+        const el = e.target instanceof Element
+          ? e.target
+          : (document.scrollingElement || document.documentElement);
+        if (!el) return;
+        const s = ensure(el);
+        cancelAnimationFrame(s.raf);
+        clearTimeout(s.fadeTimer);
+        setAlpha(el, PEAK_ALPHA);
+        s.fadeTimer = setTimeout(() => startFade(el), HOLD_AFTER_SCROLL);
+      }, true);
+    })();
+  </script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <!-- Self-hosted (was unpkg, blocked by CORS in our http origin per 2026-04-27 council) -->
+  <script src="../../vendor/marked.min.js"></script>
+  <script src="../../vendor/purify.min.js"></script>
+
+  <!-- MathJax 3 — TeX input + CHTML output. Self-hosted (28MB es5/ tree at
+       vendor/mathjax/). Config MUST be set on window.MathJax BEFORE the
+       script tag below loads, or startup runs with defaults. -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+      },
+      startup: {
+        typeset: false,        // we manually typesetPromise per element on stream-end
+      },
+      chtml: {
+        fontURL: '../../vendor/mathjax/output/chtml/fonts/woff-v2',
+      },
+    };
+  </script>
+  <script src="../../vendor/mathjax/tex-chtml.js" id="MathJax-script" async></script>
+
+  <!-- Preload Source Serif 4 Variable woff2 (latin opsz). Fix #4 切笔记
+       卡顿留白 2026-04-29: skip FOIT on first encounter with latin glyphs.
+       crossorigin required for woff2 even from same origin per fetch spec. -->
+  <link rel="preload" href="../../node_modules/@fontsource-variable/source-serif-4/files/source-serif-4-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="../../node_modules/@fontsource-variable/source-serif-4/files/source-serif-4-latin-opsz-italic.woff2" as="font" type="font/woff2" crossorigin>
+</head>
+<body>
+  <script>
+    /* Watch for React's first paint into #root, then add app-ready class
+       to trigger body fade-in. 1500ms failsafe: even if React fails to
+       mount, body becomes visible (don't trap user in black screen). */
+    (() => {
+      const failsafe = setTimeout(() => document.body.classList.add('app-ready'), 1500);
+      const reveal = () => {
+        clearTimeout(failsafe);
+        requestAnimationFrame(() => document.body.classList.add('app-ready'));
+      };
+      const startObserve = () => {
+        const root = document.getElementById('root');
+        if (!root) return;
+        if (root.firstElementChild) { reveal(); return; }
+        const obs = new MutationObserver(() => {
+          if (root.firstElementChild) { obs.disconnect(); reveal(); }
+        });
+        obs.observe(root, { childList: true });
+      };
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startObserve);
+      } else {
+        startObserve();
+      }
+    })();
+  </script>
+  <div id="root" data-screen-label="01 PTOR Session"></div>
+  <script type="text/babel" src="Theme.jsx"></script>
+  <script type="text/babel" src="PTorWindow.jsx"></script>
+  <script src="lib/RuntimeSubstrate.js"></script>
+  <script type="text/babel" src="ChainPlannerView.jsx"></script>
+  <script type="text/babel" src="VaultTree.jsx"></script>
+  <script type="text/babel" src="AskCard.jsx"></script>
+  <script type="text/babel" src="DeepenCallout.jsx"></script>
+  <script type="text/babel" src="ImportDialog.jsx"></script>
+  <script type="text/babel" src="PalpationOverlay.jsx"></script>
+  <script type="text/babel" src="TutorInkBlot.jsx"></script>
+  <script type="text/babel" src="NoteView.jsx"></script>
+  <script type="text/babel" src="RecallNoteView.jsx"></script>
+  <script type="text/babel" src="NavRail.jsx"></script>
+  <script type="text/babel" src="Tabs.jsx"></script>
+  <script type="text/babel" src="TabContent.jsx"></script>
+  <script type="text/babel" src="ColophonView.jsx"></script>
+  <script type="text/babel" src="App.jsx"></script>
+</body>
+</html>

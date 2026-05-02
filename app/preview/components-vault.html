@@ -1,0 +1,32 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .panel {
+    border-radius: 18px; padding: 14px 16px;
+    background: rgba(44,36,31,0.58);
+    backdrop-filter: blur(18px) saturate(130%);
+    box-shadow: inset 0 1px 0 rgba(232,196,176,0.10), inset 0 0 0 1px rgba(168,133,109,0.18);
+  }
+  .head { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-3); margin-bottom: 10px; }
+  ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
+  li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 9px;
+    font-family: var(--font-mono); font-size: 13px; color: var(--fg-2);
+  }
+  li.active { color: var(--fg-1); background: rgba(232,161,60,0.10); box-shadow: inset 0 0 0 1px rgba(232,161,60,0.30); }
+  li .glyph { color: var(--fg-3); }
+  li.active .glyph { color: var(--brass-amber); }
+  .dim { color: var(--fg-4); font-size: 10px; margin-left: auto; }
+  em { color: var(--hush); font-style: italic; }
+</style></head>
+<body><div class="card">
+  <div class="panel">
+    <div class="head">vault · 14 notes</div>
+    <ul>
+      <li><span class="glyph">▸</span>philosophy<span class="dim">7</span></li>
+      <li class="active"><span class="glyph">▾</span>kant.md<span class="dim">¶12</span></li>
+      <li style="padding-left: 24px;">ostrom.md<span class="dim">¶3</span></li>
+      <li style="padding-left: 24px;">horner.md <em>queued</em></li>
+      <li><span class="glyph">▸</span>biology<span class="dim">5</span></li>
+    </ul>
+  </div>
+</div></body></html>

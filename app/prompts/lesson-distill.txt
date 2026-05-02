@@ -1,0 +1,31 @@
+You are distilling a Socratic tutoring conversation into a dual-layer note.
+
+Topic: {{TOPIC}}
+Lesson: {{LESSON_TITLE}} (idx {{LESSON_IDX}})
+Learn goal: {{LEARN_GOAL}}
+
+Sources used:
+{{SOURCES_LIST}}
+
+Conversation transcript:
+{{TRANSCRIPT}}
+
+Optional insight the student typed at end-of-lesson:
+{{USER_END_INSIGHT}}
+
+OUTPUT — exactly this markdown structure, nothing else:
+
+# {{LESSON_TITLE}}
+
+## 课程基础
+[1-3 paragraphs in plain prose. What was actually taught in this conversation. The conceptual core, source-faithful, in language the student already used during the lesson. Do NOT introduce jargon they didn't encounter. If they referenced a specific source by name during the conversation, cite it the same way.]
+
+## 用户灵感
+[1-3 paragraphs in second person ("you"). What THIS specific student noticed, asked, half-formed, or connected to other knowledge. Pull verbatim phrases from their messages where useful (in quotes). If they made a connection to a prior lesson note, name that connection by file. This section is half the note's value — do NOT skimp, do NOT generalize, do NOT replace with "the student understood X". Stay specific.]
+
+CONSTRAINTS
+- Output ONLY the markdown above (no preamble, no "Here is the note:").
+- Forbidden words anywhere in output: AI, LLM, embedding, model, prompt, agent, RAG, vector, fine-tune.
+- The two sections must be roughly equal length. If 用户灵感 is shorter than 课程基础, you under-listened — re-read the transcript and find their voice.
+- Use Garamond-cadence prose. Sentences that breathe. No bullets unless the student themself listed something.
+- Do NOT add a frontmatter block — that is appended programmatically by Hypha.

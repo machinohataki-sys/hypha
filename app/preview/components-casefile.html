@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .panel {
+    border-radius: 18px; padding: 18px 22px;
+    background: rgba(44,36,31,0.58);
+    backdrop-filter: blur(18px) saturate(130%);
+    box-shadow: inset 0 1px 0 rgba(232,196,176,0.10), inset 0 0 0 1px rgba(168,133,109,0.18), 0 18px 48px -22px rgba(0,0,0,0.7);
+  }
+  .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+  .title { font-family: var(--font-serif); font-style: italic; font-weight: 400; font-size: 22px; color: var(--fg-1); }
+  .meta  { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-3); }
+  .body  { font-family: var(--font-sans); font-size: 14px; line-height: 1.55; color: var(--fg-2); margin-bottom: 12px; max-width: 60ch; }
+  em { color: var(--brass-bright); font-style: italic; }
+  .stamp { display: inline-flex; padding: 3px 12px; border-radius: 999px;
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--verdict-clean); box-shadow: inset 0 0 0 1px rgba(95,166,122,0.55); background: rgba(95,166,122,0.10);
+  }
+</style></head>
+<body><div class="card">
+  <div class="panel">
+    <div class="head">
+      <div class="title">case file — warm-blooded dinosaurs</div>
+      <div class="meta">march 11 → today</div>
+    </div>
+    <div class="body">held in <em>seven</em> sources. one outlier — <em>ostrom.md</em> ¶3 — disagrees on the metabolic-rate threshold. follow-up queued: read horner 2014.</div>
+    <span class="stamp">held</span>
+  </div>
+</div></body></html>

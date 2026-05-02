@@ -1,0 +1,28 @@
+node_modules/
+data/
+.env
+*.log
+.DS_Store
+dist/
+out/
+
+# Build artifacts (~500MB+ per platform — never commit)
+release/
+
+# Server is its own repo (machinohataki-sys/hypha-server, private)
+server/
+
+# Local agent state (Victor / hooks / drive) — not part of the product
+.claude/
+
+# Pre-pivot legacy code, kept locally for reference only
+old-src/
+
+# Editor / OS noise
+.vscode/
+.idea/
+Thumbs.db
+
+# Backup / lock files
+*.bak
+*.tmp

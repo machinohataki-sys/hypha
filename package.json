@@ -1,0 +1,43 @@
+{
+  "name": "hypha",
+  "version": "0.1.0",
+  "description": "Hypha — the NOTE AGENT. Internal codename: ptor2. For self-directed researchers and bachelor-foundation learners.",
+  "main": "app/main.js",
+  "bin": {
+    "hypha": "bin/hypha-cli.js"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "cli": "node bin/hypha-cli.js",
+    "icon": "node scripts/icon.js",
+    "pack": "node scripts/pack.js",
+    "pack:win": "node scripts/pack.js --platform=win32",
+    "pack:mac": "node scripts/pack.js --platform=darwin",
+    "pack:linux": "node scripts/pack.js --platform=linux"
+  },
+  "author": "Victor",
+  "license": "UNLICENSED",
+  "private": true,
+  "devDependencies": {
+    "@electron/packager": "^20.0.0",
+    "electron": "^35.0.0",
+    "sharp": "^0.34.5",
+    "to-ico": "^1.1.5"
+  },
+  "dependencies": {
+    "@fontsource-variable/source-serif-4": "^5.2.9",
+    "@fontsource/cormorant-garamond": "^5.2.11",
+    "@fontsource/eb-garamond": "^5.2.7",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/noto-serif-sc": "^5.2.8",
+    "marked": "^12.0.2",
+    "mathjax": "^3.2.2",
+    "node-fetch": "^2.7.0",
+    "openai": "^4.65.0",
+    "turndown": "^7.2.4"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

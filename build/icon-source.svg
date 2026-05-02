@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    Hypha desktop icon — same monogram as PTorWindow.jsx titlebar (P with the
+    one teal period-dot "borrowed from her manicure"), scaled 12.8× from
+    the 20×20 source viewBox. Cream paper disc background so the icon reads
+    on Windows / macOS / Linux taskbars without depending on system bg.
+    Brass-bright = #c4a890; accent-teal = #4D8B9A; bg-base = #F0D9C8.
+  -->
+  <!-- Cream paper disc, slight brass hairline edge -->
+  <circle cx="128" cy="128" r="120"
+          fill="#F0D9C8"
+          stroke="#c4a890" stroke-width="2" stroke-opacity="0.45"/>
+  <!-- P spine: 6.5,4 -> 6.5,16 in 20-unit space -> ×12.8 = 83.2 -> 51.2..204.8 -->
+  <line x1="83.2" y1="51.2" x2="83.2" y2="204.8"
+        stroke="#c4a890" stroke-width="20.5" stroke-linecap="round"/>
+  <!-- P bowl: M6.5 4 Q14.6 4 14.6 8 Q14.6 11.6 8.4 11.6 ×12.8 -->
+  <path d="M83.2 51.2 Q186.88 51.2 186.88 102.4 Q186.88 148.48 107.52 148.48"
+        stroke="#c4a890" stroke-width="20.5"
+        stroke-linecap="round" fill="none"/>
+  <!-- The period-dot: cx 10.4 cy 7.6 r 1 ×12.8 -->
+  <circle cx="133.12" cy="97.28" r="12.8" fill="#4D8B9A"/>
+</svg>

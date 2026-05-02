@@ -1,0 +1,184 @@
+{
+  "version": 1,
+  "comment": "Deepen angle catalog. Each entry: slug + name + category + description (1-2 lines, fed to selector) + tags (selector matches against selection content) + needs (must-run-before this angle, e.g. occam needs leo+lung). timeoutMs is per-stage cap. The selector picks 5-6 of these per Cmd+D invocation; synth always runs last and is NOT in this catalog.",
+  "angles": [
+    {
+      "slug": "leo",
+      "name": "first-principles atom strip",
+      "category": "reasoning",
+      "description": "Decomposes claim into base atoms; rejects analogy; tests necessity boundaries. Pick when the user's selection makes a strong claim that should be verified from primitives.",
+      "tags": ["abstraction", "structure", "audit", "falsifier", "claim"],
+      "needs": [],
+      "timeoutMs": 240000
+    },
+    {
+      "slug": "nancy",
+      "name": "Bayesian belief update",
+      "category": "reasoning",
+      "description": "Prior P(claim) → evidence likelihood ratio → posterior. Pick when there is a probabilistic claim, a decision under uncertainty, or evidence-weighing language.",
+      "tags": ["decision", "calibration", "probability", "uncertainty", "evidence"],
+      "needs": ["scout", "leo"],
+      "timeoutMs": 240000
+    },
+    {
+      "slug": "occam",
+      "name": "razor / pruning",
+      "category": "reasoning",
+      "description": "Cuts redundant or weaker claims; keeps the load-bearing core. Pick when other angles produce many candidates that need triage.",
+      "tags": ["simplification", "prune", "selection"],
+      "needs": ["leo", "lung"],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "contradiction",
+      "name": "internal contradiction surfacing",
+      "category": "reasoning",
+      "description": "Finds inconsistencies between selection and its own implications, or between claim and its method. Pick when the selection is dense + assertive + likely to have hidden tensions.",
+      "tags": ["audit", "self-check", "tension"],
+      "needs": [],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "five-whys",
+      "name": "Toyota five-whys cascade",
+      "category": "reasoning",
+      "description": "Drills from symptom to fundamental cause via 4-5 sequential 'why' steps. Pick when selection describes an outcome, problem, or behavior, and asks 'why is X happening'.",
+      "tags": ["causal", "depth", "symptom", "diagnosis"],
+      "needs": [],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "counterfactual",
+      "name": "counterfactual variation",
+      "category": "reasoning",
+      "description": "Changes one variable in the selection's setup; describes the resulting world; what the difference reveals about the original. Pick when selection has dependencies that benefit from variation testing.",
+      "tags": ["hypothetical", "structure", "what-if"],
+      "needs": [],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "second-order",
+      "name": "2nd / 3rd order consequences",
+      "category": "reasoning",
+      "description": "Extends the chain past the stated 1st-order outcome. What happens to other actors / systems / incentives 2-3 hops out? Pick when the selection proposes an action, decision, or architectural choice.",
+      "tags": ["systems", "cascade", "consequence", "long-horizon"],
+      "needs": [],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "empirical",
+      "name": "testable prediction extraction",
+      "category": "reasoning",
+      "description": "Extracts what observation would confirm or falsify the selection's claim. What data exists; what experiment would test. Pick when selection has empirical claim or hypothesis-shaped statement.",
+      "tags": ["falsifier", "evidence", "test", "data", "observation"],
+      "needs": [],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "lung",
+      "name": "divergent cross-domain analogy",
+      "category": "pattern",
+      "description": "5+ frames from unrelated fields (sport, biology, music, surgery, jazz, etc). Pick when selection's content is stuck in one domain or wants a 'fresh angle'.",
+      "tags": ["creativity", "cross-domain", "analogy", "reframe"],
+      "needs": [],
+      "timeoutMs": 240000
+    },
+    {
+      "slug": "isomorphism",
+      "name": "structural match across domains",
+      "category": "pattern",
+      "description": "Predicate-graph match: this domain X mirrors that domain Y. Different from analogy — about deep structural identity, not surface similarity. Pick when selection has a process or system structure.",
+      "tags": ["structure", "transfer", "identity", "deep-pattern"],
+      "needs": [],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "precedent",
+      "name": "historical case anchor",
+      "category": "pattern",
+      "description": "'This happened before in [domain] in [year], outcome was Z'. Pick when selection makes a forward-looking claim that has historical analogues, OR when grounding in a real case helps.",
+      "tags": ["history", "anchor", "case"],
+      "needs": [],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "muse",
+      "name": "adversarial attack",
+      "category": "critical",
+      "description": "3 concrete counterexamples on the strongest claim. Doesn't hedge; doesn't say 'on the other hand'. Pick when selection has an assertion that benefits from being stress-tested.",
+      "tags": ["stress-test", "audit", "counterexample", "attack"],
+      "needs": ["lung", "leo", "nancy"],
+      "timeoutMs": 240000
+    },
+    {
+      "slug": "devils-advocate",
+      "name": "steelman the opposite",
+      "category": "critical",
+      "description": "Builds the strongest version of the directly opposite position. Pick when the selection takes a strong stance and a strong counter-stance would test it.",
+      "tags": ["audit", "balance", "opposition"],
+      "needs": [],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "failure-mode",
+      "name": "QAQ inversion / pre-mortem",
+      "category": "critical",
+      "description": "Pretends the plan failed; works backward from failure to identify causes. Pick when selection describes a plan, design, or system likely to be fielded.",
+      "tags": ["risk", "falsifier", "pre-mortem", "failure"],
+      "needs": [],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "weakest-link",
+      "name": "weakest assumption identification",
+      "category": "critical",
+      "description": "Finds the SINGLE weakest load-bearing assumption — if it breaks, everything else falls. Pick when selection has multiple chained claims.",
+      "tags": ["risk", "structure", "single-point-of-failure"],
+      "needs": [],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "distill",
+      "name": "Feynman compression",
+      "category": "synthesis",
+      "description": "Explain to a smart 12-year-old in ≤5 paragraphs. No jargon. The compression itself reveals the unclear. Pick when selection is dense, technical, or seeks lossy crystallization.",
+      "tags": ["clarity", "lossy-compression", "feynman", "explain"],
+      "needs": [],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "frame-flip",
+      "name": "incompatible framings",
+      "category": "synthesis",
+      "description": "Re-presents the same content in 3 incompatible framings (e.g. economic / aesthetic / political; engineering / ritual / social). Pick when selection benefits from multi-perspectival reframing.",
+      "tags": ["framing", "perspective", "rotation"],
+      "needs": [],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "leverage-point",
+      "name": "YC partner — single move",
+      "category": "practical",
+      "description": "What's the SINGLE move that, if done now, makes the curve nonlinear over 12 months? Identifies the highest-leverage decision. Pick when selection is about a project, choice, or strategy.",
+      "tags": ["decision", "strategic", "compounding", "high-stakes"],
+      "needs": [],
+      "timeoutMs": 200000
+    },
+    {
+      "slug": "scout",
+      "name": "frontier web research",
+      "category": "external",
+      "description": "Real web search for relevant 2024-2026 sources; provenance with URLs. DATE-CONSTRAINED — never cites future years. Pick when selection makes empirical or technical claim that benefits from external grounding.",
+      "tags": ["external", "evidence", "frontier", "web"],
+      "needs": [],
+      "timeoutMs": 360000
+    }
+  ],
+  "default_fallback": ["leo", "lung", "muse", "distill", "scout"],
+  "synth_meta": {
+    "slug": "synth",
+    "timeoutMs": 360000,
+    "always_runs": true,
+    "always_last": true
+  }
+}

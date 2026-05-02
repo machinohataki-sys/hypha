@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .swatch {
+    flex: 1;
+    height: 132px;
+    border-radius: 14px;
+    position: relative;
+    box-shadow: inset 0 1px 0 rgba(232,196,176,0.10), inset 0 0 0 1px rgba(168,133,109,0.18);
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 12px;
+  }
+  .swatch .name { font-family: var(--font-serif); font-style: italic; font-size: 17px; color: #f2e6da; }
+  .swatch .hex  { font-family: var(--font-mono); font-size: 11px; color: #f2e6da; opacity: 0.78; margin-top: 2px; }
+  .s1 { background: #1a1410; }
+  .s2 { background: #2c241f; }
+  .s3 { background: #3a2e26; }
+  .s4 { background: radial-gradient(120% 90% at 30% 10%, #3a2e26 0%, #2c241f 38%, #1a1410 78%); }
+</style></head>
+<body><div class="card">
+  <div class="row">
+    <div class="swatch s1"><div class="name">espresso 1</div><div class="hex">#1a1410</div></div>
+    <div class="swatch s2"><div class="name">espresso 2</div><div class="hex">#2c241f</div></div>
+    <div class="swatch s3"><div class="name">espresso 3</div><div class="hex">#3a2e26</div></div>
+    <div class="swatch s4"><div class="name">espresso wash</div><div class="hex">radial</div></div>
+  </div>
+</div></body></html>

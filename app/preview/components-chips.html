@@ -1,0 +1,73 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  body { padding: 0; }
+  .card { padding: 28px 24px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+
+  /* ─── Mode tag — softly-rounded keyline pill,
+     typographic and quiet. ─── */
+  .tag {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 5px 14px 6px;
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 500;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    border-radius: 999px;
+    background: transparent;
+  }
+  .tag .mark {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 6px -0.5px currentColor;
+    flex-shrink: 0;
+  }
+  .verify { color: #d5b28a; box-shadow: inset 0 0 0 1px rgba(213,178,138,0.42); }
+  .quiz   { color: #c9a3b1; box-shadow: inset 0 0 0 1px rgba(180,139,154,0.42); }
+  .case   { color: #f2e6da; box-shadow: inset 0 0 0 1px rgba(232,196,176,0.32); }
+  .follow { color: #ecb766; box-shadow: inset 0 0 0 1px rgba(232,161,60,0.55); }
+
+  /* ─── Verdict stamp — softly-rounded keyline cartouche
+     with a gemstone accent. ─── */
+  .stamp {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 6px 14px;
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 500;
+    letter-spacing: 0.26em; text-transform: uppercase;
+    background: transparent;
+    border-radius: 999px;
+  }
+  .stamp .gem {
+    width: 5px; height: 5px;
+    flex-shrink: 0;
+    transform: rotate(45deg);
+  }
+  .stamp.clean       { color: #5fa67a; box-shadow: inset 0 0 0 1px rgba(95,166,122,0.55); }
+  .stamp.clean .gem  { background: #5fa67a; box-shadow: 0 0 8px -1px rgba(95,166,122,0.7); }
+  .stamp.held        { color: #d5b28a; box-shadow: inset 0 0 0 1px rgba(213,178,138,0.55); }
+  .stamp.held .gem   { background: #d5b28a; box-shadow: 0 0 8px -1px rgba(213,178,138,0.7); }
+  .stamp.flag        { color: #c46a5d; box-shadow: inset 0 0 0 1px rgba(196,106,93,0.55); }
+  .stamp.flag .gem   { background: #c46a5d; box-shadow: 0 0 8px -1px rgba(196,106,93,0.7); }
+
+  /* ─── Meta — italic serif numerals ─── */
+  .meta {
+    font-family: var(--font-serif); font-style: italic; font-weight: 400;
+    font-size: 15px; color: var(--fg-3);
+    padding-left: 14px;
+    border-left: 1px solid rgba(168,133,109,0.32);
+  }
+  .meta em { color: var(--fg-1); font-style: italic; }
+</style></head>
+<body><div class="card">
+  <div class="row">
+    <span class="tag verify"><span class="mark"></span>verify</span>
+    <span class="tag quiz"><span class="mark"></span>quiz</span>
+    <span class="tag case"><span class="mark"></span>case file</span>
+    <span class="tag follow"><span class="mark"></span>follow-up</span>
+  </div>
+  <div class="row" style="margin-top: 18px;">
+    <span class="stamp clean"><span class="gem"></span>clean</span>
+    <span class="stamp held"><span class="gem"></span>held</span>
+    <span class="stamp flag"><span class="gem"></span>contradicts</span>
+    <span class="meta">last seen <em>41</em> days ago</span>
+  </div>
+</div></body></html>

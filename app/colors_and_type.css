@@ -1,0 +1,1106 @@
+/* ============================================================
+   PTOR — Design tokens
+   "千金视角" (qiānjīn) — restrained warmth, fountain-pen voice.
+   Two themes: night (espresso, default) and day (warm ivory).
+
+   ── DESIGN CONSTITUTION (V3.13, post huashu-design absorption 2026-04-29) ──
+
+   Stack of 3 philosophies (huashu reference):
+     1. PENTAGRAM INFO ARCHITECTURE — every element earns its structural
+        role; decoration without function = chartjunk, removed.
+     2. HARA EASTERN MINIMALISM — emptiness as content; subtract until
+        each remaining element weighs.
+     3. NORM ARCHITECTS CRAFT — visible craft markers (slightly imperfect
+        grid, raw material edges) over sterile machine perfection.
+
+   Hard anti-patterns (ANY violation = refactor; check before adding rules):
+     ❌ "Rounded card + left color-accent border" (Material/Tailwind 2020-24
+        cliché). Container border-radius MUST be 0; row-items ≤ 2px;
+        inline badges/chips ≤ 4px. The pill toggle (Theme.jsx 999) is the
+        exception — pill is its own register, not card.
+     ❌ Sans-serif as display face (Inter/Roboto/Arial signal templated).
+        Garamond serif is non-negotiable for headlines + body. JetBrains
+        Mono OK for diagnostic / counter / folio numerals only.
+     ❌ Filler labels ("deepen it?", "lenses", "click to expand") that
+        explain what the affordance already says.
+     ❌ Decorative gradients (purple = SaaS slop). The atlas-night /
+        atlas-day mirrored radial-gradient IS structural (sister-room
+        light source per Path G4) — keep that one. Other gradients = no.
+     ❌ Triangle bullets, emoji as bullet, ▸ as section marker in
+        narrative prose. Bullets only when the user wrote a list.
+     ❌ Chartjunk telemetry: redundant timers / progress / ETAs that all
+        say the same thing differently.
+
+   Color discipline (Raf Simons Restraint):
+     Two chromatic accents max per surface. Defaults:
+       --brass-bright (warm hover/active) + --ink-primary (body text).
+     Teal needs per-instance justification; violation tracked in feedback_brass_default_teal_justify.
+
+   Typography hard rules (Bringhurst + feedback_italic_decoration_only):
+     - italic = decoration register (titles, marginalia, stage-direction).
+       Action labels MUST be roman.
+     - text-wrap: pretty + hanging-punctuation: first last on body prose
+       (NoteView, DeepenCallout synth — already shipped).
+     - serif body weight 500 on dark mode (font-weight floor for stem
+       presence; default 400 reads thin in Electron Chromium on espresso).
+
+   Motion discipline (huashu Field.io rule):
+     Every frame must feel physically necessary. Animation curves locked:
+       cubic-bezier(0.22, 1, 0.36, 1)  — emphatic ease-out (Apple-grade)
+       cubic-bezier(0.32, 0.72, 0, 1)  — pane resize / Klimt mode
+       linear                          — only for vinyl 33⅓ rpm
+     Durations: 220ms (chip hover), 280ms (state transitions),
+       360ms (synth chunks), 720ms (view reveal), 1800ms (vinyl rev).
+
+   Spacing (Norm craft, not strict 8pt grid):
+     Body line-height: 1.78 (synth) / 1.62 (NoteView).
+     Vertical rhythm follows line-height multiples, not arbitrary px.
+
+   When in doubt: read references/design-styles.md from huashu-design
+   (alchaincyf/huashu-design @ GitHub) — 20 vocabularies, 4 anti-pattern
+   classes. Match Hara/Norm/Pentagram register, reject SaaS-slop.
+   ============================================================ */
+
+/* Self-hosted fonts via @fontsource (no CDN, no IP-leak, no GFW issues).
+   Per Muse round 8: Aesop / Linear / Arc all self-host — Google Fonts CDN
+   is for prototypes, not for a private library. */
+/* Source Serif 4 Variable — wght 200-900 + opsz 8-60. Loaded FIRST so it
+   becomes primary face. Drives PROCESSIONAL READING typography (per /tr
+   2026-04-29): scroll position drives opsz, intersectionRatio drives weight.
+   EB Garamond stays as fallback (no variable axes available in @fontsource). */
+@import url("node_modules/@fontsource-variable/source-serif-4/opsz.css");
+@import url("node_modules/@fontsource-variable/source-serif-4/opsz-italic.css");
+@import url("node_modules/@fontsource/eb-garamond/400.css");
+@import url("node_modules/@fontsource/eb-garamond/500.css");
+@import url("node_modules/@fontsource/eb-garamond/600.css");
+@import url("node_modules/@fontsource/eb-garamond/400-italic.css");
+@import url("node_modules/@fontsource/eb-garamond/500-italic.css");
+/* Cormorant Garamond — only used for true small-caps (smcp OT) on UI labels
+   (tab bar / folio counter). EB Garamond v5.2.7 doesn't ship smcp glyphs;
+   Cormorant does. Single-purpose import: 400 + 500 weights normal only. */
+@import url("node_modules/@fontsource/cormorant-garamond/400.css");
+@import url("node_modules/@fontsource/cormorant-garamond/500.css");
+/* Inter purged 2026-04-27 (council ruling: no register Garamond doesn't already
+   carry; Inter signaled SaaS-utility-dashboard, not 千金). */
+@import url("node_modules/@fontsource/jetbrains-mono/400.css");
+@import url("node_modules/@fontsource/jetbrains-mono/500.css");
+@import url("node_modules/@fontsource/noto-serif-sc/chinese-simplified-400.css");
+@import url("node_modules/@fontsource/noto-serif-sc/chinese-simplified-500.css");
+
+/* PTOR Math Italic face removed 2026-04-27 — declared but unused in JSX,
+   per Lung's "decoration debt" call. Reactivate only if marginalia ever ships. */
+
+/* ============================================================
+   Semantic surface + ink tokens — these are what components read.
+   The two themes below assign them differently.
+   ============================================================ */
+
+:root,
+:root[data-theme="night"] {
+  /* Surface */
+  --bg-base:           #1a1410;
+  --bg-panel:          #2c241f;
+  --bg-elevated:       #3a2e26;
+  --bg-modal:          #1a1410;
+  /* V3.5 Muse lacquer design — deepen callout sits 1-step warmer than base
+     (Aman Tokyo lobby paneling at 19:00 register, espresso under tungsten
+     not espresso under daylight). Disk is 2-step deeper than card so it
+     reads as a real object lit by the warm room. Scoped to .deepen-callout
+     only; doesn't affect VaultTree / NoteView / etc. */
+  --bg-deepen-card:    #221512;
+  --bg-deepen-disk:    #1a0c08;
+  /* Modal card sits 1-2 ticks DEEPER than --bg-base on night so it reads as
+     "object floating in dim room" not "another panel of the same wall". */
+  --bg-modal-card:     #100c08;
+  --bg-modal-backdrop: rgba(8, 5, 3, 0.72);
+  --bg-page:           radial-gradient(120% 90% at 30% 10%, #3a2e26 0%, #2c241f 38%, #1a1410 78%);
+
+  /* Ink */
+  --ink-primary:       #d8c4b1;   /* body */
+  --ink-title:         #f2e6da;   /* deepest emphasis */
+  --ink-muted:         #a89886;   /* meta */
+  --ink-faint:         #7a6c5d;   /* captions, disabled */
+
+  /* Brass family — night reads BRIGHTER on dark.
+     Desaturated 2026-04-27 per /face → typography pass: subject's gold
+     pendant reads matte/brushed, NOT casino-gilt. Was a86d/d5b28a/e8a13c
+     — too saturated, leaned Vegas. New tones lean linen-warm. */
+  --brass-mid:         #9a7d68;   /* primary accent (was #a8856d) */
+  --brass-bright:      #c4a890;   /* titles, emphasis (was #d5b28a) */
+  --brass-dim:         #786c63;   /* ambient (was #7a6f6a) */
+  --brass-amber:       #b88454;   /* warm amber, dialed back (was #e8a13c) */
+  --brass-deep:        #6e564360;  /* pressed (was #7a5d48) */
+
+  /* Accent teal — the SINGLE chromatic signal. Lifted from her turquoise
+     manicure (the one bright point against an otherwise neutral self). Used
+     ONLY for active state: selected note bullet, terminal cursor, current
+     tab underline, link hover. NEVER for ambient surface. */
+  --accent-teal:       #4D8B9A;
+  --accent-teal-soft:  rgba(77, 139, 154, 0.22);
+
+  /* Verdict */
+  --verdict-clean:     #5fa67a;
+  --verdict-gap:       #e8a13c;
+  --verdict-flag:      #c46a5d;
+
+  /* Soft accents */
+  --hush:              #b48b9a;
+  --blush:             rgba(232, 196, 176, 0.22);
+
+  /* Pearl — soft luminance reference (her bracelet's catch-light).
+     Used for: hairline-warm variant, Lesezimmer whisper, phase-dot highlight. */
+  --pearl:             #E8D4BE;
+  --pearl-glow:        rgba(255, 240, 226, 0.22);
+  --hairline-warm:     rgba(232, 200, 175, 0.30);
+
+  /* Scrollbar thumb — RGB triplet only, alpha controlled by transition.
+     Animating alpha-only (not full color) lets Chromium interpolate smoothly
+     in ::-webkit-scrollbar-thumb (which is otherwise discrete on color jumps). */
+  --scroll-rgb:        168, 133, 109;
+
+  /* Inline code — warm pop on dark, theme-aware */
+  --code-bg:           rgba(232, 196, 176, 0.14);
+  --code-fg:           #e8a13c;   /* brass-amber: gold pop on espresso */
+
+  /* Terminal pane — Geräucherte Birne (ebonized pearwood) under Hoffmann
+     silver service, MAK Vienna 1903. Warm-dark single ground (NOT black:
+     ebonized wood absorbs light, black reflects), with off-axis radial
+     Korn — material micro-variation, not vertical gradient bands.
+     Per Muse council 2026-04-27 Round 3: 三调 lives on message stream
+     (time-domain, Spence 2004), NEVER on pane (no perceptual carrier). */
+  --terminal-bg:
+    radial-gradient(ellipse at 30% 20%, rgba(80, 55, 35, 0.25) 0%, transparent 55%),
+    radial-gradient(ellipse at 75% 75%, rgba(20, 12, 6, 0.40) 0%, transparent 60%),
+    #2A2018;
+  --terminal-hairline: rgba(200, 165, 120, 0.10);
+
+  /* Glass surface */
+  --glass-light:       rgba(58, 46, 38, 0.42);
+  --glass-mid:         rgba(44, 36, 31, 0.58);
+  --glass-strong:      rgba(26, 20, 16, 0.72);
+  --glass-blur:        blur(18px) saturate(130%);
+
+  /* Borders + scrim */
+  --border-hairline:   rgba(168, 133, 109, 0.30);
+  --border-soft:       rgba(168, 133, 109, 0.14);
+  --border-strong:     rgba(168, 133, 109, 0.55);
+  --inset-highlight:   rgba(232, 196, 176, 0.10);   /* top-edge glint */
+
+  /* Shadow */
+  --shadow-card:       inset 0 1px 0 rgba(232,196,176,0.10),
+                       0 18px 48px -22px rgba(0,0,0,0.7);
+  --shadow-modal:      inset 0 1px 0 rgba(232,196,176,0.14),
+                       0 40px 90px -30px rgba(0,0,0,0.85);
+  --shadow-inner-well: inset 0 1px 2px rgba(0,0,0,0.45),
+                       inset 0 0 0 1px rgba(168,133,109,0.10);
+
+  /* Selection / backdrop */
+  --selection-bg:      rgba(232, 161, 60, 0.32);
+  --selection-fg:      #f2e6da;
+
+  /* THANGKA-LEDGER provenance tiers (added 2026-04-29 per /tr council).
+     Re-read count → 5-tier brass progression (ΔE ≈ 4.2 per step).
+     tier-5 = DORMANT (bold-as-refusal: empty notes are chrome-less).
+     Night mode: rim grows BRIGHTER as readCount climbs (vivid on dark). */
+  --rim-brass-tier-1:    #c4a890;   /* 5+ reads — vivid (= brass-bright) */
+  --rim-brass-tier-2:    #b39479;   /* 3-4 reads — emphatic */
+  --rim-brass-tier-3:    #9a7d68;   /* 2 reads — present (= brass-mid) */
+  --rim-brass-tier-4:    #8a6a57;   /* 1 read — earned, just barely */
+  --rim-brass-tier-5:    transparent;  /* 0 reads — DORMANT, refusal */
+
+  /* Time-since-write ink alpha decay over 30d (1.0 fresh → 0.72 aged).
+     Applied to NoteView body via opacity multiplier when mtime > 30d. */
+  --rim-ink-fresh:       1.0;
+  --rim-ink-fade:        0.72;
+
+  /* Link-degree → marginalia rule width (1px isolated → 3px well-cited). */
+  --rim-marginalia-min:  1px;
+  --rim-marginalia-max:  3px;
+}
+
+:root[data-theme="day"] {
+  /* Surface — warm aged-paper, slightly 肉粉 (rosy peach shift per user
+     2026-04-30 "DAY 的背景略微调肉粉色"). Hue moved from yellow-cream
+     (#E8DCC4 ~37° hue) toward soft peach (#F0D9C8 ~22° hue). Lightness held
+     ~L*87 to keep paper feel without glare. */
+  --bg-base:           #F0D9C8;   /* canvas — 肉粉 ivory */
+  --bg-panel:          #F4DFD0;   /* panels — 1 tick warmer */
+  --bg-elevated:       #F8E5D8;   /* hover/focus */
+  --bg-modal:          #FAEAE0;
+  --bg-page:           #F0D9C8;
+  /* V3.5 Muse lacquer — day-mode disk inverts AGAIN per V3.7 user feedback
+     (dark cognac on cream read as black hole, not lacquer master). Day-mode
+     metaphor: copperplate etching, NOT lacquer master. Disk = parchment,
+     1 step deeper than card; spiral cut already inverts (--brass-bright is
+     #5A4030 in day mode), so dark brass etches into warm cream — copperplate
+     intaglio register, not black-hole-on-paper. */
+  --bg-deepen-card:    #F5DFD0;
+  --bg-deepen-disk:    #E5C8B5;
+  /* Modal card sits LIGHTER than --bg-base on day (raised paper above the
+     reading plane). Backdrop is warm dim, not pure black, to keep the day
+     mood from going clinical. */
+  --bg-modal-card:     #FDEEE0;
+  --bg-modal-backdrop: rgba(60, 35, 30, 0.42);
+
+  /* Ink — coffee-toned, never pure black */
+  --ink-primary:       #2A1F18;
+  --ink-title:         #1A1410;
+  --ink-muted:         #756352;
+  --ink-faint:         #9A8975;
+
+  /* Brass DARKENS on ivory. Desaturated to match night palette's matte
+     gold register (subject's brushed pendant, not gilt). */
+  --brass-mid:         #7E6450;
+  --brass-bright:      #5A4030;   /* titles — DARKER, not lighter */
+  --brass-dim:         #A89580;
+  --brass-amber:       #9A6B3A;   /* warm amber, dialed back from #C77A1F */
+  --brass-deep:        #4F3A28;
+
+  /* Accent teal (day) — slightly deepened so it reads on warm-ivory ground */
+  --accent-teal:       #3F7686;
+  --accent-teal-soft:  rgba(63, 118, 134, 0.18);
+
+  /* Verdict — darkened so they read on ivory */
+  --verdict-clean:     #4A7E5C;   /* dark moss */
+  --verdict-gap:       #C77A1F;
+  --verdict-flag:      #A04638;
+
+  --hush:              #8C5F6B;   /* dusk plum, darker for ivory contrast */
+  --blush:             rgba(138, 107, 80, 0.10);
+
+  /* Pearl — softer luminance on ivory ground */
+  --pearl:             #C49E84;
+  --pearl-glow:        rgba(232, 200, 175, 0.45);
+  --hairline-warm:     rgba(180, 130, 105, 0.32);
+
+  /* Scrollbar thumb — same RGB-only token, theme-aware */
+  --scroll-rgb:        138, 107, 80;
+
+  /* Inline code — strong contrast on warm paper */
+  --code-bg:           rgba(138, 107, 80, 0.20);
+  --code-fg:           #B8541C;   /* dark amber — warm without harsh */
+
+  /* Terminal pane — Solnhofen limestone behind Klimt's Erwartung,
+     Palais Stoclet 1905-11. Single warm matte stone, low chroma,
+     mid-high luminance. Withholds saturation so message text earns
+     its presence. Off-axis Korn (asymmetric radials) replaces the
+     vertical-band cliche the council unanimously canned. */
+  --terminal-bg:
+    radial-gradient(ellipse at 30% 20%, rgba(255, 248, 235, 0.35) 0%, transparent 55%),
+    radial-gradient(ellipse at 75% 75%, rgba(180, 140, 100, 0.10) 0%, transparent 60%),
+    #EAD9C2;
+  --terminal-hairline: rgba(120, 90, 60, 0.18);
+
+  /* Glass — warm vellum translucent paper, dimmed to match new paper tone */
+  --glass-light:       rgba(248, 240, 222, 0.62);
+  --glass-mid:         rgba(250, 243, 228, 0.80);
+  --glass-strong:      rgba(252, 245, 232, 0.92);
+  --glass-blur:        blur(18px) saturate(130%);
+
+  /* Hairline brass borders, Hermès letterpress feel */
+  --border-hairline:   rgba(138, 107, 80, 0.18);
+  --border-soft:       rgba(138, 107, 80, 0.10);
+  --border-strong:     rgba(138, 107, 80, 0.42);
+  --inset-highlight:   rgba(255, 255, 255, 0.6);
+
+  /* Shadows are warm brown, not black */
+  --shadow-card:       inset 0 1px 0 rgba(255,255,255,0.55),
+                       0 8px 28px rgba(74,55,40,0.10);
+  --shadow-modal:      inset 0 1px 0 rgba(255,255,255,0.7),
+                       0 24px 64px -16px rgba(74,55,40,0.18);
+  --shadow-inner-well: inset 0 1px 2px rgba(74,55,40,0.10),
+                       inset 0 0 0 1px rgba(138,107,80,0.10);
+
+  --selection-bg:      rgba(199, 122, 31, 0.28);
+  --selection-fg:      #1A1410;
+
+  /* THANGKA-LEDGER tiers — day mode mirror.
+     Brass DARKENS on ivory (existing convention L226-230).
+     tier-1 (most read) = darkest = highest contrast against parchment.
+     Night mode same semantic, inverse pigment. */
+  --rim-brass-tier-1:    #5A4030;   /* 5+ reads — deepest (= brass-bright) */
+  --rim-brass-tier-2:    #4F3A28;   /* 3-4 reads — pressed */
+  --rim-brass-tier-3:    #7E6450;   /* 2 reads — present (= brass-mid) */
+  --rim-brass-tier-4:    #A89580;   /* 1 read — barely earned */
+  --rim-brass-tier-5:    transparent;  /* 0 reads — DORMANT */
+
+  /* Breath-Line chat spine (LUNG+MUSE 2026-05-01).
+     Tutor = full brass-bright at outer-left, user = 35% brass-mid.
+     During tutor stream, spine opacity ramps 0.35→1.0 over 600ms
+     (handled in component as opacity transition, not gradient ramp). */
+  --breath-tutor:        var(--brass-bright);
+  --breath-user:         color-mix(in srgb, var(--brass-mid) 35%, transparent);
+}
+
+/* Rich chat body — tutor turn rendered through marked → DOMPurify → MathJax.
+   Tightens the default md element margins so a chat bubble doesn't bloat,
+   and harmonises code / blockquote / link with the warm Garamond register. */
+.hypha-chat-rich p              { margin: 0 0 0.55em 0; }
+.hypha-chat-rich p:last-child   { margin-bottom: 0; }
+.hypha-chat-rich ul,
+.hypha-chat-rich ol             { margin: 0.4em 0 0.55em 1.55em; padding: 0; }
+.hypha-chat-rich li             { margin: 0.1em 0; }
+.hypha-chat-rich h1,
+.hypha-chat-rich h2,
+.hypha-chat-rich h3,
+.hypha-chat-rich h4             { font-weight: 600; margin: 0.7em 0 0.3em; line-height: 1.25; }
+.hypha-chat-rich h1             { font-size: 1.18em; }
+.hypha-chat-rich h2             { font-size: 1.10em; }
+.hypha-chat-rich h3,
+.hypha-chat-rich h4             { font-size: 1.02em; }
+.hypha-chat-rich strong         { font-weight: 600; }
+.hypha-chat-rich em             { font-style: italic; }
+.hypha-chat-rich a              { color: var(--brass-bright); text-decoration: underline; text-underline-offset: 2px; }
+.hypha-chat-rich code           {
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+  font-size: 0.92em;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.hypha-chat-rich pre            {
+  margin: 0.6em 0;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--brass-mid) 8%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--brass-mid) 28%, transparent);
+  border-radius: 0 4px 4px 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+.hypha-chat-rich pre code       { background: transparent; padding: 0; color: inherit; }
+.hypha-chat-rich blockquote     {
+  border-left: 2px solid color-mix(in srgb, var(--brass-mid) 40%, transparent);
+  margin: 0.5em 0;
+  padding: 0 0 0 14px;
+  color: var(--ink-muted);
+  font-style: italic;
+}
+.hypha-chat-rich hr             {
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--brass-mid) 24%, transparent);
+  margin: 0.8em 0;
+}
+.hypha-chat-rich mjx-container[display="true"] { margin: 0.4em 0; }
+
+
+:root {
+  /* ----- Brass family (the signature) ----- */
+  --brass:            #a8856d;   /* primary brass, key accent */
+  --brass-bright:     #d5b28a;   /* highlight, warm hover */
+  --brass-amber:      #e8a13c;   /* GAP amber — sparingly, for emphasis */
+  --brass-deep:       #7a5d48;   /* pressed / sunken brass */
+  --brass-leaf:       rgba(168, 133, 109, 0.42);  /* hairline rule */
+
+  /* ----- Espresso ground (background grade) ----- */
+  --espresso-1:       #1a1410;   /* deepest — outer field */
+  --espresso-2:       #2c241f;   /* mid — panel ground */
+  --espresso-3:       #3a2e26;   /* lift — raised surface */
+  --espresso-veil:    rgba(26, 20, 16, 0.62);  /* scrim under glass */
+
+  /* Radial wash used as page background */
+  --espresso-wash:
+    radial-gradient(120% 90% at 30% 10%, #3a2e26 0%, #2c241f 38%, #1a1410 78%);
+
+  /* ----- Glass / blush / hush ----- */
+  --blush:            rgba(232, 196, 176, 0.22);  /* warm frost tint */
+  --blush-strong:     rgba(232, 196, 176, 0.34);
+  --hush:             #b48b9a;   /* mauve — quiet annotation */
+  --hush-soft:        rgba(180, 139, 154, 0.28);
+
+  /* ----- Verdict / semantic ----- */
+  --verdict-clean:    #5fa67a;   /* CLEAN green */
+  --verdict-clean-soft: rgba(95, 166, 122, 0.18);
+  --verdict-warn:     #c98a4b;   /* warm caution — never red-orange */
+  --verdict-flag:     #c46a5d;   /* terracotta flag, never neon red */
+  --verdict-flag-soft: rgba(196, 106, 93, 0.16);
+
+  /* ----- Foreground type tones (on espresso) ----- */
+  --fg-1:             #f2e6da;   /* parchment — primary text */
+  --fg-2:             #d8c4b1;   /* secondary — body */
+  --fg-3:             #a89886;   /* tertiary — meta */
+  --fg-4:             #7a6c5d;   /* quaternary — disabled, captions */
+  --fg-mute:          rgba(242, 230, 218, 0.46);
+
+  /* ----- Glass surface system ----- */
+  --glass-1:          rgba(58, 46, 38, 0.42);    /* lightest panel */
+  --glass-2:          rgba(44, 36, 31, 0.58);    /* standard panel */
+  --glass-3:          rgba(26, 20, 16, 0.72);    /* dialog / modal */
+  --glass-blur:       blur(18px) saturate(130%);
+  --glass-edge:       inset 0 1px 0 rgba(232, 196, 176, 0.10),
+                      inset 0 0 0 1px rgba(168, 133, 109, 0.18);
+
+  /* ----- Type families (2-family system per 2026-04-27 council ruling) ----- */
+  --font-serif:       "Source Serif 4 Variable", "EB Garamond", "Noto Serif SC", "Source Serif Pro", Georgia, serif;
+  --font-mono:        "JetBrains Mono", "SF Mono", "Fira Code", ui-monospace, monospace;
+  /* --font-sans removed (Inter banished). --font-math removed (unused). */
+
+  /* ----- Type scale (anchored at 14px terminal base) -----
+     Body bumped 15→18 for Garamond x-height floor (per /face Layer 1: long
+     lower third + small mouth → letterforms need vertical breathing room).
+     Titles climbed in proportion. */
+  --t-display:        clamp(2.6rem, 4.4vw, 3.8rem);  /* serif, 400 */
+  --t-title:          1.75rem;      /* 28px serif — section header */
+  --t-heading:        1.3125rem;    /* 21px serif — panel header */
+  --t-subhead:        1.125rem;     /* 18px serif 500 */
+  --t-body:           1.125rem;     /* 18px serif 400 (was 15px) */
+  --t-mono:           0.875rem;     /* 14px mono — terminal */
+  --t-meta:           0.84375rem;   /* 13.5px serif 450 */
+  --t-micro:          0.6875rem;    /* 11px mono lowercase tracked +.06em */
+
+  /* ----- Leading / tracking -----
+     Body 1.55 → 1.72: subject's posture is "slow", text should breathe at
+     same cadence. Caps tracking 0.14em → 0.06em: she doesn't shout. */
+  --lh-display:       1.06;
+  --lh-title:         1.22;
+  --lh-body:          1.72;
+  --lh-mono:          1.62;
+
+  --track-tight:      -0.005em;     /* less compression — long-vertical face */
+  --track-normal:     0;
+  --track-loose:      0.02em;
+  --track-caps:       0.06em;       /* sentence-case microlabel tracking */
+
+  /* ----- Geometry ----- */
+  --r-lg:             18px;
+  --r-md:             14px;
+  --r-sm:             9px;
+  --r-pill:           999px;
+  --hairline:         1px solid var(--brass-leaf);
+  --hairline-soft:    1px solid rgba(168, 133, 109, 0.14);
+
+  /* ----- Spacing (8-pt with a 4-pt half) ----- */
+  --s-1:              4px;
+  --s-2:              8px;
+  --s-3:              12px;
+  --s-4:              16px;
+  --s-5:              24px;
+  --s-6:              32px;
+  --s-7:              48px;
+  --s-8:              64px;
+  --s-9:              96px;
+
+  /* ----- Shadow / elevation -----
+     Warm, never bluish. Inner glow + soft long shadow. No 2px-Y drop shadow. */
+  --shadow-lift-1:
+    0 1px 0 rgba(232, 196, 176, 0.06),
+    0 8px 24px -10px rgba(0, 0, 0, 0.55);
+  --shadow-lift-2:
+    inset 0 1px 0 rgba(232, 196, 176, 0.12),
+    0 18px 48px -22px rgba(0, 0, 0, 0.7),
+    0 4px 14px -8px rgba(26, 20, 16, 0.6);
+  --shadow-modal:
+    inset 0 1px 0 rgba(232, 196, 176, 0.14),
+    0 40px 90px -30px rgba(0, 0, 0, 0.85),
+    0 12px 32px -16px rgba(26, 20, 16, 0.7);
+  --shadow-inner-well:
+    inset 0 1px 2px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(168, 133, 109, 0.10);
+  --glow-brass:
+    0 0 0 1px rgba(213, 178, 138, 0.35),
+    0 0 24px -4px rgba(232, 161, 60, 0.35);
+
+  /* ----- Motion ----- */
+  --ease-spring:      cubic-bezier(0.34, 1.56, 0.64, 1);   /* entrance */
+  --ease-exit:        cubic-bezier(0.22, 1, 0.36, 1);      /* exit */
+  --ease-quiet:       cubic-bezier(0.4, 0, 0.2, 1);        /* tonal/color */
+  /* Lacquer Loop motion-as-signal (W7 v1.0). Plan: flickering-tickling-koala.md */
+  --ease-cure:        cubic-bezier(0.65, 0.05, 0.36, 1);   /* A1 cure-clock fill — asymmetric like real lacquer hardening */
+  --ease-graphite:    cubic-bezier(0.5, 0, 0.5, 1);        /* A2 prediction-error stylus-skip */
+  --dur-1:            120ms;   /* hover tone */
+  --dur-2:            220ms;   /* small entrance */
+  --dur-3:            360ms;   /* panel entrance */
+  --dur-4:            560ms;   /* page-level */
+  --dur-cure:         2400ms;  /* cure-clock fill default cycle */
+  --dur-breath:       2400ms;  /* ambient harvest/await breath */
+}
+
+/* Lacquer Loop ambient breath — used by HarvestingMurmur and other "active
+   substrate work" status lines. Opacity-only, no transform — preserves
+   manuscript stillness. Wrap text in a span with class="hypha-breath" only
+   while substrate work is active; remove the class when work ends. */
+@keyframes hypha-breath {
+  0%   { opacity: 0.62; }
+  100% { opacity: 0.92; }
+}
+.hypha-breath {
+  animation: hypha-breath var(--dur-breath, 2400ms) var(--ease-quiet) infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hypha-breath { animation: none !important; opacity: 0.78; }
+}
+
+/* Lacquer Loop — Ink Reservoir nib-breath (W7 v1.2-REDUX, MUSE × LUNG council
+   2026-05-01). Sine-eased opacity oscillation 0.22 ↔ 0.42 with micro-blur for
+   "ink soaking through paper from a poised nib." Period set inline by
+   TutorInkBlot.jsx based on substrate.a2Delta (motion-as-signal). Activates
+   only after the 3s stillness window — pure typographic anticipation first. */
+@keyframes hypha-nib-breath {
+  0%, 100% { opacity: 0.22; filter: blur(0.4px); }
+  50%      { opacity: 0.42; filter: blur(0px); }
+}
+
+/* 金句 (Golden Quotes) — Phase 2.2 persistent underline on tutor passages
+   the user has already torn into the right rail. brass-mid hairline at 60%,
+   barely there but reads as marginalia. Click → scrolls right rail to the
+   matching quote card + brief glow (bidirectional reading). */
+.hypha-quote-mark {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--brass-mid, #c4a890) 60%, transparent);
+  text-decoration-thickness: 0.5px;
+  text-underline-offset: 2.5px;
+  cursor: pointer;
+  transition: text-decoration-color 220ms var(--ease-quiet, cubic-bezier(0.4, 0, 0.2, 1)),
+              color 220ms var(--ease-quiet, cubic-bezier(0.4, 0, 0.2, 1));
+}
+.hypha-quote-mark:hover {
+  text-decoration-color: var(--brass-bright, #c9a86a);
+  color: var(--brass-bright, #c9a86a);
+}
+
+/* Glow recall — fires on the matching quote card in ConceptAtlas when user
+   clicks an underlined passage. brass-mid 12% bg flash over 300ms then settle. */
+@keyframes hypha-quote-glow {
+  0%   { background: color-mix(in srgb, var(--brass-bright, #c9a86a) 18%, transparent); }
+  100% { background: transparent; }
+}
+.hypha-quote-glow {
+  animation: hypha-quote-glow 600ms var(--ease-quiet, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+/* Phase 2.6 — bubble recall. Reverse direction of 2.2: hover quote card in
+   right rail → corresponding chat bubble briefly haloed in brass-mid 8%
+   so user sees WHERE this quote came from in the conversation. CSS-only
+   (no animation iteration) — class added/removed by LessonChat listener. */
+.hypha-bubble-recall {
+  background: color-mix(in srgb, var(--brass-mid, #c4a890) 10%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--brass-bright, #c9a86a) 65%, transparent);
+  transition: background 220ms var(--ease-quiet, cubic-bezier(0.4, 0, 0.2, 1)),
+              box-shadow 220ms var(--ease-quiet, cubic-bezier(0.4, 0, 0.2, 1));
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Reduced motion: TutorInkBlot inline style already handles steady 0.32 fallback;
+     ensure animation is cancelled if it ever starts. */
+  [data-tutor-ink-blot] { animation: none !important; }
+}
+
+/* ============================================================
+   Atlas register — third theme axis (orthogonal to night/day).
+   Per 2026-04-28 council (Lung + Leo + Muse): Atlas needs its own
+   chromatic register so the user FEELS the room change. Distinct
+   from notes (espresso/ivory + brass + teal). Keeps day/night for
+   continuity with the existing toggle, but shifts hue family:
+   - night → "pressed indigo" (Muse hard rule: H 220-235°, S ≤ 12%, L ≤ 18%)
+   - day   → cool vellum (slightly cooler than notes' ivory)
+   Three distinct accent functions:
+     - --atlas-band-live      = teal-soft   (active stratum tint)
+     - --atlas-opportunity    = brass-amber (top-left dormant+strong glow)
+     - --atlas-citation-vein  = oxblood     (Lung's organic accent, hover)
+   ============================================================ */
+/* ─── Atlas chromatic register — PATH G (2026-04-28 post-MUSE-strike) ─────
+   PATH E (twilight indigo-graphite) was rejected on first user view:
+   "不喜欢现在这个石墨的感觉，整体感觉比起note来差太多了". The Path E
+   falsifier predicted this exact outcome (FAIL-DEAD: feels antiseptic).
+
+   PATH F (Tilda Swinton / Only Lovers Left Alive — oxblood velvet) was
+   slain by MUSE solo strike. Force 0.58. Fatal:
+     1. claimed ~70° hue rotation, measured ~25°
+     2. real differentiator was saturation lift in same hue, not hue
+     3. shared --hush #6B2922 dissolved against oxblood bg-panel
+     4. OKLab L ladder dropped under note's (FAIL-SUFFOCATE)
+     5. atlas-day regressed to warm-twin of note-day
+
+   PATH G — Claudia Cardinale in Visconti's Il Gattopardo (1963).
+   Anchor: Salina ballroom at dusk-amber + Sicilian palazzo sun-bleached
+   ochre + Garibaldi-era gilt mirrors + dust motes in candle-honey light.
+
+   PATH G v1 (single-radial cognac wash) was rejected on first user view:
+   "太亮了白天图 ... 颜色可以多些分层 ... 总感觉很单调 ... 没有层次感".
+
+   PATH G2 — layering revision after Gemini-3-pro consult 2026-04-28.
+   Diagnosis: bg + ink + brass + hush were ALL in H=20°-45° warm family.
+   Same temperature across all surface types = monochromatic ramp.
+   note avoids this via cool counter-temperature (hush rose-mauve H≈345°,
+   accent-teal H≈191°) crossing the color wheel.
+
+   PATH G2 corrections:
+     • atlas-night --bg-page is now 3 STACKED radials:
+         (1) warm candle pool top-right (rgba(217,160,80,0.10))
+         (2) cool aubergine shadow bottom-left (rgba(58,34,64,0.22)) — the
+             chromatic-tension corrective: cross-wheel violet against the
+             warm cognac field, breaks monotone ramp
+         (3) base architectural wash mirrored from note (70%/10%)
+     • atlas-day dropped from L=76% (palace afternoon glare — too bright)
+       to L=63-76% mid-tone palazzo stone register. New ladder:
+         #A3917C (L≈63%) base — dust-stone shadow tier
+         #B5A28C (L≈70%) panel — mid-stone
+         #C6B29B (L≈76%) elevated — sun-touched plaster
+     • atlas-day --bg-page is also stacked: warm window-shaft top-right
+       + cool corner-shadow bottom-left + base wash. Mirror geometry kept.
+     • brass darkens for new mid-stone bg
+     • glass overlays recalibrated (honey-bright glass disappeared into
+       new bg; palazzo-stone glass now reads as frosted material)
+
+   Other Path G survivors (not changed in G2):
+     • hue: cognac H≈30° vs note H≈24° — 6-9° gold push
+     • OKLab L bg-base +0.02, panel match, elevated +0.01 (no FAIL-SUFFOCATE)
+     • brass rotated back to GILT from Path E graphite
+     • mirror radial geometry kept
+     • --hush #6B2922 pops on cognac via 27° hue distance + sat contrast
+
+   New falsifier (replacing FAIL-DEAD + FAIL-CARNIVAL):
+     FAIL-MUDDY (Gemini's blur test): apply 15px Gaussian blur to the
+       canvas. If it turns into bruised purple-brown, too many chroma
+       peaks; reduce shadow alpha 30%.
+     FAIL-LINE-DEPENDENT (Gemini's strip test): hide all 1px borders &
+       drop shadows. If UI collapses into mush, the depth was a lie —
+       depth must come from L+temp contrast, not drawn lines.
+     FAIL-SUFFOCATE (carry-over): atlas-night reads heavier than note. */
+
+:root[data-theme="atlas-night"] {
+  /* PATH G4 — atlas-night as note-night's mirrored sister room.
+     2026-04-28 user verdict after G2 (cognac-blob), G2.5 (layered radials),
+     G3 (Hammershøi 180° linear), G3.1 (edge-breath), G3.2 (single-hue
+     grammar) all rejected: user pointed at note-night and said
+     "参考这颜色渐变，还是你自己写的代码，去重新改写atlas的night"
+     (use this gradient as reference, it's your own code, rewrite atlas).
+
+     Note-night succeeds with the simplest possible composition:
+       radial-gradient(120% 90% at 30% 10%, #3a2e26 0%, #2c241f 38%, #1a1410 78%)
+     One radial. Three stops. Single hue (H≈24° espresso). No noise,
+     no edge-breath, no body override. The cross-family accents
+     (hush=rose, teal=cyan, code=gold) are tiny dose-controlled
+     unifying pops, not "temperature war."
+
+     PATH G4 = note-night with:
+       • origin mirrored 30%/10% → 70%/10% (sister chamber, lamp
+         on opposite side — the diptych spine survives)
+       • L ladder MATCHED within 1% (sister-room L invariance)
+       • H pushed +5° toward cognac (atlas's subtle identity)
+       • ink/brass/hush/teal/code all MIRRORED FROM NOTE (cross-mode
+         unity — these accents are the through-line of the product)
+
+     Killed:
+       • SVG turbulence noise overlay (note doesn't need it; we don't either)
+       • body bg override (let var(--bg-page) be single source)
+       • stacked radials, edge-breath, 180° linear (overdesign)
+       • single-hue lock on accents (note proves cross-family micro-pops work)
+
+     One radial. Three stops. Note-mirror. Done. */
+
+  /* atlas-specific tokens — aligned to new bg ladder.
+     Path A 2026-04-28 evening: hue -12° rotation (espresso 22° → reddish-cognac 14°)
+     to make atlas distinct from note (G4 mirror was rejected as乏味 / boring).
+     Form/grammar (single radial, 3 stops, mirrored origin) preserved from G4. */
+  --atlas-bg-deep:         #1a0f0c;
+  --atlas-bg-paper:        #2c1f1a;
+  --atlas-grid:            #4f3725;
+  --atlas-ink-primary:     #d8c4b1;
+  --atlas-ink-dim:         #a89886;
+  --atlas-band-live:       rgba(77, 139, 154, 0.18);   /* teal-soft, mirrored from note */
+  --atlas-band-warm:       rgba(184, 132, 84, 0.22);
+  --atlas-band-cooling:    rgba(74, 56, 32, 0.34);
+  --atlas-band-dormant:    rgba(27, 20, 14, 0.50);
+  --atlas-mark-fresh:      #d8c4b1;
+  --atlas-mark-mid:        #a89886;
+  --atlas-mark-dormant:    #786c63;
+  --atlas-opportunity:     #b88454;          /* match note brass-amber */
+  --atlas-citation-vein:   #b48b9a;          /* match note hush — rose */
+  --atlas-hairline:        rgba(184, 132, 84, 0.22);
+
+  /* Standard tokens — sister-mirror of note (Path A hue shifted) */
+  --bg-base:           #1a0f0c;
+  --bg-panel:          #2c1f1a;
+  --bg-elevated:       #3a2820;
+  --bg-modal:          #1a0f0c;
+  /* V3.5 Muse lacquer — atlas-night uses Muse's literal cognac calibration:
+     #221310 sits H=14° L+5% from atlas-bg #1a0f0c. */
+  --bg-deepen-card:    #221310;
+  --bg-deepen-disk:    #1a0c08;
+  /* Single radial, mirrored origin (note: 30%/10% → atlas: 70%/10%).
+     Path A: H -12° (22° → 14°) reddish-cognac shift. Form identical to G4;
+     only chroma rotates. Sister palace, evening light through西 windows. */
+  --bg-page:           radial-gradient(120% 90% at 70% 10%,
+                         #3a2820 0%, #2c1f1a 38%, #1a0f0c 78%);
+
+  /* Ink — match note exactly. Cross-mode unity: same paper in both rooms. */
+  --ink-primary:       #d8c4b1;
+  --ink-title:         #f2e6da;
+  --ink-muted:         #a89886;
+  --ink-faint:         #7a6c5d;
+
+  /* Brass — match note exactly (matte linen-warm subject_a register) */
+  --brass-mid:         #9a7d68;
+  --brass-bright:      #c4a890;
+  --brass-dim:         #786c63;
+  --brass-amber:       #b88454;
+  --brass-deep:        #6e5643;
+
+  /* Cross-family accents — match note. Small-dose chromatic events
+     unify the product across modes; they are not temperature war. */
+  --hush:              #b48b9a;              /* rose vein */
+  --blush:             rgba(232, 196, 176, 0.22);
+
+  --accent-teal:       #4D8B9A;              /* manicure-pop teal */
+  --accent-teal-soft:  rgba(77, 139, 154, 0.22);
+
+  --code-bg:           rgba(232, 196, 176, 0.14);
+  --code-fg:           #e8a13c;              /* gold pop on espresso */
+
+  --border-hairline:   rgba(196, 168, 144, 0.22);
+  --border-soft:       rgba(154, 125, 104, 0.20);   /* +0.04 — visible against deep bg */
+  --border-strong:     rgba(196, 168, 144, 0.45);
+  /* Path G4.2 (2026-04-28): user said atlas-day's "纯白顶线突出立体感",
+     atlas-night needs same. Lifted 0.06 → 0.22 + cream-white color
+     (was 232,212,190 = brass-tinged; now 255,245,220 = lit-cream).
+     This is the entire 3D illusion mechanism in dark mode — the inset
+     hairline IS the light source, drop shadows do nothing on near-black bg. */
+  --inset-highlight:   rgba(255, 245, 220, 0.22);
+
+  --selection-bg:      rgba(77, 139, 154, 0.32);
+  --selection-fg:      #f2e6da;
+
+  --pearl:             #E8D4BE;
+  --pearl-glow:        rgba(255, 240, 226, 0.22);
+  --hairline-warm:     rgba(232, 200, 175, 0.30);
+
+  --glass-light:       rgba(58, 46, 38, 0.42);
+  --glass-mid:         rgba(45, 36, 28, 0.62);
+  --glass-strong:      rgba(27, 20, 14, 0.78);
+}
+
+:root[data-theme="atlas-day"] {
+  /* 2026-05-01 luminance lift (round 3, post-RECALL feedback "字体和背景都
+     很黑"): the L=63-76% Path G2 reads heavy when used as a long-form note
+     reading surface (RECALL viewMode). Lift the bg ladder one tier so
+     bg-base sits at the previous bg-elevated value #C6B29B (sun-touched
+     plaster) rather than #A3917C (dust-stone shadow). atlas-bg-deep / paper
+     stay as the deeper specimens for the ATLAS visualisation itself, but
+     RECALL inherits the brighter floor via bg-base. Hue family unchanged
+     (warm-stone), perceived heaviness drops ~15% via L-step lift. */
+  --atlas-bg-deep:         #B5A28C;   /* was #A3917C — bumped one tier */
+  --atlas-bg-paper:        #C6B29B;   /* was #B5A28C */
+  --atlas-grid:            #8A7960;
+  --atlas-ink-primary:     #2A1B12;
+  --atlas-ink-dim:         #5C4A3A;
+  --atlas-band-live:       rgba(138, 103, 66, 0.22);
+  --atlas-band-warm:       rgba(166, 130, 92, 0.20);
+  --atlas-band-cooling:    rgba(198, 178, 155, 0.32);
+  --atlas-band-dormant:    rgba(220, 206, 184, 0.50);
+  --atlas-mark-fresh:      #2A1B12;
+  --atlas-mark-mid:        #5C4A3A;
+  --atlas-mark-dormant:    #8A7960;
+  --atlas-opportunity:     #B8541C;
+  --atlas-citation-vein:   #6B2922;
+  --atlas-hairline:        rgba(138, 103, 66, 0.36);
+
+  /* 2026-05-01: bg ladder shifted up one tier for RECALL readability.
+     Old base #A3917C demoted (still available via --atlas-bg-deep for
+     ATLAS viz), new floor is sun-touched plaster #C6B29B. */
+  --bg-base:           #C6B29B;
+  --bg-panel:          #D2BFA8;
+  --bg-elevated:       #DECCB6;
+  --bg-modal:          #E8D6BF;
+  /* V3.5 Muse lacquer — atlas-day per V3.7 fix: copperplate not black hole.
+     Disk = warm stone slightly deeper than card; --brass-bright #5A4028
+     spiral cut etches into warm stone surface. */
+  --bg-deepen-card:    #DECCB6;
+  --bg-deepen-disk:    #C6B29B;
+  /* Stacked radials anchored on the lifted ladder. */
+  --bg-page:
+    radial-gradient(70% 70% at 75% 5%, rgba(217, 184, 112, 0.18) 0%, transparent 65%),
+    radial-gradient(80% 70% at 10% 90%, rgba(80, 60, 80, 0.14) 0%, transparent 70%),
+    radial-gradient(120% 100% at 70% 10%, #DECCB6 0%, #D2BFA8 50%, #C6B29B 100%);
+
+  --ink-primary:       #2A1B12;
+  --ink-title:         #16100A;
+  --ink-muted:         #5C4A3A;
+  --ink-faint:         #8A7960;
+
+  /* Brass darkens to deep gilt against mid-stone bg */
+  --brass-mid:         #8A6742;
+  --brass-bright:      #5A4028;
+  --brass-dim:         #A88965;
+  --brass-amber:       #B8541C;              /* deep amber pulse */
+  --brass-deep:        #3D2C18;
+
+  --hush:              #6B2922;
+
+  --accent-teal:       #2F6B7A;
+  --accent-teal-soft:  rgba(47, 107, 122, 0.22);
+
+  --code-bg:           rgba(184, 84, 28, 0.20);
+  --code-fg:           #B8541C;
+
+  --border-hairline:   rgba(110, 90, 60, 0.32);
+  --border-soft:       rgba(154, 130, 85, 0.20);
+  --border-strong:     rgba(74, 56, 32, 0.45);
+  --inset-highlight:   rgba(255, 245, 220, 0.55);
+
+  --selection-bg:      rgba(184, 144, 69, 0.36);
+  --selection-fg:      #1A1208;
+
+  --pearl:             #C49E84;
+  --pearl-glow:        rgba(232, 200, 130, 0.45);
+  --hairline-warm:     rgba(180, 130, 60, 0.36);
+
+  /* Glass tints recalibrated for mid-stone bg (Path G2). Earlier honey-
+     bright values made glass disappear into bg; these read as frosted
+     palazzo stone above the dust-shadow base. */
+  --glass-light:       rgba(195, 178, 155, 0.55);
+  --glass-mid:         rgba(180, 165, 140, 0.72);
+  --glass-strong:      rgba(160, 145, 120, 0.85);
+}
+
+/* ============================================================
+   Semantic element styles — apply to bare HTML
+   ============================================================ */
+
+html, body {
+  background: var(--bg-page);
+  color: var(--ink-primary);
+  font-family: var(--font-serif);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  letter-spacing: var(--track-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Theme transition is handled entirely by Theme.jsx using a WAAPI
+   opacity crossfade overlay (compositor thread, no jank). No global
+   CSS transition needed — that would fight backdrop-filter repaints
+   on every theme-token consumer. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* While resize is active, cursor is none across the entire document.
+   Per Muse council 2026-04-27 Round 4: the hairline IS the cursor.
+   Per Gemini council same round: prevents cursor flicker when pointer
+   leaves the 6px hit-zone mid-drag. */
+body.ptor-resizing,
+body.ptor-resizing * {
+  cursor: none !important;
+  user-select: none !important;
+}
+
+h1, .h1 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: var(--t-display);
+  line-height: var(--lh-display);
+  letter-spacing: var(--track-tight);
+  color: var(--ink-title);
+  margin: 0 0 var(--s-5);
+}
+
+h2, .h2 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-style: italic;
+  font-size: var(--t-title);
+  line-height: var(--lh-title);
+  color: var(--ink-title);
+  margin: 0 0 var(--s-4);
+}
+
+h3, .h3 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: var(--t-heading);
+  line-height: var(--lh-title);
+  color: var(--ink-title);
+  margin: 0 0 var(--s-3);
+}
+
+h4, .h4, .subhead {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: var(--t-subhead);
+  color: var(--ink-title);
+  letter-spacing: var(--track-tight);
+  margin: 0 0 var(--s-2);
+}
+
+p, .body {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink-primary);
+  text-wrap: pretty;
+  margin: 0 0 var(--s-3);
+}
+
+small, .meta {
+  font-family: var(--font-serif);
+  font-weight: 450;
+  font-size: var(--t-meta);
+  color: var(--ink-muted);
+}
+
+.micro {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  /* lowercased per 2026-04-27 typography pass: subject's register never shouts */
+  text-transform: lowercase;
+  letter-spacing: var(--track-caps);
+  color: var(--ink-muted);
+}
+
+code, kbd, pre, .mono {
+  font-family: var(--font-mono);
+  font-size: var(--t-mono);
+  line-height: var(--lh-mono);
+  color: var(--ink-title);
+  font-feature-settings: "calt" 1, "liga" 0;
+}
+
+pre {
+  background: var(--bg-base);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  padding: var(--s-4) var(--s-5);
+  box-shadow: var(--shadow-inner-well);
+  overflow: auto;
+}
+
+a {
+  color: var(--brass-bright);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-hairline);
+  transition: color var(--dur-1) var(--ease-quiet),
+              border-color var(--dur-1) var(--ease-quiet);
+}
+a:hover {
+  /* hover signal = teal (subject's one chromatic anchor) — was brass-amber */
+  color: var(--accent-teal);
+  border-bottom-color: var(--accent-teal);
+}
+
+hr {
+  border: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent, var(--border-hairline) 22%, var(--border-hairline) 78%, transparent);
+  margin: var(--s-6) 0;
+}
+
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-fg);
+}
+
+/* ============================================================
+   Utility classes — frosted panel, the workhorse surface
+   ============================================================ */
+
+.glass {
+  background: var(--glass-mid);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--r-lg);
+  box-shadow: inset 0 1px 0 var(--inset-highlight),
+              inset 0 0 0 1px var(--border-soft),
+              var(--shadow-card);
+}
+.glass--light  { background: var(--glass-light); }
+.glass--strong { background: var(--glass-strong); box-shadow: inset 0 1px 0 var(--inset-highlight), inset 0 0 0 1px var(--border-soft), var(--shadow-modal); }
+
+.serif    { font-family: var(--font-serif); }
+.mono     { font-family: var(--font-mono); }
+.italic   { font-style: italic; }
+/* .sans + .math removed 2026-04-27 (Inter banished, math face unused) */
+
+/* ============================================================
+   SRS Recall Scale (Apple-grade typographic logbook)
+   ============================================================ */
+
+.srs-scale {
+  display: inline-flex;
+  align-items: center;
+  background: var(--glass-light);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.15),
+    inset 0 0 0 1px var(--border-soft);
+  border-radius: 2px;
+  padding: 4px;
+  gap: 4px;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.srs-btn {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  padding: 6px 16px 6px 12px;
+  /* Federdruck verdict — restraint pass 2026-04-27: lowercase + 0.06em
+     tracking. Was UC + 0.14em (shouted at the user). */
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+  position: relative;
+  outline: none;
+}
+
+/* typographic scale marks */
+.srs-btn::before {
+  content: attr(data-mark);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: 0.5;
+  margin-right: -2px;
+}
+
+/* 1. Forgotten: Faint, lightest touch */
+.srs-btn.srs-forgotten {
+  color: var(--ink-faint);
+  font-weight: 450;
+}
+.srs-btn.srs-forgotten:hover {
+  background: rgba(168, 133, 109, 0.08); /* --border-soft ish */
+  color: var(--ink-muted);
+}
+
+/* 2. Shaky: Midline */
+.srs-btn.srs-shaky {
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+.srs-btn.srs-shaky:hover {
+  background: rgba(168, 133, 109, 0.12);
+  color: var(--ink-primary);
+}
+
+/* 3. Held: Solid, default action (Apple sheet primary button) */
+.srs-btn.srs-held {
+  background: var(--bg-elevated);
+  color: var(--ink-title);
+  font-weight: 500;
+  box-shadow: 
+    0 2px 6px -2px rgba(0, 0, 0, 0.25),
+    inset 0 0 0 1px var(--border-strong),
+    inset 0 1px 0 var(--inset-highlight);
+}
+.srs-btn.srs-held:hover {
+  /* held-on-hover takes the teal signal — only place we let teal own a fill */
+  background: var(--accent-teal);
+  color: #f6f0e6;
+  box-shadow:
+    0 4px 12px -2px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px transparent;
+}
+.srs-btn.srs-held:hover::before {
+  opacity: 0.8;
+}
+

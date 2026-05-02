@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .swatch {
+    flex: 1;
+    height: 132px;
+    border-radius: 14px;
+    position: relative;
+    box-shadow: inset 0 1px 0 rgba(232,196,176,0.10), inset 0 0 0 1px rgba(168,133,109,0.18);
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 12px;
+  }
+  .swatch .name { font-family: var(--font-serif); font-style: italic; font-size: 17px; color: var(--fg-1); }
+  .swatch .hex  { font-family: var(--font-mono); font-size: 11px; color: var(--fg-1); opacity: 0.78; margin-top: 2px; }
+  .s1 { background: #a8856d; }
+  .s2 { background: #d5b28a; }
+  .s3 { background: linear-gradient(135deg, #e8a13c, #d5b28a); }
+  .s4 { background: #7a5d48; }
+  .s1 .name, .s4 .name, .s1 .hex, .s4 .hex { color: #f2e6da; }
+  .s3 .name, .s3 .hex { color: #1a1410; }
+</style></head>
+<body><div class="card">
+  <div class="row">
+    <div class="swatch s1"><div class="name">brass</div><div class="hex">#a8856d</div></div>
+    <div class="swatch s2"><div class="name">brass bright</div><div class="hex">#d5b28a</div></div>
+    <div class="swatch s3"><div class="name">amber · GAP</div><div class="hex">#e8a13c</div></div>
+    <div class="swatch s4"><div class="name">brass deep</div><div class="hex">#7a5d48</div></div>
+  </div>
+</div></body></html>

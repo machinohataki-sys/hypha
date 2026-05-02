@@ -1,0 +1,40 @@
+/* preview/_card.css — shared base for every Design System tab card.
+   Each card is ~700×<height>px. The asset name renders OUTSIDE the card,
+   so we keep these unframed and minimal. */
+
+@import url("../colors_and_type.css");
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 700px;
+  background: var(--espresso-wash);
+  color: var(--fg-2);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+.card {
+  width: 700px;
+  box-sizing: border-box;
+  padding: 24px;
+  position: relative;
+}
+
+.row { display: flex; gap: 16px; align-items: stretch; }
+.col { display: flex; flex-direction: column; gap: 12px; }
+.grow { flex: 1; }
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-2);
+}
