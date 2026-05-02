@@ -59,6 +59,23 @@ function VaultTree({ active, onSelect, viewMode }) {
   // v0.6.2 — per-curriculum language. null | { slug, language } when picker open.
   const [languageEdit, setLanguageEdit] = React.useState(null);
   const [languageSaved, setLanguageSaved] = React.useState(false);
+  // v0.7.1 — collapsible chain headers. { [chainSlug]: true } means COLLAPSED.
+  // Default empty (all chains expanded). Persisted to localStorage so user's
+  // fold preferences survive restarts. As more chains accrue, collapsing old
+  // ones keeps the vault tree scannable.
+  const [chainCollapse, setChainCollapse] = React.useState(() => {
+    try {
+      const raw = window.localStorage.getItem('hypha:chainCollapse');
+      const parsed = raw ? JSON.parse(raw) : {};
+      return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+    } catch (_) { return {}; }
+  });
+  React.useEffect(() => {
+    try { window.localStorage.setItem('hypha:chainCollapse', JSON.stringify(chainCollapse)); } catch (_) {}
+  }, [chainCollapse]);
+  const toggleChainCollapse = React.useCallback((chainSlug) => {
+    setChainCollapse(prev => ({ ...prev, [chainSlug]: !prev[chainSlug] }));
+  }, []);
   // v0.6.3 — custom tutor persona authoring (inline panel inside tutor modal).
   const [personaCreateOpen, setPersonaCreateOpen] = React.useState(false);
   const [personaDraft, setPersonaDraft] = React.useState({ label: '', short: '', prompt: '' });
@@ -420,32 +437,60 @@ function VaultTree({ active, onSelect, viewMode }) {
         for (const f of nonChain) renderItems.push({ kind: 'folder', folder: f, isChainLink: false });
         for (const g of chainBySlug.values()) {
           renderItems.push({ kind: 'chain-header', group: g });
+          // v0.7.1 — skip nesting the chain's folders when the header is collapsed.
+          // The header itself remains visible (with link count + completed) so the
+          // user knows what's hidden.
+          if (chainCollapse[g.slug]) continue;
           for (const f of g.folders) renderItems.push({ kind: 'folder', folder: f, isChainLink: true, group: g });
         }
         return renderItems.map((entry, entryIdx) => {
           if (entry.kind === 'chain-header') {
             const g = entry.group;
+            const isCollapsed = !!chainCollapse[g.slug];
             const completed = g.folders.filter(f => {
               // crude: link is "active" if any of its items isn't a placeholder
               return f.items && f.items.some(it => !it.ghost);
             }).length;
             return (
-              <div key={'chain-header-' + g.slug} style={{
-                padding: '18px 14px 6px',
-                marginTop: entryIdx > 0 ? 14 : 0,
-                fontFamily: '"Cormorant Garamond", "EB Garamond", "Noto Serif SC", Georgia, serif',
-                fontStyle: 'italic',
-                fontSize: 12.5,
-                letterSpacing: '0.18em',
-                textTransform: 'uppercase',
-                color: 'var(--brass-bright)',
-                borderTop: entryIdx > 0 ? '1px solid color-mix(in srgb, var(--brass-mid) 24%, transparent)' : 'none',
-                opacity: 0.92,
-              }}
-                title={`${g.folders.length} link${g.folders.length === 1 ? '' : 's'} in this chain`}
+              <button
+                key={'chain-header-' + g.slug}
+                type="button"
+                onClick={() => toggleChainCollapse(g.slug)}
+                title={isCollapsed
+                  ? `expand · ${g.folders.length} link${g.folders.length === 1 ? '' : 's'} hidden`
+                  : `collapse · ${g.folders.length} link${g.folders.length === 1 ? '' : 's'} in this chain`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  width: '100%', textAlign: 'left',
+                  padding: '18px 14px 6px',
+                  marginTop: entryIdx > 0 ? 14 : 0,
+                  background: 'transparent',
+                  border: 'none',
+                  borderTop: entryIdx > 0 ? '1px solid color-mix(in srgb, var(--brass-mid) 24%, transparent)' : 'none',
+                  fontFamily: '"Cormorant Garamond", "EB Garamond", "Noto Serif SC", Georgia, serif',
+                  fontStyle: 'italic',
+                  fontSize: 12.5,
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                  color: 'var(--brass-bright)',
+                  cursor: 'pointer',
+                  opacity: isCollapsed ? 0.65 : 0.92,
+                  transition: 'opacity 220ms, color 200ms',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = isCollapsed ? '0.65' : '0.92'; }}
               >
-                chain · {g.ultimateGoal.length > 32 ? g.ultimateGoal.slice(0, 32) + '…' : g.ultimateGoal}{g.totalLinks ? ` · ${completed}/${g.totalLinks}` : ''}
-              </div>
+                <span aria-hidden="true" style={{
+                  display: 'inline-block',
+                  fontSize: 9, lineHeight: 1, opacity: 0.85,
+                  transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                  transition: 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+                  width: 10, textAlign: 'center',
+                }}>▼</span>
+                <span>
+                  chain · {g.ultimateGoal.length > 32 ? g.ultimateGoal.slice(0, 32) + '…' : g.ultimateGoal}{g.totalLinks ? ` · ${completed}/${g.totalLinks}` : ''}
+                </span>
+              </button>
             );
           }
           const folder = entry.folder;
