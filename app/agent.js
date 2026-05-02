@@ -5,7 +5,7 @@ const OpenAI = require('openai');
 // Hypha Product Constitution — prepended to every LLM system prompt so output
 // inherits the product's manuscript-register / pedagogical-philosophy soul,
 // not just generic LLM defaults. Edit `lib/hypha-constitution.js` to evolve.
-const { FULL: HYPHA_FULL, SHORT: HYPHA_SHORT } = require('./lib/hypha-constitution');
+const { FULL: HYPHA_FULL, SHORT: HYPHA_SHORT, userProfileBlock } = require('./lib/hypha-constitution');
 
 const BANNED_DOMAINS = [
   'edu.cn', '.cn/', 'tsinghua.edu', 'pku.edu', 'fudan.edu', 'sjtu.edu', 'zju.edu',
@@ -378,7 +378,8 @@ async function llmJSON(messages, settings, opts = {}) {
 // option bubbles + a "Decide for me" + an "Other" escape). User's answers feed
 // back into designSequence to tailor the 60-120 lesson curriculum.
 async function clarifyQuestions(topic, goal, timeCommit, settings) {
-  const sys = `You are about to design a deep curriculum (60-180 lessons) for a self-directed learner. Before generating the lessons, you ask 3-5 sharp clarifying questions to make the curriculum specific to this person — not generic.
+  const profileBlock = userProfileBlock(settings && settings.userProfile);
+  const sys = `${profileBlock}You are about to design a deep curriculum (60-180 lessons) for a self-directed learner. Before generating the lessons, you ask 3-5 sharp clarifying questions to make the curriculum specific to this person — not generic. If the STUDENT PROFILE above shows the student already has experience the topic would normally start from, SKIP basic-orientation questions and ask higher-leverage ones.
 
 Output a JSON object: { "questions": [ { "id": string, "question": string, "options": [ { "id": string, "label": string } ], "multiSelect": boolean, "allowOther": boolean } ] }
 
@@ -1065,7 +1066,8 @@ async function classifyPriorKnowledge(goal, answers, settings) {
   const formattedAnswers = (answers || []).map(a =>
     `Q: ${a.question}\nA: ${Array.isArray(a.answer) ? a.answer.join(', ') : a.answer}`
   ).join('\n\n');
-  const sys = `${HYPHA_SHORT}Given a learning GOAL and the student's self-reported BACKGROUND, score how close they currently are to the goal. Output JSON: { "score": float 0..1, "rationale": string, "missing_prerequisites": [string] }.
+  const profileBlock = userProfileBlock(settings && settings.userProfile);
+  const sys = `${HYPHA_SHORT}${profileBlock}Given a learning GOAL and the student's self-reported BACKGROUND, score how close they currently are to the goal. Use the STUDENT PROFILE block above (if present) as the PRIMARY signal — the answers below are supplementary disambiguators, not the baseline. Output JSON: { "score": float 0..1, "rationale": string, "missing_prerequisites": [string] }.
 
 Closeness calibration:
 - 0.0 = total novice (no relevant background at all)
@@ -1106,7 +1108,8 @@ async function planChain(goal, ctx, settings) {
   const langInstruction = detectedLang === 'zh'
     ? 'OUTPUT LANGUAGE: Chinese (Simplified). All "topic", "rationale", "exit_criterion", "warning", "alternatives.lower_target_to" fields MUST be in Chinese. Match the user\'s register (formal academic Chinese, NOT casual). Numbers + technical terms (eigenvalue, BKT, etc.) may stay in English when natural.'
     : 'OUTPUT LANGUAGE: English. All fields in English.';
-  const sys = `${HYPHA_FULL}You design a LEARNING CHAIN of 3-8 topics that bridges the student from their current state to an ambitious learning goal. Output JSON: { "links": [{ "topic": string, "duration_weeks": float, "role": "prerequisite"|"core"|"ultimate", "rationale": string, "exit_criterion": string }], "warning": string|null, "alternatives": { "extend_time_to_weeks": int|null, "lower_target_to": string|null } }.
+  const profileBlock = userProfileBlock(settings && settings.userProfile);
+  const sys = `${HYPHA_FULL}${profileBlock}You design a LEARNING CHAIN of 3-8 topics that bridges the student from their current state to an ambitious learning goal. Use the STUDENT PROFILE block above (if present) to set the chain's starting point — if the student already has experience the chain would normally start from, COMPRESS or DROP those prerequisite links. Output JSON: { "links": [{ "topic": string, "duration_weeks": float, "role": "prerequisite"|"core"|"ultimate", "rationale": string, "exit_criterion": string }], "warning": string|null, "alternatives": { "extend_time_to_weeks": int|null, "lower_target_to": string|null } }.
 
 ${langInstruction}
 
@@ -1532,9 +1535,10 @@ async function designSeed({ topic, goal, archetype, timeCommit, customLessons, c
   }
   const totalLessons = lessonPlan.length;
 
-  const sys = `${HYPHA_FULL}You are seeding a Hypha curriculum: a sequence of one-on-one tutor conversations that build basics → frontier in the manuscript register. The PHASE STRUCTURE is already fixed (the user will see ${phases.length} phases: ${phases.map(p => p.label).join(', ')}, totaling ${totalLessons} lessons). Your job here is ONLY to:
+  const profileBlock = userProfileBlock(settings && settings.userProfile);
+  const sys = `${HYPHA_FULL}${profileBlock}You are seeding a Hypha curriculum: a sequence of one-on-one tutor conversations that build basics → frontier in the manuscript register. The PHASE STRUCTURE is already fixed (the user will see ${phases.length} phases: ${phases.map(p => p.label).join(', ')}, totaling ${totalLessons} lessons). Your job here is ONLY to:
 
-1. Write the title + 1-sentence learnGoal of LESSON 1 (the very first lesson, in phase "${phases[0].label}", phase tone: "${phases[0].tone}")
+1. Write the title + 1-sentence learnGoal of LESSON 1 (the very first lesson, in phase "${phases[0].label}", phase tone: "${phases[0].tone}"). If the STUDENT PROFILE shows the student already knows the typical lesson-1 material, lift LESSON 1 to a higher entry point that matches their actual baseline.
 2. Write a 2-3 sentence "trajectory" paragraph describing where the curriculum heads — concrete (names of mechanisms / frontier debates / final artifact), not generic.
 
 Output STRICT JSON: { "firstLesson": { "title": string, "learnGoal": string }, "trajectory": string }

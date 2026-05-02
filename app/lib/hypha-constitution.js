@@ -41,4 +41,27 @@ VOICE:
 const SHORT = `[HYPHA] You operate inside Hypha — a NOTE AGENT (not chat tutor, not SaaS) for self-directed researchers. Manuscript register: italic EB Garamond on cream paper, brass hairlines. FORBIDDEN: chrome / % bars / "Welcome" / emoji / marketing voice. Address the student as 千金 — slow, dignified, never urgent. The truth signal of understanding is settled_by_user (independent + correct, both required).
 `;
 
-module.exports = { FULL, SHORT };
+// v0.5.1 — userProfileBlock(profile) returns a compact prompt fragment that
+// surfaces the student's self-introduction so LLM calls (chain-create,
+// curriculum-create, feasibility, designSeed) can ground assessments against
+// the student's real baseline instead of guessing. Empty profile → empty
+// string (so no generic stand-in text leaks into the prompt).
+//
+// Inject AFTER the constitution block, BEFORE the call-specific system prompt.
+// All four classifiers + planChain + designSeed + clarifyQuestions should use
+// this so that "what's your prior knowledge" / "is this goal feasible" / "what
+// should phase 1 introduce" all start from real signal.
+function userProfileBlock(profile) {
+  if (!profile || typeof profile !== 'object') return '';
+  const name = String(profile.name || '').trim();
+  const about = String(profile.about || '').trim();
+  if (!name && !about) return '';
+  const lines = ['── STUDENT PROFILE (binding context) ──'];
+  if (name) lines.push(`Name: ${name}`);
+  if (about) lines.push(`Self-introduction (paste — extract baseline; trust the student's framing):\n${about.slice(0, 1200)}`);
+  lines.push('Use this profile to: tailor depth (don\'t re-explain what they\'ve already studied), name examples from their domain, calibrate weekly hours against their stated availability, and assess goal feasibility against their actual baseline rather than a generic learner.');
+  lines.push('');
+  return lines.join('\n');
+}
+
+module.exports = { FULL, SHORT, userProfileBlock };

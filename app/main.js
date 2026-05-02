@@ -910,16 +910,32 @@ function _topicSlug(topic) {
 function _hyphaSettings() {
   // Settings live in the vault as settings.json so they survive close+reopen.
   // First-run default = GLM 5 + Victor's baked token (env), no key user-side.
+  let cur;
   if (vault.exists && vault.exists('settings.json')) {
-    const cur = vault.readJSON('settings.json', null) || _hyphaDefaultSettings();
+    cur = vault.readJSON('settings.json', null) || _hyphaDefaultSettings();
     // Backfill `app` block on settings.json files written before the general
     // tab existed. Missing keys take APP_DEFAULTS.
     cur.app = { ...APP_DEFAULTS, ...(cur.app || {}) };
-    return cur;
+  } else {
+    cur = _hyphaDefaultSettings();
+    vault.writeJSON('settings.json', cur);
   }
-  const def = _hyphaDefaultSettings();
-  vault.writeJSON('settings.json', def);
-  return def;
+  // v0.5.1 — pin user profile onto every settings read so agent.js LLM calls
+  // (clarifyQuestions / classifyPriorKnowledge / planChain / designSeed) can
+  // ground assessments against the student's real self-introduction. Profile
+  // lives at vault/data/profile.json with history sidecar for resilience.
+  let userProfile = null;
+  try {
+    if (vault.exists && vault.exists('data/profile.json')) {
+      userProfile = vault.readJSON('data/profile.json', null);
+    }
+    if (!userProfile || (!userProfile.name && !userProfile.about && !userProfile.tutorName)) {
+      const restored = _hyphaProfileRestoreFromHistory();
+      if (restored) userProfile = restored;
+    }
+  } catch (_) {}
+  if (userProfile) cur.userProfile = userProfile;
+  return cur;
 }
 // App-level UI/UX defaults (separate from LLM provider config). All optional
 // — first-run keeps current behavior. Tab "general" in the settings modal
@@ -2421,10 +2437,47 @@ ipcMain.handle('agent:set', (_e, { slug, profile } = {}) => {
 // chosen name. Stored at <vault>/data/profile.json so it survives across
 // curricula. tutorName here is the GLOBAL default; a per-curriculum
 // agent.json.displayName overrides it inside that curriculum.
+// v0.5.1 — profile history sidecar. Every profile:set appends a row to
+// `data/profile.history.jsonl`. If profile.json ever goes missing or empty
+// (user-reported symptom: "every update wipes the saved 个人介绍"), profile:get
+// reconstructs the latest non-empty state from the history. Append-only ledger
+// is resilient against schema migrations + folder-copy quirks + any future
+// "update wipes settings" failure mode.
+function _hyphaProfileRestoreFromHistory() {
+  try {
+    if (!vault.exists || !vault.exists('data/profile.history.jsonl')) return null;
+    const raw = vault.read('data/profile.history.jsonl');
+    if (!raw) return null;
+    const lines = String(raw).split(/\r?\n/).filter(Boolean);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const row = JSON.parse(lines[i]);
+        if (row && typeof row === 'object' && (row.name || row.about || row.tutorName)) {
+          return { name: row.name || '', about: row.about || '', tutorName: row.tutorName || '' };
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+  return null;
+}
+
 ipcMain.handle('profile:get', () => {
   const def = { name: '', about: '', tutorName: '' };
-  if (!vault.exists || !vault.exists('data/profile.json')) return def;
-  const cur = vault.readJSON('data/profile.json', def) || def;
+  let cur = null;
+  if (vault.exists && vault.exists('data/profile.json')) {
+    cur = vault.readJSON('data/profile.json', null);
+  }
+  // If main file missing or all fields empty, try history sidecar.
+  const isEmpty = !cur || (!cur.name && !cur.about && !cur.tutorName);
+  if (isEmpty) {
+    const restored = _hyphaProfileRestoreFromHistory();
+    if (restored) {
+      // Re-write the recovered state to the main file so subsequent reads are fast.
+      try { vault.writeJSON('data/profile.json', { ...restored, updatedAt: new Date().toISOString(), recoveredFromHistory: true }); } catch (_) {}
+      return restored;
+    }
+  }
+  if (!cur) return def;
   return {
     name: cur.name || '',
     about: cur.about || '',
@@ -2433,9 +2486,14 @@ ipcMain.handle('profile:get', () => {
   };
 });
 ipcMain.handle('profile:set', (_e, patch = {}) => {
-  const cur = (vault.exists && vault.exists('data/profile.json'))
+  // Read current — fall through to history-restore if main file lost.
+  let cur = (vault.exists && vault.exists('data/profile.json'))
     ? (vault.readJSON('data/profile.json', null) || {})
     : {};
+  if (!cur.name && !cur.about && !cur.tutorName) {
+    const restored = _hyphaProfileRestoreFromHistory();
+    if (restored) cur = { ...cur, ...restored };
+  }
   const next = {
     ...cur,
     ...(typeof patch.name === 'string' ? { name: patch.name.trim() } : {}),
@@ -2444,6 +2502,17 @@ ipcMain.handle('profile:set', (_e, patch = {}) => {
     updatedAt: new Date().toISOString(),
   };
   vault.writeJSON('data/profile.json', next);
+  // Append to history ledger — resilient against any future profile.json loss.
+  try {
+    if (vault.appendJSONL) {
+      vault.appendJSONL('data/profile.history.jsonl', {
+        ts: next.updatedAt,
+        name: next.name || '',
+        about: next.about || '',
+        tutorName: next.tutorName || '',
+      });
+    }
+  } catch (_) {}
   return { ok: true, profile: next };
 });
 
