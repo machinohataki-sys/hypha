@@ -172,10 +172,57 @@ function list() {
       });
     }
 
-    folders.push({ folder: d.name, count: items.length, items });
+    // v0.6.8 — surface chain metadata per folder so VaultTree can group + sort
+    // chain links by their position in the chain. state.json is read once here
+    // (cached by fs cache) so renderer doesn't have to re-fetch per folder.
+    let chainSlug = null;
+    let chainLinkIdx = null;
+    let chainUltimateGoal = null;
+    let chainTotalLinks = null;
+    let chainPlaceholder = false;
+    try {
+      const statePath = path.join(sub, 'state.json');
+      if (fs.existsSync(statePath)) {
+        const stateText = fs.readFileSync(statePath, 'utf8');
+        const state = JSON.parse(stateText);
+        if (state && state.chainSlug) {
+          chainSlug = state.chainSlug;
+          chainLinkIdx = (typeof state.chainLinkIdx === 'number') ? state.chainLinkIdx : null;
+          chainUltimateGoal = state.chainUltimateGoal || null;
+          chainTotalLinks = (typeof state.chainTotalLinks === 'number') ? state.chainTotalLinks : null;
+          chainPlaceholder = state.chainPlaceholder === true;
+        }
+      }
+    } catch (_) {}
+
+    folders.push({
+      folder: d.name,
+      count: items.length,
+      items,
+      chainSlug,
+      chainLinkIdx,
+      chainUltimateGoal,
+      chainTotalLinks,
+      chainPlaceholder,
+    });
   }
 
-  folders.sort((a, b) => a.folder.localeCompare(b.folder));
+  // v0.6.8 — chain-aware folder ordering. Chain links sort by chainLinkIdx
+  // within their group (so paul-graham link 1 comes before altman link 2).
+  // VaultTree renders chain folders nested under a virtual parent header, but
+  // the underlying order here keeps them adjacent for that grouping to work.
+  folders.sort((a, b) => {
+    // Chain folders grouped together by chainSlug; non-chain folders alphabetical.
+    const aChain = a.chainSlug || '';
+    const bChain = b.chainSlug || '';
+    if (aChain && bChain) {
+      if (aChain !== bChain) return aChain.localeCompare(bChain);
+      return (a.chainLinkIdx ?? 9999) - (b.chainLinkIdx ?? 9999);
+    }
+    if (aChain && !bChain) return 1;   // chain folders sink to bottom of list
+    if (!aChain && bChain) return -1;  // non-chain folders rise to top
+    return a.folder.localeCompare(b.folder);
+  });
   return { root, folders };
 }
 

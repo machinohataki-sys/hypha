@@ -2916,6 +2916,9 @@ ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, prio
       // forgot the user's chosen lesson count + dropped the uploaded PDF.
       customLessons: (typeof customLessons === 'number' && customLessons >= 1) ? customLessons : null,
       uploadedSource: (uploadedSource && Array.isArray(uploadedSource.chapters)) ? uploadedSource : null,
+      // v0.6.8 — persist archetype so chain:accept's per-link stubs + chain:advance
+      // can pick the right phase template without re-running classifyArchetype.
+      archetype: chainArchetype || 'TECH-CONCEPT',
       inputs: { timeWeeks: feasibilityInput.timeWeeks, dailyHours: feasibilityInput.dailyHours, priorConsistency: feasibilityInput.priorConsistency, failedAttempts: feasibilityInput.failedAttempts },
       classifications: { difficulty: diff, intrinsic, prior },
       questionnaire: safeAnswers,
@@ -3014,53 +3017,84 @@ ipcMain.handle('chain:accept', async (event, { slug, covenantSnapshot } = {}) =>
       role: link.role || null,
     }));
     vault.writeJSON(`${slug}/links-state.json`, { links: linksState, updatedAt: new Date().toISOString() });
-    // v0.6.7 — pre-create the empty stub folder + 1 ghost lesson per chain
-    // link 1..N so the user sees the full chain shape in vault tree.
+    // v0.6.7+v0.6.8 — pre-create stub folders for chain links 1..N so the user
+    // sees the full chain shape in vault tree. Each stub gets the EXPECTED
+    // lesson count (computed via same formula chain:advance will use) as
+    // ghost-stub lessons. This way altman-startup-playbook shows "16 lessons"
+    // not "1", reflecting the real shape — the user reads the real plan.
     // Link 0's real curriculum overwrites its stub when chain:start runs.
-    // intentional-placeholder: these stub folders ARE the complete v0.6.7
-    // chain-visibility feature — they aren't TODOs. The "placeholder" naming
-    // matches v0.4.0's ghost-stub primitive (frontmatter ghost: true + body
-    // _pending_); they materialize when their chain link activates via
-    // chain:advance. Writing them takes ~milliseconds (no LLM call).
+    // intentional-placeholder: these stub folders ARE the complete v0.6.8
+    // chain-visibility feature. The "placeholder" naming matches v0.4.0's
+    // ghost-stub primitive. chain:advance cleans + regenerates per-link.
+    const dailyHoursForStubs = (chain.inputs && chain.inputs.dailyHours) || 2;
+    const archetypeForStubs = chain.archetype || 'TECH-CONCEPT';
     for (let i = 1; i < linksState.length; i++) {
       const lk = linksState[i];
       try {
         if (!vault.exists || vault.exists(`${lk.slug}/state.json`)) continue;
-        // Minimal stub state.json so the folder shows + chain banner reads chainSlug.
+        const expectedLessons = _perLinkLessonCount(lk.duration_weeks, dailyHoursForStubs, chain.tier || 'moderate');
+        const today = new Date().toISOString().slice(0, 10);
+        const lessonRels = [];
+        // Pre-create N ghost-stub lesson files so the folder count matches
+        // what chain:advance will generate. Filename pattern -pending.md so
+        // chain:advance can clean these up before writing real lessons.
+        for (let j = 0; j < expectedLessons; j++) {
+          const idxStr = String(j).padStart(2, '0');
+          const lessonRel = `${lk.slug}/${idxStr}-pending.md`;
+          const fm = [
+            '---',
+            `lesson_idx: ${j}`,
+            `learn_goal: ${JSON.stringify(`pending — chain link ${i + 1}/${linksState.length}: ${lk.topic}`)}`,
+            `locked: true`,
+            `topic_slug: ${lk.slug}`,
+            `date_created: ${today}`,
+            `date_distilled: null`,
+            `phase_id: pending`,
+            `phase_label: ${JSON.stringify('Pending chain link')}`,
+            `phase_lesson_idx: ${j}`,
+            `ghost: true`,
+            `chain_placeholder: true`,
+            '---',
+          ].join('\n');
+          const body = `${fm}\n\n# (pending — link ${i + 1}/${linksState.length}, lesson ${j + 1}/${expectedLessons})\n\n_pending_\n\nThis lesson activates when you finish link ${i}. Topic: ${lk.topic}\n`;
+          vault.write(lessonRel, body);
+          lessonRels.push(lessonRel);
+        }
+        // state.json so VaultTree can group + sort by chainLinkIdx + render
+        // the parent "chain: <ultimate_goal>" header.
         vault.writeJSON(`${lk.slug}/state.json`, {
           chainSlug: slug,
           chainLinkIdx: i,
           chainPlaceholder: true,
+          chainUltimateGoal: chain.ultimate_goal || '',
+          chainTotalLinks: linksState.length,
           mastered: [], gaps: [],
           preferences: { level: 'intermediate' },
           goal: lk.goal,
+          timeCommit: 'custom',
+          customLessons: expectedLessons,
           tier: chain.tier || 'moderate',
-          archetype: 'TECH-CONCEPT',
+          archetype: archetypeForStubs,
           phases: [],
-          lessonRels: [],
+          lessonRels,
         });
-        // Write a single italic-dim "pending" lesson so the folder isn't empty
-        // (which would have caused vault.list to hide it as chain-meta).
-        const today = new Date().toISOString().slice(0, 10);
-        const fm = [
-          '---',
-          `lesson_idx: 0`,
-          `learn_goal: ${JSON.stringify(`pending — chain link ${i + 1}/${linksState.length}: ${lk.topic}`)}`,
-          `locked: true`,
-          `topic_slug: ${lk.slug}`,
-          `date_created: ${today}`,
-          `date_distilled: null`,
-          `phase_id: pending`,
-          `phase_label: ${JSON.stringify('Pending chain link')}`,
-          `phase_lesson_idx: 0`,
-          `ghost: true`,
-          `chain_placeholder: true`,
-          '---',
-        ].join('\n');
-        const body = `${fm}\n\n# (pending — chain link ${i + 1}/${linksState.length})\n\n_pending_\n\nThis is link ${i + 1} of ${linksState.length} in your chain. It will activate when you finish link ${i}. Topic: ${lk.topic}\n`;
-        vault.write(`${lk.slug}/00-pending.md`, body);
-      } catch (_) { /* placeholder is best-effort; never break commit */ }
+      } catch (_) { /* stub is best-effort; never break commit */ }
     }
+    // Stamp link 0's chain context too — chain:start will refresh state.json
+    // but the stub here lets VaultTree group link 0 from the moment of accept.
+    try {
+      if (linksState[0] && linksState[0].slug) {
+        const link0Slug = linksState[0].slug;
+        const existing0 = vault.exists(`${link0Slug}/state.json`)
+          ? (vault.readJSON(`${link0Slug}/state.json`, {}) || {})
+          : {};
+        existing0.chainSlug = slug;
+        existing0.chainLinkIdx = 0;
+        existing0.chainUltimateGoal = chain.ultimate_goal || '';
+        existing0.chainTotalLinks = linksState.length;
+        vault.writeJSON(`${link0Slug}/state.json`, existing0);
+      }
+    } catch (_) {}
     _hyphaAppendEvent('chain_committed', { chainSlug: slug, linkCount: links.length });
 
     return {
@@ -3208,11 +3242,15 @@ ipcMain.handle('chain:start', async (event, { chainSlug } = {}) => {
     }
     const firstSlug = r.topic;
     const lessonRel = (r.lessonRels && r.lessonRels[0]) || null;
-    // Stamp curriculum's state.json with chain context for NoteView banner.
+    // Stamp curriculum's state.json with chain context for NoteView banner +
+    // VaultTree grouping. v0.6.8: include chainUltimateGoal + chainTotalLinks
+    // so the chain parent header renders identically across all link folders.
     try {
       const curState = vault.readJSON(`${firstSlug}/state.json`, {}) || {};
       curState.chainSlug = chainSlug;
       curState.chainLinkIdx = 0;
+      curState.chainUltimateGoal = chain.ultimate_goal || '';
+      curState.chainTotalLinks = (chain.chain && chain.chain.links && chain.chain.links.length) || 1;
       vault.writeJSON(`${firstSlug}/state.json`, curState);
     } catch (_) {}
     // Update links-state: link 0 → active with slug + lessonRel.
@@ -3253,6 +3291,22 @@ ipcMain.handle('chain:advance', async (event, { chainSlug } = {}) => {
     // chain:start fix; previously chain:advance produced same 6-lesson stubs).
     const advDailyHours = (chain.inputs && chain.inputs.dailyHours) || 2;
     const advCustomLessons = _perLinkLessonCount(Number(nextLink.duration_weeks) || 4, advDailyHours, chain.tier || 'moderate');
+    // v0.6.8 — clean up the v0.6.8 pre-created `-pending.md` ghost stubs in
+    // this link's folder so _runCurriculumCreate can write fresh lesson files
+    // without filename collisions. Also clear stale state.json so designSeed
+    // generates fresh phases.
+    try {
+      const linkSlug = links[nextIdx].slug || _topicSlug(nextLink.topic);
+      const linkDir = path.join(vault.resolveRoot(), linkSlug);
+      if (fs.existsSync(linkDir)) {
+        const files = fs.readdirSync(linkDir);
+        for (const f of files) {
+          if (f.endsWith('-pending.md') || f === 'state.json') {
+            try { fs.unlinkSync(path.join(linkDir, f)); } catch (_) {}
+          }
+        }
+      }
+    } catch (_) { /* best-effort cleanup */ }
     const r = await _runCurriculumCreate(event, {
       topic: nextLink.topic,
       level: 'intermediate',
@@ -3277,6 +3331,8 @@ ipcMain.handle('chain:advance', async (event, { chainSlug } = {}) => {
       const curState = vault.readJSON(`${nextSlug}/state.json`, {}) || {};
       curState.chainSlug = chainSlug;
       curState.chainLinkIdx = nextIdx;
+      curState.chainUltimateGoal = chain.ultimate_goal || '';
+      curState.chainTotalLinks = (chain.chain && chain.chain.links && chain.chain.links.length) || 1;
       vault.writeJSON(`${nextSlug}/state.json`, curState);
     } catch (_) {}
     // Persist link transition.

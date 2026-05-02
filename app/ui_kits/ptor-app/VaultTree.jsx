@@ -391,10 +391,69 @@ function VaultTree({ active, onSelect, viewMode }) {
           }}>{loaded ? (window.ptor ? 'no .md files yet' : 'awaiting ipc bridge') : 'reading vault'}</div>
         </div>
       )}
-      {VAULT.map(folder => {
-        const isOpen = !!open[folder.folder];
-        const isFolderCtxTarget = ctxMenu && ctxMenu.kind === 'folder' && ctxMenu.id === folder.folder;
-        return (
+      {(() => {
+        // v0.6.8 — chain-aware render plan. Non-chain folders render flat;
+        // chain folders cluster under a virtual "chain · <ultimate goal> ·
+        // M/N" header sorted by chainLinkIdx. The filesystem stays flat —
+        // this is purely UI grouping per user 2026-05-02 dogfood feedback.
+        const nonChain = [];
+        const chainBySlug = new Map();
+        for (const f of VAULT) {
+          if (!f.chainSlug) {
+            nonChain.push(f);
+            continue;
+          }
+          if (!chainBySlug.has(f.chainSlug)) {
+            chainBySlug.set(f.chainSlug, {
+              slug: f.chainSlug,
+              ultimateGoal: f.chainUltimateGoal || f.chainSlug,
+              totalLinks: f.chainTotalLinks || null,
+              folders: [],
+            });
+          }
+          chainBySlug.get(f.chainSlug).folders.push(f);
+        }
+        for (const g of chainBySlug.values()) {
+          g.folders.sort((a, b) => (a.chainLinkIdx ?? 9999) - (b.chainLinkIdx ?? 9999));
+        }
+        const renderItems = [];
+        for (const f of nonChain) renderItems.push({ kind: 'folder', folder: f, isChainLink: false });
+        for (const g of chainBySlug.values()) {
+          renderItems.push({ kind: 'chain-header', group: g });
+          for (const f of g.folders) renderItems.push({ kind: 'folder', folder: f, isChainLink: true, group: g });
+        }
+        return renderItems.map((entry, entryIdx) => {
+          if (entry.kind === 'chain-header') {
+            const g = entry.group;
+            const completed = g.folders.filter(f => {
+              // crude: link is "active" if any of its items isn't a placeholder
+              return f.items && f.items.some(it => !it.ghost);
+            }).length;
+            return (
+              <div key={'chain-header-' + g.slug} style={{
+                padding: '18px 14px 6px',
+                marginTop: entryIdx > 0 ? 14 : 0,
+                fontFamily: '"Cormorant Garamond", "EB Garamond", "Noto Serif SC", Georgia, serif',
+                fontStyle: 'italic',
+                fontSize: 12.5,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: 'var(--brass-bright)',
+                borderTop: entryIdx > 0 ? '1px solid color-mix(in srgb, var(--brass-mid) 24%, transparent)' : 'none',
+                opacity: 0.92,
+              }}
+                title={`${g.folders.length} link${g.folders.length === 1 ? '' : 's'} in this chain`}
+              >
+                chain · {g.ultimateGoal.length > 32 ? g.ultimateGoal.slice(0, 32) + '…' : g.ultimateGoal}{g.totalLinks ? ` · ${completed}/${g.totalLinks}` : ''}
+              </div>
+            );
+          }
+          const folder = entry.folder;
+          const isChainLink = entry.isChainLink;
+          const chainIndent = isChainLink ? 16 : 0;
+          const isOpen = !!open[folder.folder];
+          const isFolderCtxTarget = ctxMenu && ctxMenu.kind === 'folder' && ctxMenu.id === folder.folder;
+          return (
           <React.Fragment key={folder.folder}>
             <div onClick={() => setOpen({ ...open, [folder.folder]: !isOpen })}
                  data-ctx-target={isFolderCtxTarget ? 'true' : undefined}
@@ -403,7 +462,9 @@ function VaultTree({ active, onSelect, viewMode }) {
                    setCtxMenu({ kind: 'folder', id: folder.folder, x: e.clientX, y: e.clientY });
                  }}
                  style={{
-                   display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', cursor: 'pointer',
+                   display: 'flex', alignItems: 'center', gap: 8,
+                   padding: `6px 14px 6px ${14 + chainIndent}px`,
+                   cursor: 'pointer',
                    fontFamily: '"EB Garamond", "Noto Serif SC", "Cormorant Garamond", Georgia, serif',
                    fontStyle: 'italic', fontSize: 17, fontWeight: 500,
                    letterSpacing: '0.005em',
@@ -618,7 +679,8 @@ function VaultTree({ active, onSelect, viewMode }) {
             </div>
           </React.Fragment>
         );
-      })}
+      });
+      })()}
       {/* Hypha — TOKONOMA-DIRECT footer band. Per Lung+Muse council 2026-04-30:
           phase counter removed (PTOR SRS-state irrelevant to curriculum app).
           Whole 280×40 band = single click target (Fitts), Hara alcove emptiness,
