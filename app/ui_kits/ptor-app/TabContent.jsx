@@ -774,6 +774,11 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
   // every 5s during the LLM call; we surface the elapsed counter in the
   // status line so user can tell the call is alive even when it's slow.
   const [elapsedSec, setElapsedSec] = React.useState(0);
+  // v0.5.2 — harvest-thin warning. TEAM C emits a `harvest_complete` event
+  // with totalUseful < 5 when the web/code/forum/arxiv channels collectively
+  // returned too little signal; we surface a small italic banner so the user
+  // knows the corpus is thin before the LLM hallucinates around it.
+  const [harvestThin, setHarvestThin] = React.useState(null); // { count, perChannel } | null
   React.useEffect(() => {
     if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.onCurriculumProgress) return;
     const off = window.ptor.hypha.onCurriculumProgress((p) => {
@@ -782,6 +787,16 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
       if (p.stage === 'designing-heartbeat') {
         setElapsedSec(Number(p.elapsed) || 0);
         return;
+      }
+      // Harvest-complete telemetry — surface thin-corpus banner if applicable.
+      if (p.stage === 'harvest_complete') {
+        const total = Number(p.totalUseful);
+        if (Number.isFinite(total) && total < 5) {
+          setHarvestThin({ count: total, perChannel: p.perChannel || null });
+        } else {
+          setHarvestThin(null);
+        }
+        return; // not a real status flip
       }
       // Real stage change. Reset elapsed when leaving 'designing'.
       setStatus(p.stage);
@@ -842,6 +857,7 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
     setPhase('creating');
     setStatus('harvesting');
     setCreateError(null);
+    setHarvestThin(null);                       // reset banner for fresh run
     if (typeof setCreatingTopic === 'function') setCreatingTopic(t);
     try {
       const r = await window.ptor.hypha.curriculumCreate(t, 'intermediate', {
@@ -853,6 +869,7 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
       });
       if (r && r.ok && r.lessonRels && r.lessonRels[0]) {
         setStatus(null);
+        setHarvestThin(null);
         setTopic('');
         setGoal('');
         setUploadedSource(null);
@@ -864,15 +881,18 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
       } else if (r && r.cancelled) {
         // User pressed ESC — silent reset to fresh form, don't show error.
         setStatus(null);
+        setHarvestThin(null);
         setPhase('form');
         if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
       } else {
         setStatus('error');
+        setHarvestThin(null);
         setCreateError((r && r.error) || 'unknown error');
         if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
       }
     } catch (err) {
       setStatus('error');
+      setHarvestThin(null);
       setCreateError((err && err.message) || String(err));
       if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
     }
@@ -887,6 +907,7 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
       if (!t) return;
       setPhase('form');
       setStatus(null);
+      setHarvestThin(null);
       setCreateError(null);
       if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
       try {
@@ -1628,6 +1649,24 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
             padding: '40px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22,
           }}>
             <VinylSpinner stopped={status === 'error'} />
+            {/* v0.5.2 — harvest-thin banner. Inline italic notice ABOVE the
+                normal status line when TEAM C reports < 5 useful sources.
+                Quiet signal, not a popup, so the user can decide whether to
+                cancel and upload a document for richer ground truth. */}
+            {harvestThin && status !== 'error' && (
+              <div style={{
+                marginBottom: 8,
+                color: 'var(--ink-faint)',
+                fontStyle: 'italic',
+                fontSize: 13,
+                lineHeight: 1.5,
+                maxWidth: 520,
+                textAlign: 'center',
+              }}>
+                harvested only {harvestThin.count} source{harvestThin.count === 1 ? '' : 's'} from the web —
+                consider uploading a document for richer ground truth
+              </div>
+            )}
             <p className={status !== 'error' ? 'hypha-breath' : undefined} style={{
               fontStyle: 'italic', fontSize: 15, lineHeight: 1.5, maxWidth: 480,
               color: status === 'error' ? 'var(--verdict-flag)' : 'var(--ink-muted)', margin: 0,

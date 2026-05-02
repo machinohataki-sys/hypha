@@ -997,11 +997,19 @@ ipcMain.handle('curriculum:cancel', async (_e, { topic } = {}) => {
 //   2. agent.designSequence(topic, sources, level) → lessons[]
 //   3. write <slug>/sources.json + <slug>/state.json + <slug>/lesson-NN.md (one per lesson)
 //   4. emit progress events to renderer for status display
-ipcMain.handle('curriculum:create', async (event, { topic, level, goal, timeCommit, customLessons, clarifications, uploadedSource } = {}) => {
+// _runCurriculumCreate — shared body of the curriculum:create pipeline so other
+// IPC handlers (e.g. chain:accept) can drive a curriculum end-to-end without
+// going through ipcRenderer round-trips. `event` may be null when invoked from
+// a non-renderer context — emit() guards against that.
+async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, customLessons, clarifications, uploadedSource } = {}) {
   const slug = _topicSlug(topic);
   const settings = _hyphaSettings();
   const emit = (stage, extra = {}) => {
-    try { event.sender.send('curriculum:progress', { topic: slug, stage, ...extra }); } catch (_) {}
+    try {
+      if (event && event.sender && typeof event.sender.send === 'function') {
+        event.sender.send('curriculum:progress', { topic: slug, stage, ...extra });
+      }
+    } catch (_) {}
   };
   _hyphaAppendEvent('curriculum_start', { topic: slug, level, goal, timeCommit, customLessons, clarifCount: (clarifications || []).length, sourceMode: uploadedSource ? 'upload' : 'web' });
   // v0.4.4 — clear any stale cancel flag from a previous attempt with the same slug.
@@ -1156,6 +1164,10 @@ ipcMain.handle('curriculum:create', async (event, { topic, level, goal, timeComm
     emit('error', { error: err.message });
     return { ok: false, error: err.message };
   }
+}
+
+ipcMain.handle('curriculum:create', async (event, args = {}) => {
+  return _runCurriculumCreate(event, args);
 });
 
 // Per-lesson session storage helpers (Day 2.9 refactor).
@@ -2616,20 +2628,16 @@ ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, prio
     try { event.sender.send('hypha:chain-progress', { stage, ...extra }); } catch (_) {}
   };
   try {
+    // v0.5.2 — classifyPriorKnowledge depends only on goal+answers, not on the
+    // stage-1 outputs, so run all 3 classifiers in one Promise.all (saves 3-5s
+    // wall time vs the previous sequential design).
+    const safeAnswers = Array.isArray(answers) ? answers : [];
     emit('classifying');
-    const [diff, intrinsic] = await Promise.all([
+    const [diff, intrinsic, prior] = await Promise.all([
       _hyphaAgent.classifyDifficulty(goal, settings),
       _hyphaAgent.classifyIntrinsicLoad(goal, settings),
+      _hyphaAgent.classifyPriorKnowledge(goal, safeAnswers, settings),
     ]);
-
-    // If renderer didn't pre-supply Q&A answers, fetch the Qs and let renderer
-    // collect them via a follow-up call (chain:create-finalize). For now, the
-    // simple path: renderer provides answers OR we run with empty answers and
-    // fall back to a coarser priorKnowledge estimate.
-    const safeAnswers = Array.isArray(answers) ? answers : [];
-
-    emit('estimating-prior');
-    const prior = await _hyphaAgent.classifyPriorKnowledge(goal, safeAnswers, settings);
 
     const feasibility = require('./lib/feasibility');
     const feasibilityInput = {
@@ -2676,6 +2684,165 @@ ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, prio
   }
 });
 
+// v0.5.2 — chain:accept. Renderer fires this after the user commits to a chain
+// plan via the Accept button. Behavior:
+//   1. Persist a covenant.json snapshot (audit trail of what the user accepted).
+//   2. Build curriculum:create args from chain.links[0] (topic = link.topic,
+//      goal = link.exit_criterion, timeCommit derived from duration_weeks).
+//   3. Drive _runCurriculumCreate directly so the first link materializes
+//      end-to-end — no double IPC round-trip.
+//   4. Write links-state.json: idx 0 = active (just created); rest = pending
+//      ghosts that future chain-link transitions will materialize.
+function _mapWeeksToTimeCommit(weeks) {
+  const w = Number(weeks) || 0;
+  if (w <= 2) return 'week';
+  if (w <= 6) return 'month';
+  if (w <= 10) return 'two-month';
+  if (w <= 16) return 'quarter';
+  return 'open';
+}
+
+ipcMain.handle('chain:accept', async (event, { slug, covenantSnapshot } = {}) => {
+  if (!slug || !String(slug).trim()) return { ok: false, error: 'slug required' };
+  try {
+    const chain = vault.readJSON(`${slug}/chain.json`, null);
+    if (!chain || !Array.isArray(chain.chain && chain.chain.links)) {
+      return { ok: false, error: 'no chain plan found at slug' };
+    }
+    const links = chain.chain.links;
+    if (!links.length) return { ok: false, error: 'chain has zero links' };
+
+    // 1. Persist covenant — what the user accepted, with full chain snapshot.
+    vault.writeJSON(`${slug}/covenant.json`, {
+      ...(covenantSnapshot || {}),
+      acceptedAt: (covenantSnapshot && covenantSnapshot.acceptedAt) || new Date().toISOString(),
+      chainSlug: slug,
+      chainSnapshot: chain,
+    });
+
+    // 2. Build curriculum-create args from the first link.
+    const firstLink = links[0];
+    const firstTopic = firstLink.topic || (chain.ultimate_goal || slug);
+    const firstGoal = firstLink.exit_criterion || '';
+    const timeCommit = _mapWeeksToTimeCommit(firstLink.duration_weeks);
+
+    // 3. Drive the curriculum pipeline directly (no IPC round-trip).
+    const r = await _runCurriculumCreate(event, {
+      topic: firstTopic,
+      level: 'intermediate',
+      goal: firstGoal,
+      timeCommit,
+      clarifications: [],
+    });
+    if (!r || !r.ok) {
+      return { ok: false, error: (r && r.error) || 'first-link curriculum failed' };
+    }
+    const firstSlug = r.topic;
+
+    // 4. Persist multi-link state. Subsequent links stay 'pending' until the
+    // user finishes link N and the chain transitions to N+1.
+    const linksState = links.map((link, idx) => {
+      if (idx === 0) {
+        return {
+          idx, slug: firstSlug,
+          status: 'active',
+          topic: firstTopic,
+          goal: firstGoal,
+          duration_weeks: link.duration_weeks || null,
+          role: link.role || null,
+        };
+      }
+      return {
+        idx, slug: null,
+        status: 'pending',
+        topic: link.topic || '',
+        goal: link.exit_criterion || '',
+        duration_weeks: link.duration_weeks || null,
+        role: link.role || null,
+      };
+    });
+    vault.writeJSON(`${slug}/links-state.json`, { links: linksState, updatedAt: new Date().toISOString() });
+
+    return {
+      ok: true,
+      firstSlug,
+      lessonRel: (r.lessonRels && r.lessonRels[0]) || null,
+    };
+  } catch (err) {
+    return { ok: false, error: (err && err.message) || String(err) };
+  }
+});
+
+// v0.5.2 — chain:refuse. 2-strike refusal model:
+//   - 1st refuse with reason/checklistFlags → re-run planChain with the
+//     refusal context prepended to the goal so the LLM sees the user's
+//     objection and reshapes the plan. chain.refused_once = true.
+//   - 2nd refuse (chain.refused_once=true AND no reason AND no checklistFlags
+//     → user clicked Refuse a second time without filling the form): delete
+//     the slug entirely. The renderer then closes the modal.
+ipcMain.handle('chain:refuse', async (_e, { slug, reason, checklistFlags } = {}) => {
+  if (!slug || !String(slug).trim()) return { ok: false, error: 'slug required' };
+  try {
+    const chain = vault.readJSON(`${slug}/chain.json`, null);
+    if (!chain) return { ok: false, error: 'no chain' };
+
+    const flags = Array.isArray(checklistFlags) ? checklistFlags.filter(Boolean) : [];
+    const reasonText = (typeof reason === 'string' && reason.trim()) ? reason.trim() : '';
+    const submittedNothing = !reasonText && flags.length === 0;
+
+    // 2nd-strike cancellation: refused_once flag set AND user submitted no
+    // new context → cancel + delete the slug.
+    if (chain.refused_once === true && submittedNothing) {
+      try { vault.del(slug); } catch (_) {}
+      return { ok: true, mode: 'cancelled' };
+    }
+
+    // 1st-strike (or any subsequent submission with reason): re-run planChain.
+    const settings = _hyphaSettings();
+    const cls = chain.classifications || {};
+    const verdict = chain.feasibility || {};
+    const lang = chain.lang || (/[一-龥]/.test(String(chain.ultimate_goal || '')) ? 'zh' : 'en');
+
+    // Compose a refusal-aware goal so planChain sees the user's objection
+    // verbatim. Plain prepend (per plan §178): explicit, easy to tune later.
+    const refusalParts = [];
+    if (reasonText) refusalParts.push(`reason: ${reasonText}`);
+    if (flags.length) refusalParts.push(`flagged: ${flags.join(', ')}`);
+    const refusalAnnotation = refusalParts.length
+      ? `[USER REFUSED PRIOR PLAN — ${refusalParts.join('; ')}] `
+      : '';
+    const newGoal = refusalAnnotation + String(chain.ultimate_goal || '');
+
+    const newPlan = await _hyphaAgent.planChain(newGoal, {
+      tier: verdict.tier,
+      ratio: verdict.ratio && verdict.ratio.p50,
+      gap: verdict.gap,
+      missing_prerequisites: (cls.prior && cls.prior.missing_prerequisites) || [],
+      timeWeeks: (chain.inputs && chain.inputs.timeWeeks) || 4,
+      dailyHours: (chain.inputs && chain.inputs.dailyHours) || 2,
+      intrinsicLoad: (cls.intrinsic && cls.intrinsic.load) || 'med',
+      pComplete: verdict.pComplete,
+      lang,
+    }, settings);
+
+    const updated = {
+      ...chain,
+      chain: newPlan,
+      refused_once: true,
+      refusal_history: [
+        ...(Array.isArray(chain.refusal_history) ? chain.refusal_history : []),
+        { ts: new Date().toISOString(), reason: reasonText || null, checklistFlags: flags },
+      ],
+      updated_at: new Date().toISOString(),
+    };
+    vault.writeJSON(`${slug}/chain.json`, updated);
+
+    return { ok: true, mode: 'reason-recorded', newPlan: updated };
+  } catch (err) {
+    return { ok: false, error: (err && err.message) || String(err) };
+  }
+});
+
 // feasibility:gate — Smart Gate (per user 2026-05-01 council decision: option B).
 // After Q&A in Learn flow but BEFORE designSequence, evaluate target feasibility.
 // Returns difficulty + intrinsicLoad + priorKnowledge + feasibility tier so the
@@ -2692,12 +2859,14 @@ ipcMain.handle('feasibility:gate', async (_e, { topic, goal, timeCommit, answers
   const TIME_TO_WEEKS = { week: 1, month: 4, quarter: 12, open: 26 };
   const timeWeeks = TIME_TO_WEEKS[timeCommit] || TIME_TO_WEEKS.month;
   try {
-    const [diff, intrinsic] = await Promise.all([
-      _hyphaAgent.classifyDifficulty(topic + (goal ? ' — ' + goal : ''), settings),
-      _hyphaAgent.classifyIntrinsicLoad(topic, settings),
-    ]);
+    // v0.5.2 — all 3 classifiers in one Promise.all (saves 3-5s wall time).
     const safeAnswers = Array.isArray(answers) ? answers : [];
-    const prior = await _hyphaAgent.classifyPriorKnowledge(topic + (goal ? ' — ' + goal : ''), safeAnswers, settings);
+    const goalText = topic + (goal ? ' — ' + goal : '');
+    const [diff, intrinsic, prior] = await Promise.all([
+      _hyphaAgent.classifyDifficulty(goalText, settings),
+      _hyphaAgent.classifyIntrinsicLoad(topic, settings),
+      _hyphaAgent.classifyPriorKnowledge(goalText, safeAnswers, settings),
+    ]);
     const feasibility = require('./lib/feasibility');
     const verdict = feasibility.classifyFeasibility({
       targetDifficulty: diff.score,

@@ -16,10 +16,27 @@ function ChainPlannerView({ open, onClose, context }) {
   const [result, setResult] = React.useState(null);
   const [error, setError] = React.useState(null);
 
+  // v0.5.2 — Accept / Refuse 2-strike state.
+  // acceptStage: null | 'loading' | 'error' — accept-button flow.
+  // refuseStage: null | 'reason' — refuse 1st-strike opens checklist; 2nd-strike cancels.
+  // checklistFlags: array of unchecked assumption ids.
+  // refuseReason: free-form textarea value.
+  // replanStage: null | 'loading' | 'error' — submitting refusal & re-planning.
+  const [acceptStage, setAcceptStage] = React.useState(null);
+  const [acceptError, setAcceptError] = React.useState(null);
+  const [refuseStage, setRefuseStage] = React.useState(null);
+  const [checklistFlags, setChecklistFlags] = React.useState([]);
+  const [refuseReason, setRefuseReason] = React.useState('');
+  const [replanStage, setReplanStage] = React.useState(null);
+  const [replanError, setReplanError] = React.useState(null);
+
   // Reset on close.
   React.useEffect(() => {
     if (!open) {
       setStage('loading'); setProgressStage(null); setResult(null); setError(null);
+      setAcceptStage(null); setAcceptError(null);
+      setRefuseStage(null); setChecklistFlags([]); setRefuseReason('');
+      setReplanStage(null); setReplanError(null);
     }
   }, [open]);
 
@@ -104,6 +121,158 @@ function ChainPlannerView({ open, onClose, context }) {
   React.useEffect(() => {
     if (open && context) submitWithContext(context);
   }, [open, context, submitWithContext]);
+
+  // ─── Accept / Refuse handlers (v0.5.2) ───────────────────────────────────
+  // Accept → fire chain:accept with covenant snapshot, show loader, on success
+  // dispatch hypha:open-rel and close modal.
+  const handleAccept = React.useCallback(async () => {
+    if (!result || !result.slug) return;
+    setAcceptStage('loading');
+    setAcceptError(null);
+    try {
+      // Pull a fresh user-profile snapshot so the covenant captures the
+      // student's baseline at acceptance time.
+      let userProfile = null;
+      try {
+        if (window.ptor && window.ptor.hypha && window.ptor.hypha.profileGet) {
+          const p = await window.ptor.hypha.profileGet();
+          userProfile = (p && p.ok) ? (p.data || p.profile || null) : null;
+        }
+      } catch (_) { userProfile = null; }
+      const covenantSnapshot = {
+        acceptedAt: new Date().toISOString(),
+        userProfile,
+        checklistChoices: [],
+        freeFormReason: null,
+      };
+      if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.chainAccept) {
+        throw new Error('chainAccept IPC unavailable');
+      }
+      const r = await window.ptor.hypha.chainAccept({
+        slug: result.slug,
+        covenantSnapshot,
+      });
+      if (r && r.ok && r.lessonRel) {
+        try {
+          window.dispatchEvent(new CustomEvent('hypha:open-rel', { detail: { rel: r.lessonRel } }));
+        } catch (_) {}
+        setAcceptStage(null);
+        if (typeof onClose === 'function') onClose();
+      } else {
+        setAcceptStage('error');
+        setAcceptError((r && r.error) || 'unknown error');
+      }
+    } catch (e) {
+      setAcceptStage('error');
+      setAcceptError((e && e.message) || String(e));
+    }
+  }, [result, onClose]);
+
+  // Refuse-button click. 1st click: open reason stage. 2nd click (already in
+  // reason stage): treat as cancel — fire chain:refuse with empty reason, close.
+  const handleRefuseClick = React.useCallback(async () => {
+    if (!result || !result.slug) return;
+    if (refuseStage !== 'reason') {
+      setRefuseStage('reason');
+      return;
+    }
+    // 2nd strike — cancel.
+    setReplanStage('loading');
+    setReplanError(null);
+    try {
+      if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.chainRefuse) {
+        throw new Error('chainRefuse IPC unavailable');
+      }
+      const r = await window.ptor.hypha.chainRefuse({
+        slug: result.slug, reason: null, checklistFlags: [],
+      });
+      if (r && r.ok && r.mode === 'cancelled') {
+        setReplanStage(null);
+        if (typeof onClose === 'function') onClose();
+      } else {
+        setReplanStage('error');
+        setReplanError((r && r.error) || 'unknown error');
+      }
+    } catch (e) {
+      setReplanStage('error');
+      setReplanError((e && e.message) || String(e));
+    }
+  }, [result, refuseStage, onClose]);
+
+  // Submit refusal with reason → backend re-plans. On success replace result
+  // with the new plan and reset refuse-state so user can Accept/Refuse again.
+  const handleSubmitRefusal = React.useCallback(async () => {
+    if (!result || !result.slug) return;
+    setReplanStage('loading');
+    setReplanError(null);
+    try {
+      if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.chainRefuse) {
+        throw new Error('chainRefuse IPC unavailable');
+      }
+      const r = await window.ptor.hypha.chainRefuse({
+        slug: result.slug,
+        reason: (refuseReason || '').trim() || null,
+        checklistFlags: Array.isArray(checklistFlags) ? checklistFlags : [],
+      });
+      if (r && r.ok) {
+        if (r.mode === 'cancelled') {
+          setReplanStage(null);
+          if (typeof onClose === 'function') onClose();
+          return;
+        }
+        if (r.newPlan) {
+          // Replace current chain result with new plan; reset refuse state.
+          setResult(r.newPlan);
+          setRefuseStage(null);
+          setChecklistFlags([]);
+          setRefuseReason('');
+          setReplanStage(null);
+          return;
+        }
+        // No newPlan returned but ok — surface as error so user isn't stranded.
+        setReplanStage('error');
+        setReplanError('backend did not return a new plan');
+      } else {
+        setReplanStage('error');
+        setReplanError((r && r.error) || 'unknown error');
+      }
+    } catch (e) {
+      setReplanStage('error');
+      setReplanError((e && e.message) || String(e));
+    }
+  }, [result, refuseReason, checklistFlags, onClose]);
+
+  // Cancel-this-plan instead → 2nd-strike cancel from inside the reason stage.
+  const handleCancelInstead = React.useCallback(async () => {
+    if (!result || !result.slug) return;
+    setReplanStage('loading');
+    setReplanError(null);
+    try {
+      if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.chainRefuse) {
+        throw new Error('chainRefuse IPC unavailable');
+      }
+      const r = await window.ptor.hypha.chainRefuse({
+        slug: result.slug, reason: null, checklistFlags: [],
+      });
+      if (r && r.ok && r.mode === 'cancelled') {
+        setReplanStage(null);
+        if (typeof onClose === 'function') onClose();
+      } else {
+        setReplanStage('error');
+        setReplanError((r && r.error) || 'unknown error');
+      }
+    } catch (e) {
+      setReplanStage('error');
+      setReplanError((e && e.message) || String(e));
+    }
+  }, [result, onClose]);
+
+  const toggleChecklistFlag = React.useCallback((id) => {
+    setChecklistFlags((prev) => {
+      const arr = Array.isArray(prev) ? prev : [];
+      return arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id];
+    });
+  }, []);
 
   if (!open) return null;
 
@@ -326,18 +495,220 @@ function ChainPlannerView({ open, onClose, context }) {
             </div>
           )}
 
-          <div style={{ marginTop: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic' }}>
-              {t('已存：', 'saved: ')}{result.slug}/chain.json
-            </span>
-            <button onClick={onClose} style={{
-              background: 'color-mix(in srgb, var(--brass-mid) 22%, transparent)',
-              border: '1px solid color-mix(in srgb, var(--brass-mid) 38%, transparent)',
-              borderRadius: 2, cursor: 'pointer',
-              color: 'var(--ink-title)', fontStyle: 'italic', fontSize: 14,
-              fontFamily: '"EB Garamond", serif', padding: '7px 18px',
-            }}>{t('完成', 'done')}</button>
-          </div>
+          {/* ─── v0.5.2 Accept / Refuse 2-strike ──────────────────────── */}
+          {/* Plan-assumption checklist items derived from the current chain.
+              User unchecks any that are wrong; backend uses these flags +
+              free-form reason to steer the re-plan. */}
+          {(() => {
+            const planTimeWeeks = (context && timeCommitToWeeks(context.timeCommit)) || null;
+            const checklistItems = [
+              {
+                id: 'time-budget',
+                label: t(
+                  `时间预算（${planTimeWeeks || '？'} 周）合适`,
+                  `Time budget (${planTimeWeeks || '?'} weeks) is right`
+                ),
+              },
+              {
+                id: 'prereq-order',
+                label: t('前置顺序合理', 'Prerequisite order is right'),
+              },
+              {
+                id: 'final-goal',
+                label: t('最终目标的措辞合适', 'Final goal phrasing is right'),
+              },
+              {
+                id: 'scope',
+                label: t('范围合适', 'Scope is right'),
+              },
+            ];
+
+            // Refuse-reason stage: render checklist + textarea + submit/cancel.
+            if (refuseStage === 'reason') {
+              return (
+                <div style={{ marginTop: 22 }}>
+                  <div style={{
+                    fontStyle: 'italic', fontSize: 14, color: 'var(--ink-muted)',
+                    marginBottom: 10, lineHeight: 1.5,
+                  }}>
+                    {t(
+                      '把不合适的项取消勾选，再说一句你想改的方向。',
+                      'Uncheck what is wrong, then add a line about what you want changed.'
+                    )}
+                  </div>
+
+                  {/* Plan-assumption checklist. Items start checked. Unchecking
+                      flags the item as wrong → backend uses the flag list to
+                      steer planChain on re-run. */}
+                  <div style={{ marginBottom: 14 }}>
+                    {checklistItems.map((item) => {
+                      const flagged = checklistFlags.includes(item.id);
+                      const checked = !flagged;
+                      return (
+                        <label key={item.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '6px 4px', cursor: 'pointer',
+                          fontStyle: 'italic', fontSize: 14,
+                          color: checked ? 'var(--ink-primary)' : 'var(--ink-faint)',
+                          textDecoration: checked ? 'none' : 'line-through',
+                          textDecorationColor: 'color-mix(in srgb, var(--ink-faint) 60%, transparent)',
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleChecklistFlag(item.id)}
+                            style={{
+                              accentColor: 'var(--brass-mid)',
+                              width: 14, height: 14, cursor: 'pointer',
+                            }}
+                          />
+                          <span>{item.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  {/* Free-form reason. */}
+                  <textarea
+                    value={refuseReason}
+                    onChange={(e) => setRefuseReason(e.target.value)}
+                    placeholder={t('还想说点什么？', 'Anything else to flag?')}
+                    rows={3}
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      background: 'color-mix(in srgb, var(--brass-mid) 4%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--brass-mid) 22%, transparent)',
+                      borderRadius: 2, padding: '8px 10px',
+                      fontFamily: '"EB Garamond", "Noto Serif SC", "Cormorant Garamond", Georgia, serif',
+                      fontStyle: 'italic', fontSize: 14,
+                      color: 'var(--ink-primary)',
+                      resize: 'vertical', outline: 'none',
+                    }}
+                  />
+
+                  {/* Replan in-flight feedback. */}
+                  {replanStage === 'loading' && (
+                    <div style={{
+                      marginTop: 14, fontStyle: 'italic', fontSize: 14,
+                      color: 'var(--ink-muted)', textAlign: 'center',
+                    }}>
+                      {t('正在重新设计…', 're-planning…')}
+                    </div>
+                  )}
+                  {replanStage === 'error' && (
+                    <div style={{
+                      marginTop: 12, fontStyle: 'italic', fontSize: 13,
+                      color: 'var(--verdict-flag, #c44)',
+                    }}>
+                      {t('重新设计失败：', 're-plan failed: ')}{replanError || 'unknown'}
+                    </div>
+                  )}
+
+                  <div style={{
+                    marginTop: 18, display: 'flex',
+                    justifyContent: 'space-between', alignItems: 'center', gap: 12,
+                  }}>
+                    <button
+                      onClick={handleCancelInstead}
+                      disabled={replanStage === 'loading'}
+                      style={{
+                        background: 'transparent', border: 'none', padding: '4px 0',
+                        cursor: replanStage === 'loading' ? 'default' : 'pointer',
+                        color: 'var(--ink-faint)',
+                        fontFamily: '"EB Garamond", serif',
+                        fontStyle: 'italic', fontSize: 13,
+                        opacity: replanStage === 'loading' ? 0.5 : 1,
+                      }}
+                    >{t('改为取消此计划', 'Cancel this plan instead')}</button>
+
+                    <button
+                      onClick={handleSubmitRefusal}
+                      disabled={replanStage === 'loading'}
+                      style={{
+                        background: 'color-mix(in srgb, var(--brass-mid) 22%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--brass-mid) 42%, transparent)',
+                        borderRadius: 2,
+                        cursor: replanStage === 'loading' ? 'default' : 'pointer',
+                        color: 'var(--ink-title)',
+                        fontFamily: '"EB Garamond", serif',
+                        fontStyle: 'italic', fontSize: 14,
+                        padding: '7px 18px',
+                        opacity: replanStage === 'loading' ? 0.6 : 1,
+                      }}
+                    >{t('提交并重新设计', 'Submit refusal & re-plan')}</button>
+                  </div>
+                </div>
+              );
+            }
+
+            // Default — Accept / Refuse row.
+            return (
+              <div style={{
+                marginTop: 22, display: 'flex',
+                justifyContent: 'space-between', alignItems: 'center', gap: 14,
+              }}>
+                <span style={{
+                  fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic',
+                  flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {t('已存：', 'saved: ')}{result.slug}/chain.json
+                </span>
+
+                {/* Accept-flow inline state. */}
+                {acceptStage === 'loading' ? (
+                  <span style={{
+                    fontStyle: 'italic', fontSize: 14, color: 'var(--ink-muted)',
+                  }}>{t('正在准备第一节…', 'preparing your first course…')}</span>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+                    {/* Refuse — italic ink-faint, no fill, underline on hover. */}
+                    <button
+                      onClick={handleRefuseClick}
+                      disabled={replanStage === 'loading'}
+                      onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
+                      style={{
+                        background: 'transparent', border: 'none', padding: '4px 2px',
+                        cursor: replanStage === 'loading' ? 'default' : 'pointer',
+                        color: 'var(--ink-faint)',
+                        fontFamily: '"EB Garamond", "Cormorant Garamond", serif',
+                        fontStyle: 'italic', fontSize: 14,
+                        textDecorationColor: 'color-mix(in srgb, var(--ink-faint) 60%, transparent)',
+                        opacity: replanStage === 'loading' ? 0.5 : 1,
+                      }}
+                    >{t('拒绝', 'Refuse')}</button>
+
+                    {/* Accept — filled brass-bright, italic Garamond. */}
+                    <button
+                      onClick={handleAccept}
+                      disabled={acceptStage === 'loading'}
+                      style={{
+                        background: 'var(--brass-bright)',
+                        border: '1px solid color-mix(in srgb, var(--brass-bright) 75%, var(--ink-title))',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        color: 'var(--bg-base)',
+                        fontFamily: '"EB Garamond", "Cormorant Garamond", serif',
+                        fontStyle: 'italic', fontSize: 15,
+                        padding: '8px 22px',
+                        boxShadow: 'inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent)',
+                      }}
+                    >{t('接受', 'Accept')}</button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Accept error — surfaced inline below the button row. */}
+          {acceptStage === 'error' && (
+            <div style={{
+              marginTop: 12, fontStyle: 'italic', fontSize: 13,
+              color: 'var(--verdict-flag, #c44)', textAlign: 'right',
+            }}>
+              {t('启动失败：', 'failed to start: ')}{acceptError || 'unknown'}
+            </div>
+          )}
         </div>
       </div>
     );

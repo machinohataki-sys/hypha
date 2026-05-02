@@ -227,57 +227,203 @@ function passesSourcePolicy(url) {
   return !BANNED_DOMAINS.some(d => u.includes(d));
 }
 
-async function harvest(topic, settings) {
+// ── harvest() helpers — extracted for telemetry + parallel scheduling ───────
+// Each channel returns { items: [...], err: null|string } so the orchestrator
+// can capture per-channel failures without one bad source killing the rest.
+
+async function _harvestGithub(topic) {
   const q = encodeURIComponent(String(topic).trim());
-  const out = [];
+  const ghRes = await fetch(`https://api.github.com/search/repositories?q=${q}&sort=stars&per_page=8`, {
+    headers: { 'User-Agent': 'Hypha/0.1', Accept: 'application/vnd.github+json' },
+  });
+  const items = [];
+  if (ghRes.ok) {
+    const data = await ghRes.json();
+    for (const r of (data.items || [])) {
+      if (!passesSourcePolicy(r.html_url)) continue;
+      items.push({ url: r.html_url, title: r.full_name, excerpt: r.description || '', stars: r.stargazers_count, sourceType: 'github' });
+    }
+  }
+  return items;
+}
 
+async function _harvestHN(topic) {
+  const q = encodeURIComponent(String(topic).trim());
+  const hnRes = await fetch(`https://hn.algolia.com/api/v1/search?query=${q}&numericFilters=points>50&hitsPerPage=10`);
+  const items = [];
+  if (hnRes.ok) {
+    const data = await hnRes.json();
+    for (const h of (data.hits || [])) {
+      const url = h.url || `https://news.ycombinator.com/item?id=${h.objectID}`;
+      if (!passesSourcePolicy(url)) continue;
+      items.push({ url, title: h.title || h.story_title || '', excerpt: (h.story_text || '').slice(0, 240), stars: h.points, sourceType: 'hn' });
+    }
+  }
+  return items;
+}
+
+async function _harvestArxiv(topic) {
+  const q = encodeURIComponent(String(topic).trim());
+  // sortBy=submittedDate&sortOrder=descending → newest preprints first.
+  // Was sortBy=relevance which biased toward older highly-cited papers.
+  const axRes = await fetch(`http://export.arxiv.org/api/query?search_query=all:${q}&max_results=8&sortBy=submittedDate&sortOrder=descending`, {
+    headers: { 'User-Agent': 'Hypha/0.1' },
+  });
+  const items = [];
+  if (axRes.ok) {
+    const xml = await axRes.text();
+    const entries = xml.split('<entry>').slice(1);
+    for (const e of entries) {
+      const t = (e.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
+      const s = (e.match(/<summary>([\s\S]*?)<\/summary>/) || [])[1] || '';
+      const u = (e.match(/<id>([\s\S]*?)<\/id>/) || [])[1] || '';
+      if (!passesSourcePolicy(u)) continue;
+      items.push({ url: u.trim(), title: t.trim().replace(/\s+/g, ' '), excerpt: s.trim().replace(/\s+/g, ' ').slice(0, 240), stars: 0, sourceType: 'arxiv' });
+    }
+  }
+  return items;
+}
+
+// Tavily WebSearch — additive 4th channel. Silent no-op when key absent so the
+// existing 3-channel flow degrades cleanly. Free tier: 1k req/mo.
+async function _harvestWebSearch(topic, settings) {
+  const tavilyKey = (settings && settings.tavilyKey) || process.env.TAVILY_API_KEY || '';
+  if (!tavilyKey) return [];
   try {
-    const ghRes = await fetch(`https://api.github.com/search/repositories?q=${q}&sort=stars&per_page=8`, {
-      headers: { 'User-Agent': 'Hypha/0.1', Accept: 'application/vnd.github+json' },
+    const res = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: tavilyKey,
+        query: String(topic),
+        search_depth: 'basic',
+        max_results: 10,
+        include_answer: false,
+        include_raw_content: false,
+      }),
     });
-    if (ghRes.ok) {
-      const data = await ghRes.json();
-      for (const r of (data.items || [])) {
-        if (!passesSourcePolicy(r.html_url)) continue;
-        out.push({ url: r.html_url, title: r.full_name, excerpt: r.description || '', stars: r.stargazers_count, sourceType: 'github' });
-      }
-    }
-  } catch (_) {}
+    if (!res.ok) return [];
+    const json = await res.json();
+    const results = Array.isArray(json.results) ? json.results : [];
+    return results
+      .map(r => ({
+        url: r.url || '',
+        title: String(r.title || '').slice(0, 200),
+        excerpt: String(r.content || '').slice(0, 400),
+        sourceType: 'web',
+        stars: 0,
+      }))
+      .filter(s => s.url && s.title && passesSourcePolicy(s.url));
+  } catch (_) {
+    return [];
+  }
+}
 
+async function harvest(topic, settings, onProgress = null) {
+  const t0 = Date.now();
+  const perChannel = {
+    github:   { n: 0, ms: 0, err: null, items: [] },
+    hn:       { n: 0, ms: 0, err: null, items: [] },
+    arxiv:    { n: 0, ms: 0, err: null, items: [] },
+    web:      { n: 0, ms: 0, err: null, items: [] },
+    fallback: { n: 0, ms: 0, err: null, items: [] },
+  };
+
+  // Run all 4 live channels in parallel. Promise.allSettled so a single
+  // network failure can't take down the whole harvest.
+  const runChannel = async (key, fn) => {
+    const start = Date.now();
+    try {
+      const items = await fn();
+      perChannel[key].items = items;
+      perChannel[key].n = items.length;
+    } catch (e) {
+      perChannel[key].err = (e && e.message) ? String(e.message) : String(e);
+    } finally {
+      perChannel[key].ms = Date.now() - start;
+    }
+  };
+
+  await Promise.allSettled([
+    runChannel('github', () => _harvestGithub(topic)),
+    runChannel('hn',     () => _harvestHN(topic)),
+    runChannel('arxiv',  () => _harvestArxiv(topic)),
+    runChannel('web',    () => _harvestWebSearch(topic, settings)),
+  ]);
+
+  // Curated frontier+university anchors (Eternal Law 8) — always added so the
+  // downstream BM25/rank pass has at least these tier-1 endpoints to pull from.
+  const fbStart = Date.now();
+  perChannel.fallback.items = [
+    { url: 'https://news.ycombinator.com', title: 'Hacker News (frontier forum)', excerpt: '', stars: 0, sourceType: 'forum-anchor' },
+    { url: 'https://stanford.edu', title: 'Stanford courses', excerpt: 'university anchor', stars: 0, sourceType: 'uni-anchor' },
+    { url: 'https://ocw.mit.edu', title: 'MIT OpenCourseWare', excerpt: 'university anchor', stars: 0, sourceType: 'uni-anchor' },
+  ];
+  perChannel.fallback.n = perChannel.fallback.items.length;
+  perChannel.fallback.ms = Date.now() - fbStart;
+
+  const liveItems = [
+    ...perChannel.github.items,
+    ...perChannel.hn.items,
+    ...perChannel.arxiv.items,
+    ...perChannel.web.items,
+  ];
+  // totalUseful = topic-specific signal only (excludes fallback anchors).
+  // Title + (url OR substantive excerpt) → counts as a real source.
+  const totalUseful = liveItems.filter(s =>
+    s && s.title && (s.url || (s.excerpt && s.excerpt.length > 50))
+  ).length;
+  const durationMs = Date.now() - t0;
+
+  // Telemetry — events.jsonl. Wrapped in try so a vault hiccup never breaks
+  // the harvest contract.
   try {
-    const hnRes = await fetch(`https://hn.algolia.com/api/v1/search?query=${q}&numericFilters=points>50&hitsPerPage=10`);
-    if (hnRes.ok) {
-      const data = await hnRes.json();
-      for (const h of (data.hits || [])) {
-        const url = h.url || `https://news.ycombinator.com/item?id=${h.objectID}`;
-        if (!passesSourcePolicy(url)) continue;
-        out.push({ url, title: h.title || h.story_title || '', excerpt: (h.story_text || '').slice(0, 240), stars: h.points, sourceType: 'hn' });
+    const vault = require('./lib/vault');
+    if (vault && typeof vault.appendJSONL === 'function') {
+      vault.appendJSONL('events.jsonl', {
+        ts: new Date().toISOString(),
+        op: 'harvest_complete',
+        topic: String(topic),
+        perChannel: {
+          github:   { n: perChannel.github.n,   ms: perChannel.github.ms,   err: perChannel.github.err },
+          hn:       { n: perChannel.hn.n,       ms: perChannel.hn.ms,       err: perChannel.hn.err },
+          arxiv:    { n: perChannel.arxiv.n,    ms: perChannel.arxiv.ms,    err: perChannel.arxiv.err },
+          web:      { n: perChannel.web.n,      ms: perChannel.web.ms,      err: perChannel.web.err },
+          fallback: { n: perChannel.fallback.n, ms: perChannel.fallback.ms, err: perChannel.fallback.err },
+        },
+        totalUseful,
+        durationMs,
+      });
+      if (totalUseful < 5) {
+        vault.appendJSONL('events.jsonl', {
+          ts: new Date().toISOString(),
+          op: 'harvest_thin',
+          topic: String(topic),
+          totalUseful,
+        });
       }
     }
   } catch (_) {}
 
-  try {
-    const axRes = await fetch(`http://export.arxiv.org/api/query?search_query=all:${q}&max_results=8&sortBy=relevance`, {
-      headers: { 'User-Agent': 'Hypha/0.1' },
-    });
-    if (axRes.ok) {
-      const xml = await axRes.text();
-      const entries = xml.split('<entry>').slice(1);
-      for (const e of entries) {
-        const t = (e.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
-        const s = (e.match(/<summary>([\s\S]*?)<\/summary>/) || [])[1] || '';
-        const u = (e.match(/<id>([\s\S]*?)<\/id>/) || [])[1] || '';
-        if (!passesSourcePolicy(u)) continue;
-        out.push({ url: u.trim(), title: t.trim().replace(/\s+/g, ' '), excerpt: s.trim().replace(/\s+/g, ' ').slice(0, 240), stars: 0, sourceType: 'arxiv' });
-      }
-    }
-  } catch (_) {}
+  // Optional progress callback — main.js can wire this through to webContents
+  // so the renderer surfaces a thin-source banner inline.
+  if (typeof onProgress === 'function') {
+    try {
+      onProgress('harvest_complete', {
+        totalUseful,
+        perChannel: {
+          github:   { n: perChannel.github.n,   err: perChannel.github.err },
+          hn:       { n: perChannel.hn.n,       err: perChannel.hn.err },
+          arxiv:    { n: perChannel.arxiv.n,    err: perChannel.arxiv.err },
+          web:      { n: perChannel.web.n,      err: perChannel.web.err },
+          fallback: { n: perChannel.fallback.n, err: perChannel.fallback.err },
+        },
+      });
+    } catch (_) {}
+  }
 
-  // Curated frontier+university anchors (Eternal Law 8)
-  out.push({ url: 'https://news.ycombinator.com', title: 'Hacker News (frontier forum)', excerpt: '', stars: 0, sourceType: 'forum-anchor' });
-  out.push({ url: 'https://stanford.edu', title: 'Stanford courses', excerpt: 'university anchor', stars: 0, sourceType: 'uni-anchor' });
-  out.push({ url: 'https://ocw.mit.edu', title: 'MIT OpenCourseWare', excerpt: 'university anchor', stars: 0, sourceType: 'uni-anchor' });
-
+  // Final assembly — preserve original [live..., fallback...] order + 30 cap.
+  const out = [...liveItems, ...perChannel.fallback.items];
   return out.slice(0, 30);
 }
 

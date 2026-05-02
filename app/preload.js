@@ -155,6 +155,11 @@ contextBridge.exposeInMainWorld('ptor', {
     // Lacquer Loop W7 Chain Planner.
     chainClarify: (goal) => ipcRenderer.invoke('chain:clarify', { goal }),
     chainCreate: (args) => ipcRenderer.invoke('chain:create', args || {}),
+    // v0.5.2 chain accept/refuse — see main.js chain:accept / chain:refuse.
+    // chainAccept({ slug, covenantSnapshot }) → { ok, firstSlug, lessonRel } | { ok:false, error }
+    // chainRefuse({ slug, reason?, checklistFlags? }) → { ok, mode:'reason-recorded'|'cancelled', newPlan? }
+    chainAccept: (args) => ipcRenderer.invoke('chain:accept', args || {}),
+    chainRefuse: (args) => ipcRenderer.invoke('chain:refuse', args || {}),
     // Smart Gate (council 2026-05-01 option B): runs feasibility classifiers
     // after Learn-flow Q&A; renderer interrupts curriculum-create if tier is
     // nearly-impossible. proposePrereqs called only on user request.
