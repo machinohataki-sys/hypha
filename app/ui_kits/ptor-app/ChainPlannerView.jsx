@@ -391,6 +391,25 @@ function ChainPlannerView({ open, onClose, context }) {
         <div style={panel}>
           {header}
 
+          {/* G12 — refusal history. Subtle italic note above the verdict so
+              the user remembers this plan was already shaped by their feedback,
+              without competing with Accept/Refuse below. */}
+          {result.chain && result.chain.refused_once && Array.isArray(result.chain.refusal_history) && result.chain.refusal_history.length > 0 && (
+            <div style={{
+              marginBottom: 14,
+              fontStyle: 'italic', fontSize: 13, lineHeight: 1.5,
+              color: 'var(--ink-faint)',
+            }}>
+              {(() => {
+                const n = result.chain.refusal_history.length;
+                return t(
+                  `已据你的反馈调整 ${n} 次。`,
+                  `this plan has been refined ${n} time${n === 1 ? '' : 's'} based on your feedback`
+                );
+              })()}
+            </div>
+          )}
+
           {/* Verdict block */}
           <div style={{
             padding: '14px 18px', marginBottom: 18,

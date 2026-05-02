@@ -905,6 +905,11 @@ function NoteViewInner({ rel, onBack, viewMode = 'evolution' }) {
           position: 'relative',
         }}
       >
+        {/* G1B — chain-link nav banner. Renders nothing if this lesson's
+            curriculum isn't part of a learning chain. Sits above both
+            LessonChat and LessonHistoryView so the user always sees their
+            chain context regardless of finish state. */}
+        <ChainLinkBanner rel={rel} meta={meta} />
         {isFinished ? (
           <LessonHistoryView
             rel={rel}
@@ -2077,6 +2082,150 @@ function NoteViewInner({ rel, onBack, viewMode = 'evolution' }) {
 }
 
 // ============================================================================
+// ChainLinkBanner — G1B.
+// When the open lesson belongs to a curriculum that's a link in a learning
+// chain, show "chain: {goal} · link N/M · this curriculum: {topic}". When the
+// user is on the last lesson AND the lesson is finished (date_distilled set),
+// expose an "advance →" button that calls window.ptor.hypha.chainAdvance and
+// dispatches both `hypha:open-rel` (per spec) and `ptor:open-rel` (the actually-
+// listened-for event in App.jsx) to navigate to the next chain link.
+// Renders nothing if there's no chain.
+// ============================================================================
+function ChainLinkBanner({ rel, meta }) {
+  const [state, setState] = React.useState(null);          // curriculum's state.json
+  const [chain, setChain] = React.useState(null);          // chain's chain.json
+  const [linksState, setLinksState] = React.useState(null);// chain's links-state.json
+  const [advancing, setAdvancing] = React.useState(false);
+  const [advanceError, setAdvanceError] = React.useState(null);
+
+  const slug = React.useMemo(
+    () => (rel ? rel.split(/[\\/]/)[0] : null),
+    [rel]
+  );
+
+  React.useEffect(() => {
+    if (!slug || !window.ptor || !window.ptor.vault) return undefined;
+    let cancelled = false;
+    setState(null); setChain(null); setLinksState(null);
+    setAdvancing(false); setAdvanceError(null);
+
+    window.ptor.vault.read(slug + '/state.json').then((res) => {
+      if (cancelled) return;
+      if (!res || !res.body) { setState({ chainSlug: null }); return; }
+      let parsed = null;
+      try { parsed = JSON.parse(res.body); } catch (_) { parsed = null; }
+      if (!parsed || !parsed.chainSlug) {
+        setState({ chainSlug: null });
+        return;
+      }
+      setState(parsed);
+      const cSlug = parsed.chainSlug;
+      Promise.all([
+        window.ptor.vault.read(cSlug + '/chain.json'),
+        window.ptor.vault.read(cSlug + '/links-state.json'),
+      ]).then(([chainRes, lsRes]) => {
+        if (cancelled) return;
+        try {
+          if (chainRes && chainRes.body) setChain(JSON.parse(chainRes.body));
+        } catch (_) {}
+        try {
+          if (lsRes && lsRes.body) setLinksState(JSON.parse(lsRes.body));
+        } catch (_) {}
+      }).catch(() => {});
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  // Bail until we know whether there's a chain.
+  if (!state) return null;
+  if (!state.chainSlug) return null;
+  if (!linksState || !chain) return null;
+
+  const links = Array.isArray(linksState.links) ? linksState.links : [];
+  const currentLinkIdx = links.findIndex((l) => l && l.slug === slug);
+  if (currentLinkIdx < 0) return null;
+  const totalLinks = links.length;
+  const currentLink = links[currentLinkIdx] || {};
+  const chainGoal = chain.ultimate_goal || chain.goal || '';
+
+  // Last-lesson + finished detection.
+  const lessonRels = Array.isArray(state.lessonRels) ? state.lessonRels : [];
+  const isLastLesson = lessonRels.length > 0 && rel === lessonRels[lessonRels.length - 1];
+  const dd = meta && meta.frontmatter && meta.frontmatter.date_distilled;
+  const isFinished = !!(dd && dd !== 'null' && dd !== '');
+  const hasNextLink = currentLinkIdx + 1 < totalLinks;
+  const nextLink = hasNextLink ? links[currentLinkIdx + 1] : null;
+  const showAdvance = isLastLesson && isFinished && hasNextLink;
+
+  const handleAdvance = async () => {
+    if (!window.ptor || !window.ptor.hypha
+      || typeof window.ptor.hypha.chainAdvance !== 'function') {
+      setAdvanceError('chainAdvance unavailable');
+      return;
+    }
+    setAdvancing(true); setAdvanceError(null);
+    try {
+      const r = await window.ptor.hypha.chainAdvance({ chainSlug: state.chainSlug });
+      if (r && r.ok && r.nextLessonRel) {
+        try { window.dispatchEvent(new CustomEvent('hypha:open-rel', { detail: { rel: r.nextLessonRel } })); } catch (_) {}
+        try { window.dispatchEvent(new CustomEvent('ptor:open-rel', { detail: r.nextLessonRel })); } catch (_) {}
+      } else {
+        setAdvancing(false);
+        setAdvanceError((r && r.error) || 'failed to advance');
+      }
+    } catch (err) {
+      setAdvancing(false);
+      setAdvanceError((err && err.message) || String(err));
+    }
+  };
+
+  return (
+    <div style={{
+      padding: '10px 48px 8px',
+      borderBottom: '1px solid color-mix(in srgb, var(--brass-mid) 8%, transparent)',
+      fontFamily: '"EB Garamond", "Noto Serif SC", Georgia, serif',
+      fontStyle: 'italic', fontSize: 13, lineHeight: 1.55,
+      color: 'var(--ink-faint)',
+      display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16,
+      flexWrap: 'wrap',
+    }}>
+      <span>
+        chain: {chainGoal} · link {currentLinkIdx + 1}/{totalLinks}
+        {currentLink.topic ? <> · this curriculum: {currentLink.topic}</> : null}
+      </span>
+      {showAdvance && (
+        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 12 }}>
+          <span style={{ color: 'var(--ink-muted)' }}>
+            → ready for next link{nextLink && nextLink.topic ? `: ${nextLink.topic}` : ''}
+          </span>
+          <button
+            onClick={handleAdvance}
+            disabled={advancing}
+            style={{
+              background: 'transparent',
+              border: '1px solid color-mix(in srgb, var(--brass-mid) 32%, transparent)',
+              borderRadius: '10px 14px 10px 14px',
+              color: advancing ? 'var(--ink-faint)' : 'var(--brass-bright)',
+              fontFamily: 'inherit', fontStyle: 'italic',
+              fontSize: 13, padding: '4px 12px',
+              cursor: advancing ? 'not-allowed' : 'pointer',
+              opacity: advancing ? 0.5 : 1,
+              transition: 'all 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+            }}
+          >
+            {advancing ? 'advancing…' : 'advance →'}
+          </button>
+          {advanceError && (
+            <span style={{ color: 'var(--verdict-flag, #c44)', fontSize: 12 }}>· {advanceError}</span>
+          )}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
 // LessonChat — Claude.ai-style multi-turn Socratic chat surface for evolution
 // mode. Replaces the .md markdown render when viewMode === 'evolution' AND
 // meta.frontmatter.lesson_idx exists. The .md file is no longer the live
@@ -2230,6 +2379,33 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
   const lessonTitle = (meta && meta.frontmatter && meta.frontmatter.title)
     || (rel ? rel.split(/[\\/]/).pop().replace(/\.md$/i, '').replace(/^\d+-/, '') : '');
   const learnGoal = (meta && meta.frontmatter && String(meta.frontmatter.learn_goal || '').replace(/^"|"$/g, '')) || '';
+
+  // G9 — per-lesson re-harvest visibility. TEAM B emits
+  // 'lesson:reharvest-complete' via window.ptor.hypha.onLessonReharvestComplete.
+  // When a payload arrives that matches this rel, surface a quiet italic banner
+  // for ~5s. Tolerates missing preload export (TEAM B may not have shipped yet).
+  const [reharvestBanner, setReharvestBanner] = React.useState(null); // null | { freshCount, channels }
+  React.useEffect(() => {
+    if (!window.ptor || !window.ptor.hypha
+      || typeof window.ptor.hypha.onLessonReharvestComplete !== 'function') {
+      return; // graceful no-op
+    }
+    let timer = null;
+    const off = window.ptor.hypha.onLessonReharvestComplete((payload) => {
+      if (!payload || !payload.rel) return;
+      if (payload.rel !== rel) return; // only show for the currently-open lesson
+      setReharvestBanner({
+        freshCount: Number(payload.freshCount) || 0,
+        channels: payload.channels || { tavily: 0, citation: 0 },
+      });
+      clearTimeout(timer);
+      timer = setTimeout(() => setReharvestBanner(null), 5000);
+    });
+    return () => {
+      clearTimeout(timer);
+      if (typeof off === 'function') off();
+    };
+  }, [rel]);
 
   // Reset on rel change.
   React.useEffect(() => {
@@ -2530,6 +2706,27 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
               color: 'var(--ink-muted)', margin: 0,
               maxWidth: 720,
             }}>{learnGoal}</p>
+          )}
+          {/* G9 — re-harvest banner. Italic Garamond, ink-faint, no chrome.
+              Only visible for ~5s after TEAM B fires lesson:reharvest-complete
+              for this rel. Reuses the inherited font stack from <header>. */}
+          {reharvestBanner && (
+            <p style={{
+              marginTop: 8, marginBottom: 0,
+              fontStyle: 'italic', fontWeight: 400,
+              fontSize: 13, lineHeight: 1.5,
+              color: 'var(--ink-faint)',
+              maxWidth: 720,
+              animation: 'hypha-reharvest-fade 360ms cubic-bezier(0.22, 1, 0.36, 1) both',
+            }}>
+              freshly gathered: {reharvestBanner.freshCount} new source{reharvestBanner.freshCount === 1 ? '' : 's'} for this lesson · {reharvestBanner.channels.tavily || 0} from web · {reharvestBanner.channels.citation || 0} from citation graph
+              <style>{`
+                @keyframes hypha-reharvest-fade {
+                  from { opacity: 0; transform: translateY(-3px); }
+                  to   { opacity: 1; transform: translateY(0); }
+                }
+              `}</style>
+            </p>
           )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>

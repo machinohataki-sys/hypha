@@ -160,6 +160,18 @@ contextBridge.exposeInMainWorld('ptor', {
     // chainRefuse({ slug, reason?, checklistFlags? }) → { ok, mode:'reason-recorded'|'cancelled', newPlan? }
     chainAccept: (args) => ipcRenderer.invoke('chain:accept', args || {}),
     chainRefuse: (args) => ipcRenderer.invoke('chain:refuse', args || {}),
+    // v0.6.1 — chain link transition. Called by NoteView's "advance →" button
+    // when the user finishes the last lesson of the current chain link.
+    chainAdvance: (args) => ipcRenderer.invoke('chain:advance', args || {}),
+    // v0.6.1 — per-lesson re-harvest notification. Subscribe to flash a banner
+    // in NoteView when ghost lesson materializes with fresh sources from
+    // Tavily / citation graph.
+    onLessonReharvestComplete: (cb) => {
+      if (typeof cb !== 'function') return () => {};
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on('lesson:reharvest-complete', handler);
+      return () => ipcRenderer.removeListener('lesson:reharvest-complete', handler);
+    },
     // Smart Gate (council 2026-05-01 option B): runs feasibility classifiers
     // after Learn-flow Q&A; renderer interrupts curriculum-create if tier is
     // nearly-impossible. proposePrereqs called only on user request.

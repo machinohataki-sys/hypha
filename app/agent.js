@@ -519,12 +519,23 @@ async function harvest(topic, settings, onProgress = null) {
         totalUseful,
         durationMs,
       });
-      if (totalUseful < 5) {
+      // v0.6.1 — thin-trigger now fires on EITHER aggregate-thin OR
+      // all-channels-thin (no single channel produced ≥3 sources). Per-channel
+      // counts attached to the event so downstream telemetry can diagnose
+      // which trigger fired and which channels under-delivered.
+      const liveChannelKeys = ['github', 'hn', 'arxiv', 'web', 'citation'];
+      const channelMaxes = liveChannelKeys.map(c => (perChannel[c] && perChannel[c].n) || 0);
+      const isAggregateThin = totalUseful < 5;
+      const isAllChannelsThin = channelMaxes.every(n => n < 3);
+      if (isAggregateThin || isAllChannelsThin) {
         vault.appendJSONL('events.jsonl', {
           ts: new Date().toISOString(),
           op: 'harvest_thin',
           topic: String(topic),
           totalUseful,
+          aggregateThin: isAggregateThin,
+          allChannelsThin: isAllChannelsThin,
+          channelCounts: Object.fromEntries(liveChannelKeys.map((c, i) => [c, channelMaxes[i]])),
         });
       }
     }
@@ -1297,7 +1308,12 @@ Rules:
 // in app/lib/feasibility.js; this layer turns user-facing inputs (goal text +
 // answers) into the numeric inputs that classifier consumes.
 async function classifyDifficulty(goal, settings) {
-  const sys = `${HYPHA_SHORT}Score the cognitive difficulty of mastering the user's learning goal at the level they describe. Output JSON: { "score": float 0..1, "rationale": string }.
+  // v0.6.1 — inject the calibrated student profile so difficulty scoring
+  // can adjust for the learner's actual baseline (e.g. "PhD-level" framing
+  // for an experienced ML researcher means something different than for
+  // a high-schooler). Empty block when no profile present.
+  const profileBlock = userProfileBlock(settings && settings.userProfile);
+  const sys = `${HYPHA_SHORT}${profileBlock}Score the cognitive difficulty of mastering the user's learning goal at the level they describe. Output JSON: { "score": float 0..1, "rationale": string }.
 
 Calibration anchors:
 - 0.0 = grade-school basics
@@ -1327,7 +1343,12 @@ Return JSON only.`;
 }
 
 async function classifyIntrinsicLoad(goal, settings) {
-  const sys = `${HYPHA_SHORT}Classify the cognitive ELEMENT INTERACTIVITY (Sweller 1988 / Likourezos 2024) of the topic. Element interactivity = how many concepts/elements MUST be processed simultaneously.
+  // v0.6.1 — inject the calibrated student profile. Element interactivity
+  // is partly relative: a transformer's interlocked components feel "high"
+  // to a novice but "med" to a researcher who already chunks them. Profile
+  // block lets the model calibrate against the learner's actual baseline.
+  const profileBlock = userProfileBlock(settings && settings.userProfile);
+  const sys = `${HYPHA_SHORT}${profileBlock}Classify the cognitive ELEMENT INTERACTIVITY (Sweller 1988 / Likourezos 2024) of the topic. Element interactivity = how many concepts/elements MUST be processed simultaneously.
 
 Output JSON: { "load": "low"|"med"|"high", "rationale": string }.
 
@@ -1349,23 +1370,62 @@ Return JSON only.`;
   } catch (_) { return { load: 'med', rationale: 'classify failed' }; }
 }
 
+// _findRelevantProbe — v0.6.1. Pick the most topic-relevant probe from
+// profile.probes[]. Uses Jaccard-ish overlap of ≥3-char tokens between
+// probe.topic and goal. Returns the best match if its overlap covers ≥30%
+// of the probe's tokens, else null. Falls back to legacy profile.probe
+// (singular) when profile.probes is not an array. Internal helper —
+// not exported so callers can't depend on the heuristic shape.
+function _findRelevantProbe(profile, goal) {
+  if (!profile) return null;
+  const probes = Array.isArray(profile.probes)
+    ? profile.probes
+    : (profile.probe ? [profile.probe] : []);
+  if (probes.length === 0) return null;
+  const goalLower = String(goal || '').toLowerCase();
+  const goalTokens = new Set(
+    goalLower.split(/\W+/).filter(t => t && t.length >= 3)
+  );
+  let bestProbe = null;
+  let bestScore = 0;
+  for (const p of probes) {
+    if (!p || !p.topic) continue;
+    const probeTokens = new Set(
+      String(p.topic).toLowerCase().split(/\W+/).filter(t => t && t.length >= 3)
+    );
+    if (probeTokens.size === 0) continue;
+    let overlap = 0;
+    for (const t of probeTokens) if (goalTokens.has(t)) overlap += 1;
+    const score = overlap / probeTokens.size;
+    if (score > bestScore) {
+      bestScore = score;
+      bestProbe = p;
+    }
+  }
+  return bestScore >= 0.3 ? bestProbe : null;
+}
+
 async function classifyPriorKnowledge(goal, answers, settings) {
   const formattedAnswers = (answers || []).map(a =>
     `Q: ${a.question}\nA: ${Array.isArray(a.answer) ? a.answer.join(', ') : a.answer}`
   ).join('\n\n');
-  const profileBlock = userProfileBlock(settings && settings.userProfile);
-  // v0.6.0 — if a calibrated probe exists in profile.probe, surface it as the
-  // PRIMARY ground-truth signal. Self-introduction prose (humble-brag or
-  // impostor-syndrome) is a known-noisy channel; the probe is calibrated
-  // against actual MCQs the student answered. Empty clause when no probe.
-  const probe = (settings && settings.userProfile && settings.userProfile.probe) || null;
+  const profile = settings && settings.userProfile;
+  const profileBlock = userProfileBlock(profile);
+  // v0.6.1 — profile.probes[] is an array of recent probes (newest first, max 5).
+  // Legacy profile.probe (singular, most-recent copy) is still honored as a
+  // back-compat fallback. Only surface a probe if its topic actually overlaps
+  // with the current goal — otherwise the calibrated baseline is for an
+  // UNRELATED topic and would mislead the prior. _findRelevantProbe handles
+  // both shapes + the relevance filter.
+  const probe = _findRelevantProbe(profile, goal);
   const probeClause = (probe && typeof probe.score === 'number') ? `
 
-PROBE RESULTS (calibrated baseline — use as PRIMARY signal over self-introduction):
-- Topic probed: ${probe.topic || '(unspecified)'}
+PROBE RESULTS (calibrated baseline ON THE TOPIC "${probe.topic}" — use as PRIMARY signal over self-introduction when the topic matches):
 - Score: ${Math.round(probe.score * 100)}% (${probe.correctCount || 0}/${probe.total || 0})
 - Band: ${probe.band || 'unknown'}
-Map band → score: novice → 0.05-0.20, foundational → 0.20-0.40, intermediate → 0.40-0.65, advanced → 0.65-0.90.` : '';
+Map band → score: novice → 0.05-0.20, foundational → 0.20-0.40, intermediate → 0.40-0.65, advanced → 0.65-0.90.
+
+NOTE: this probe is on "${probe.topic}" — if the current GOAL "${goal}" is unrelated, fall back to the prose self-introduction signal instead.` : '';
   const sys = `${HYPHA_SHORT}${profileBlock}${probeClause}Given a learning GOAL and the student's self-reported BACKGROUND, score how close they currently are to the goal. Use the STUDENT PROFILE block above (if present) as the PRIMARY signal — the answers below are supplementary disambiguators, not the baseline. Output JSON: { "score": float 0..1, "rationale": string, "missing_prerequisites": [string] }.
 
 Closeness calibration:
@@ -1460,7 +1520,7 @@ async function scoreProbe(topic, goal, answers, settings) {
 }
 
 async function planChain(goal, ctx, settings) {
-  const { tier, ratio, gap, missing_prerequisites, timeWeeks, dailyHours, intrinsicLoad, pComplete, lang } = ctx;
+  const { tier, pacingTier, ratio, gap, missing_prerequisites, timeWeeks, dailyHours, intrinsicLoad, pComplete, lang } = ctx;
   // Detect output language: explicit ctx.lang wins; else auto-detect from goal text.
   const detectedLang = (lang === 'zh' || lang === 'en') ? lang
     : (/[一-龥]/.test(String(goal || '')) ? 'zh' : 'en');
@@ -1469,6 +1529,17 @@ async function planChain(goal, ctx, settings) {
     'possible': 'BALANCE prerequisite floors with goal pursuit. Regular checkpoints. Exit criteria = passable for next link. Tone = guided + steady.',
     'easy': 'ALLOW deep dives. Exploration encouraged. Exit criteria = mastery. Last link can include extension topics. Tone = Socratic + open.',
   };
+  // v0.6.1 — pacing-tier guidance modulates LINK COUNT around the moderate
+  // baseline (3-8 in the opening clause). Distinct axis from feasibility-tier
+  // above (which modulates tone + warning). pacingTier ∈ {'gentle','moderate',
+  // 'heroic'}; absent value defaults to 'moderate' so v0.6.0 callers see no
+  // regression — only an extra "Pacing=moderate" guidance line is appended.
+  const pTier = (pacingTier === 'gentle' || pacingTier === 'heroic') ? pacingTier : 'moderate';
+  const tierGuide = pTier === 'gentle'
+    ? '\nPacing="gentle" — prefer the SHORTEST viable chain (3-5 links). Drop optional prerequisites.'
+    : pTier === 'heroic'
+    ? '\nPacing="heroic" — prefer DEEP scaffolding (6-10 links). Add buffer prerequisites and revisit links.'
+    : '\nPacing="moderate" — balanced 4-6 links.';
   const langInstruction = detectedLang === 'zh'
     ? 'OUTPUT LANGUAGE: Chinese (Simplified). All "topic", "rationale", "exit_criterion", "warning", "alternatives.lower_target_to" fields MUST be in Chinese. Match the user\'s register (formal academic Chinese, NOT casual). Numbers + technical terms (eigenvalue, BKT, etc.) may stay in English when natural.'
     : 'OUTPUT LANGUAGE: English. All fields in English.';
@@ -1478,7 +1549,7 @@ async function planChain(goal, ctx, settings) {
 ${langInstruction}
 
 Hard rules:
-- Sum of duration_weeks across all links = ${timeWeeks} (HARD constraint).
+- Sum of duration_weeks across all links = ${timeWeeks} (HARD constraint).${tierGuide}
 - Last link.role = "ultimate" with topic ≈ the user's goal verbatim (preserve user's wording).
 - Earlier links bridge the gap from current state to the goal — use the missing_prerequisites list as priority order.
 - topic: 4-12 words, CONCRETE + SPECIFIC. Forbidden: "math basics" / "fundamentals" / "introduction to X" alone. Required: name a specific mechanism, technique, paper, or distinction.

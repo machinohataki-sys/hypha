@@ -1661,7 +1661,7 @@ ipcMain.handle('quote:add-insight', (_e, { rel, quoteId, insight } = {}) => {
 // adapt-after-finish handler so the next ghost lesson always gets filled in
 // once the user finishes the current one — regardless of whether adaptation
 // itself was triggered (BASIC/DEEP) or skipped (STANDARD/no_atlas/disabled).
-async function _materializeNextGhost(slug, state, justIdx, settled, settings) {
+async function _materializeNextGhost(slug, state, justIdx, settled, settings, event = null) {
   try {
     const lessonRels = state.lessonRels || [];
     const nextIdx = justIdx + 1;
@@ -1695,28 +1695,9 @@ async function _materializeNextGhost(slug, state, justIdx, settled, settings) {
       priorLessons.push({ idx: i, title: t, learnGoal: lg });
     }
     let sources = vault.readJSON(`${slug}/sources.json`, []) || [];
-    // v0.6.0 — per-lesson re-harvest. Augment sources.json with fresh items
-    // for the upcoming lesson's specific topic, so BM25 below ranks against a
-    // lesson-relevant pool instead of the frozen lesson-1 corpus.
-    // (Lung 2026-05-02 council: lesson 14 was anchoring to lesson-1 broad search.)
-    // Additive — never break the materialization path on harvest failure.
-    try {
-      const upcomingTopic = `${slot.phaseLabel || ''} ${slot.phaseTone || ''} ${state.topic || slug}`.trim();
-      if (typeof _hyphaAgent._harvestPerLesson === 'function') {
-        const newSources = await _hyphaAgent._harvestPerLesson(sources, upcomingTopic, settings);
-        if (Array.isArray(newSources) && newSources.length) {
-          const seen = new Set((sources || []).map(s => s && s.url).filter(Boolean));
-          const fresh = newSources.filter(s => s && s.url && !seen.has(s.url));
-          if (fresh.length) {
-            sources = [...sources, ...fresh];
-            vault.writeJSON(`${slug}/sources.json`, sources);
-            try { _hyphaAppendEvent('per_lesson_reharvest', { slug, idx: nextIdx, added: fresh.length, total: sources.length }); } catch (_) {}
-          }
-        }
-      }
-    } catch (_) { /* re-harvest is additive; never break the materialization path */ }
     const queryStr = `${slot.phaseLabel} ${slot.phaseTone} ${state.goal || ''}`;
     const retrievedSources = _hyphaAgent.rankSourcesBM25(sources, queryStr, 5);
+    // v0.6.0/0.6.1 — propose FIRST so we know the lesson title + learnGoal.
     const next = await _hyphaAgent.proposeNextLesson({
       topic: slug,
       archetype: state.archetype || 'TECH-CONCEPT',
@@ -1726,6 +1707,30 @@ async function _materializeNextGhost(slug, state, justIdx, settled, settings) {
       priorVariance: null,
       retrievedSources,
     }, settings);
+    // v0.6.1 — per-lesson re-harvest with the LESSON-SPECIFIC query (title +
+    // learnGoal), not the broad phase label. Fresh sources land in sources.json
+    // for designLesson to read at chat-time. Additive; never breaks the path.
+    let freshCount = 0;
+    let freshChannels = { tavily: 0, citation: 0 };
+    try {
+      const lessonSpecificQuery = `${(next && next.title) || ''} ${(next && next.learnGoal) || ''}`.trim()
+        || `${slot.phaseLabel} ${state.topic || slug}`;
+      if (typeof _hyphaAgent._harvestPerLesson === 'function') {
+        const newSources = await _hyphaAgent._harvestPerLesson(sources, lessonSpecificQuery, settings);
+        if (Array.isArray(newSources) && newSources.length) {
+          const seen = new Set((sources || []).map(s => s && s.url).filter(Boolean));
+          const fresh = newSources.filter(s => s && s.url && !seen.has(s.url));
+          if (fresh.length) {
+            sources = [...sources, ...fresh];
+            vault.writeJSON(`${slug}/sources.json`, sources);
+            freshCount = fresh.length;
+            freshChannels.tavily = fresh.filter(s => s.sourceType === 'web').length;
+            freshChannels.citation = fresh.filter(s => s.sourceType === 'cited-ref' || s.sourceType === 'cited-by').length;
+            try { _hyphaAppendEvent('per_lesson_reharvest', { slug, idx: nextIdx, added: freshCount, total: sources.length, channels: freshChannels }); } catch (_) {}
+          }
+        }
+      }
+    } catch (_) { /* re-harvest is additive; never break materialization */ }
     const today = new Date().toISOString().slice(0, 10);
     const newFmMap = { ...nextFm };
     delete newFmMap.ghost;
@@ -1735,6 +1740,17 @@ async function _materializeNextGhost(slug, state, justIdx, settled, settings) {
     const newBody = `${newFm}\n\n# ${next.title}\n\n## 课程基础\n\n*This lesson hasn't been taught yet. Open the Tutor to begin.*\n\n## 用户灵感\n\n`;
     vault.write(nextRel, newBody);
     _hyphaAppendEvent('lesson_materialized', { slug, idx: nextIdx, fromIdx: justIdx });
+    // v0.6.1 — notify renderer of fresh sources so NoteView can flash the banner.
+    if (event && freshCount > 0) {
+      try {
+        event.sender.send('lesson:reharvest-complete', {
+          rel: nextRel,
+          lessonTitle: next.title,
+          freshCount,
+          channels: freshChannels,
+        });
+      } catch (_) {}
+    }
     return { idx: nextIdx, rel: nextRel, title: next.title, learnGoal: next.learnGoal };
   } catch (err) {
     console.error('[materializeNextGhost] failed:', err.message);
@@ -1758,7 +1774,7 @@ ipcMain.handle('lessons:adapt-after-finish', async (_e, { rel } = {}) => {
   const settings = _hyphaSettings();
   if (state.adapt_enabled === false) {
     // adapt is disabled; still try to materialize next ghost.
-    const m = await _materializeNextGhost(slug, state, justIdx, [], settings);
+    const m = await _materializeNextGhost(slug, state, justIdx, [], settings, _e);
     return { ok: true, skipped: 'adapt_disabled', materialized: m };
   }
 
@@ -1766,7 +1782,7 @@ ipcMain.handle('lessons:adapt-after-finish', async (_e, { rel } = {}) => {
   const atlasP = _atlasPath(slug, justIdx);
   const atlas = vault.readJSON(atlasP, null);
   if (!atlas || !atlas.concepts) {
-    const m = await _materializeNextGhost(slug, state, justIdx, [], settings);
+    const m = await _materializeNextGhost(slug, state, justIdx, [], settings, _e);
     return { ok: true, skipped: 'no_atlas', materialized: m };
   }
 
@@ -1786,7 +1802,7 @@ ipcMain.handle('lessons:adapt-after-finish', async (_e, { rel } = {}) => {
   else if (settledCount >= 4) { signalTier = 'DEEP'; affectedCount = 3; }
   else {
     // STANDARD tier — no goal rewrite. Still materialize next ghost.
-    const m = await _materializeNextGhost(slug, state, justIdx, settled, settings);
+    const m = await _materializeNextGhost(slug, state, justIdx, settled, settings, _e);
     return { ok: true, skipped: 'standard_tier', settledCount, materialized: m };
   }
 
@@ -1895,7 +1911,7 @@ ipcMain.handle('lessons:adapt-after-finish', async (_e, { rel } = {}) => {
   }
 
   // v0.4.0 — also materialize next ghost (BASIC/DEEP path runs through here).
-  const materialized = await _materializeNextGhost(slug, state, justIdx, settled, settings);
+  const materialized = await _materializeNextGhost(slug, state, justIdx, settled, settings, _e);
   return { ok: true, signalTier, settledCount, adaptedCount: adaptedTargets.length, adapted: adaptedTargets, materialized };
 });
 
@@ -2387,12 +2403,16 @@ ipcMain.handle('lesson:finish', async (_e, { rel, userInsight, sessionFile, mode
 ipcMain.handle('settings:get', () => _hyphaSettings());
 ipcMain.handle('settings:set', (_e, patch) => {
   const cur = _hyphaSettings();
-  const next = { ...cur, ...(patch || {}) };
+  // v0.6.1 — strip runtime-pinned userProfile before writing settings.json.
+  // profile.json is the source of truth; pinning is a read-time convenience.
+  // Without this, settings.json accumulates stale userProfile snapshots.
+  const { userProfile: _pinnedProfile, ...curForWrite } = cur;
+  const next = { ...curForWrite, ...(patch || {}) };
   if (patch && patch.app && typeof patch.app === 'object') {
-    next.app = { ...(cur.app || APP_DEFAULTS), ...patch.app };
+    next.app = { ...(curForWrite.app || APP_DEFAULTS), ...patch.app };
   }
   vault.writeJSON('settings.json', next);
-  return next;
+  return _pinnedProfile ? { ...next, userProfile: _pinnedProfile } : next;
 });
 
 // providers:list — expose provider registry to renderer for the settings modal.
@@ -2590,14 +2610,23 @@ ipcMain.handle('profile:probe-submit', async (_e, { topic, goal, answers } = {})
       const restored = _hyphaProfileRestoreFromHistory();
       if (restored) cur = { ...cur, ...restored };
     }
-    cur.probe = {
-      topic: String(topic).trim(),
+    // v0.6.1 — store probes as a topic-keyed list (newest first, dedupe by
+    // topic, keep last 5). classifyPriorKnowledge filters by topic relevance
+    // (Jaccard ≥ 0.3) — applying a transformer probe to a philosophy curriculum
+    // is dishonest signal. Legacy `cur.probe` kept as alias to newest for
+    // back-compat with v0.6.0 callers.
+    const cleanTopic = String(topic).trim();
+    const newProbe = {
+      topic: cleanTopic,
       goal: String(goal || '').trim(),
       ...result,
       raw_answers: answers,
       storedAt: new Date().toISOString(),
     };
-    cur.updatedAt = cur.probe.storedAt;
+    const existing = Array.isArray(cur.probes) ? cur.probes.filter(p => p && p.topic !== cleanTopic) : [];
+    cur.probes = [newProbe, ...existing].slice(0, 5);
+    cur.probe = newProbe;
+    cur.updatedAt = newProbe.storedAt;
     vault.writeJSON('data/profile.json', cur);
     if (vault.appendJSONL) {
       try {
@@ -2708,7 +2737,7 @@ ipcMain.handle('settings:test', async () => {
 // in parallel → clarifyQuestions → classifyPriorKnowledge → planChain) plus
 // the pure-function feasibility classifier. Persists chain.json to vault.
 // Renderer-friendly: emits hypha:chain-progress events at each stage.
-ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, priorConsistency, failedAttempts, answers } = {}) => {
+ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, priorConsistency, failedAttempts, answers, tier } = {}) => {
   if (!goal || !String(goal).trim()) return { ok: false, error: 'goal required' };
   const settings = _hyphaSettings();
   const lang = /[一-龥]/.test(String(goal)) ? 'zh' : 'en';
@@ -2741,8 +2770,13 @@ ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, prio
     const plans = verdict.tier !== 'easy' ? feasibility.proposePlans(feasibilityInput) : null;
 
     emit('planning-chain');
+    // v0.6.1 — pacingTier (gentle/moderate/heroic) is the user's depth choice;
+    // it shapes link COUNT and pacing. Distinct from feasibility tier
+    // (nearly-impossible/possible/easy) which shapes prompt tone + alternatives.
+    const userPacingTier = (tier === 'gentle' || tier === 'heroic') ? tier : 'moderate';
     const chain = await _hyphaAgent.planChain(goal, {
       tier: verdict.tier,
+      pacingTier: userPacingTier,
       ratio: verdict.ratio.p50,
       gap: verdict.gap,
       missing_prerequisites: prior.missing_prerequisites,
@@ -2756,6 +2790,7 @@ ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, prio
     const slug = String(goal).toLowerCase().trim().replace(/[^a-z0-9一-龥]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'chain';
     const chainData = {
       slug, ultimate_goal: goal, lang, created_at: new Date().toISOString(),
+      tier: userPacingTier,
       inputs: { timeWeeks: feasibilityInput.timeWeeks, dailyHours: feasibilityInput.dailyHours, priorConsistency: feasibilityInput.priorConsistency, failedAttempts: feasibilityInput.failedAttempts },
       classifications: { difficulty: diff, intrinsic, prior },
       questionnaire: safeAnswers,
@@ -2815,17 +2850,29 @@ ipcMain.handle('chain:accept', async (event, { slug, covenantSnapshot } = {}) =>
     const timeCommit = _mapWeeksToTimeCommit(firstLink.duration_weeks);
 
     // 3. Drive the curriculum pipeline directly (no IPC round-trip).
+    // v0.6.1 — forward chain.tier (gentle/moderate/heroic) so the first-link
+    // curriculum honors the user's depth choice. Without this, accepting a
+    // chain forced 'moderate' regardless of the welcome-form selection.
     const r = await _runCurriculumCreate(event, {
       topic: firstTopic,
       level: 'intermediate',
       goal: firstGoal,
       timeCommit,
+      tier: chain.tier || 'moderate',
       clarifications: [],
     });
     if (!r || !r.ok) {
       return { ok: false, error: (r && r.error) || 'first-link curriculum failed' };
     }
     const firstSlug = r.topic;
+    // v0.6.1 — stamp first-link's curriculum state.json with chainSlug + linkIdx
+    // so NoteView's chain-link banner can render its position in the chain.
+    try {
+      const curState = vault.readJSON(`${firstSlug}/state.json`, {}) || {};
+      curState.chainSlug = slug;
+      curState.chainLinkIdx = 0;
+      vault.writeJSON(`${firstSlug}/state.json`, curState);
+    } catch (_) {}
 
     // 4. Persist multi-link state. Subsequent links stay 'pending' until the
     // user finishes link N and the chain transitions to N+1.
@@ -2926,6 +2973,73 @@ ipcMain.handle('chain:refuse', async (_e, { slug, reason, checklistFlags } = {})
     vault.writeJSON(`${slug}/chain.json`, updated);
 
     return { ok: true, mode: 'reason-recorded', newPlan: updated };
+  } catch (err) {
+    return { ok: false, error: (err && err.message) || String(err) };
+  }
+});
+
+// v0.6.1 — chain:advance. Renderer fires this when user finishes the last
+// lesson of the current chain link and clicks "advance →". Behavior:
+//   1. Read links-state.json + chain.json. Find the active link.
+//   2. Mark active → 'done'. If no next link → return { ok, completed: true }.
+//   3. Build curriculum-create args from chain.links[activeIdx + 1].
+//   4. Drive _runCurriculumCreate (forwards chain.tier). On failure, roll
+//      back the link state so the user can retry.
+//   5. Stamp the new curriculum's state.json with chainSlug + linkIdx so
+//      NoteView's chain banner can render the new position.
+//   6. Persist links-state.json with active → done, next → active.
+ipcMain.handle('chain:advance', async (event, { chainSlug } = {}) => {
+  if (!chainSlug || !String(chainSlug).trim()) return { ok: false, error: 'chainSlug required' };
+  try {
+    const linksState = vault.readJSON(`${chainSlug}/links-state.json`, null);
+    const chain = vault.readJSON(`${chainSlug}/chain.json`, null);
+    if (!linksState || !Array.isArray(linksState.links)) return { ok: false, error: 'links-state.json missing or malformed' };
+    if (!chain || !chain.chain || !Array.isArray(chain.chain.links)) return { ok: false, error: 'chain.json missing or malformed' };
+    const links = linksState.links;
+    const activeIdx = links.findIndex(l => l && l.status === 'active');
+    if (activeIdx < 0) return { ok: false, error: 'no active link' };
+    if (activeIdx >= links.length - 1) {
+      // Last link finishing — mark done, no next.
+      links[activeIdx].status = 'done';
+      vault.writeJSON(`${chainSlug}/links-state.json`, { ...linksState, links, updatedAt: new Date().toISOString() });
+      return { ok: true, completed: true };
+    }
+    const nextIdx = activeIdx + 1;
+    const nextLink = chain.chain.links[nextIdx];
+    if (!nextLink) return { ok: false, error: `chain.json missing link at idx ${nextIdx}` };
+    // Mark current done provisionally; restore on _runCurriculumCreate failure.
+    links[activeIdx].status = 'done';
+    const r = await _runCurriculumCreate(event, {
+      topic: nextLink.topic,
+      level: 'intermediate',
+      goal: nextLink.exit_criterion || '',
+      timeCommit: _mapWeeksToTimeCommit(Number(nextLink.duration_weeks) || 4),
+      tier: chain.tier || 'moderate',
+      clarifications: [],
+    });
+    if (!r || !r.ok) {
+      // Roll back so the user isn't stranded with an orphaned chain state.
+      links[activeIdx].status = 'active';
+      vault.writeJSON(`${chainSlug}/links-state.json`, { ...linksState, links, updatedAt: new Date().toISOString() });
+      return { ok: false, error: (r && r.error) || 'next-link curriculum failed' };
+    }
+    const nextSlug = r.topic;
+    const nextLessonRel = (r.lessonRels && r.lessonRels[0]) || null;
+    // Stamp the new curriculum's state.json with chainSlug + linkIdx so
+    // NoteView's chain-link banner renders correctly.
+    try {
+      const curState = vault.readJSON(`${nextSlug}/state.json`, {}) || {};
+      curState.chainSlug = chainSlug;
+      curState.chainLinkIdx = nextIdx;
+      vault.writeJSON(`${nextSlug}/state.json`, curState);
+    } catch (_) {}
+    // Persist link transition.
+    links[nextIdx].status = 'active';
+    links[nextIdx].slug = nextSlug;
+    links[nextIdx].lessonRel = nextLessonRel;
+    vault.writeJSON(`${chainSlug}/links-state.json`, { ...linksState, links, updatedAt: new Date().toISOString() });
+    _hyphaAppendEvent('chain_advanced', { chainSlug, fromIdx: activeIdx, toIdx: nextIdx, nextSlug });
+    return { ok: true, nextSlug, nextLessonRel, nextIdx };
   } catch (err) {
     return { ok: false, error: (err && err.message) || String(err) };
   }

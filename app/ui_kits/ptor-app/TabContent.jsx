@@ -6,6 +6,18 @@ function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+// G10 — capture hypha:reopen-probe events that fire BEFORE HyphaEvolutionWelcome
+// mounts. ColophonView dispatches reopen-probe synchronously after open-evolution,
+// so by the time React unmounts the colophon and mounts the welcome surface, the
+// reopen-probe event has already evaporated. Stash the latest payload in a
+// module-scope ref; the welcome component consumes + clears it on mount.
+let __pendingProbeReopen = null;
+if (typeof window !== 'undefined') {
+  window.addEventListener('hypha:reopen-probe', (e) => {
+    __pendingProbeReopen = (e && e.detail) || {};
+  });
+}
+
 // Refined SVG micro-marks — engraved hairline style, not Unicode symbols.
 function VerdictGlyph({ kind }) {
   const size = 11;
@@ -1137,6 +1149,40 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
     setProbeError(null);
   }, []);
 
+  // G10 — probe re-take from settings. ColophonView dispatches
+  // 'hypha:reopen-probe' with optional { topic, goal } detail when the user
+  // hits "re-take" in settings. Two cases:
+  //   (a) welcome already mounted → listener fires directly; apply payload.
+  //   (b) welcome not yet mounted (typical: user is in colophon → opens
+  //       welcome) → module-level catcher above stashes the payload; we
+  //       consume + clear it on mount.
+  // openProbe lives in a useCallback whose closure depends on [topic, goal].
+  // We keep a ref pointing to the latest openProbe so the listener (mounted
+  // once with [] deps to avoid re-binding on every render) always invokes the
+  // freshest closure with the just-applied topic/goal.
+  const openProbeRef = React.useRef(openProbe);
+  React.useEffect(() => { openProbeRef.current = openProbe; }, [openProbe]);
+  React.useEffect(() => {
+    const apply = (detail) => {
+      if (!detail) return;
+      if (detail.topic) setTopic(String(detail.topic));
+      if (detail.goal) setGoal(String(detail.goal));
+      // wait one tick so setTopic/setGoal commit + openProbeRef points at the
+      // newly-bound callback before we invoke it.
+      setTimeout(() => {
+        try { openProbeRef.current(); } catch (_) {}
+      }, 100);
+    };
+    if (__pendingProbeReopen) {
+      const p = __pendingProbeReopen;
+      __pendingProbeReopen = null;
+      apply(p);
+    }
+    const onReopen = (e) => apply(e && e.detail);
+    window.addEventListener('hypha:reopen-probe', onReopen);
+    return () => window.removeEventListener('hypha:reopen-probe', onReopen);
+  }, []);
+
   const pickProbeOption = React.useCallback((qid, optId) => {
     setProbeAnswers((a) => ({ ...a, [qid]: optId }));
   }, []);
@@ -2065,6 +2111,22 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
             padding: '40px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22,
           }}>
             <VinylSpinner stopped={status === 'error'} />
+            {/* G7 — upload-mode source banner. When the user picked a local
+                document (uploadedSource set), the harvest pipeline is skipped
+                server-side, so harvestStatus.fired stays false. Surface a
+                quiet italic line confirming what we're reading instead, so
+                the screen isn't blank during the long writing-lessons phase.
+                Mutually exclusive with the harvest banner below. */}
+            {uploadedSource && (!harvestStatus || !harvestStatus.fired) && status !== 'error' && (
+              <div style={{ marginBottom: 8, maxWidth: 520, textAlign: 'center' }}>
+                <div style={{
+                  color: 'var(--ink-muted)', fontStyle: 'italic',
+                  fontSize: 13, lineHeight: 1.5,
+                }}>
+                  read {uploadedSource.chapterCount} {uploadedSource.chapterCount === 1 ? 'section' : 'sections'} from {uploadedSource.fileName}
+                </div>
+              </div>
+            )}
             {/* v0.6.0 — always-on source-preview banner. Replaces v0.5.2's
                 thin-only signal. Color shifts to amber (--verdict-flag) when
                 totalUseful < 5, otherwise stays in ink-muted. The Tavily-key
