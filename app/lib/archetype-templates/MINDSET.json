@@ -1,6 +1,11 @@
 {
   "archetype": "MINDSET",
   "description": "Practitioner mental models / decision frameworks (Buffett's investing, Musk's first-principles, Munger's mental models, leadership archetypes). Heuristic + case-study > theory derivation.",
+  "frontier_definition": {
+    "window_months": null,
+    "currency_signal": "primary sources by named author — letters, talks, interviews, public writings",
+    "prompt_anchor": "Frontier here is undated — it's the practitioner's own primary writings. Cite specific letters, interviews, books, talks BY NAME and DATE. Avoid third-party commentary unless it's the only source."
+  },
   "phases": [
     { "id": "origin",      "label": "Origin",        "weight": 0.18, "tone": "the formative experience that produced this way of thinking; what the practitioner reacts against; the world they came up in" },
     { "id": "decisions",   "label": "Decisions",     "weight": 0.30, "tone": "the canonical case studies — the trades / launches / calls / writings that defined them; situational detail by name and date" },

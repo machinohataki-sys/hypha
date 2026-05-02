@@ -1,6 +1,11 @@
 {
   "archetype": "LANG-ACQ",
   "description": "Language acquisition (Japanese, Mandarin, Russian). Repetition + comprehensible-input > theory.",
+  "frontier_definition": {
+    "window_months": 12,
+    "currency_signal": "current native register / slang / register shifts / recent media",
+    "prompt_anchor": "Frontier = current native usage in last 12 months — slang shifts, register changes, what natives actually say in 2025-2026, not textbook usage."
+  },
   "phases": [
     { "id": "phonology",   "label": "Sound + script", "weight": 0.18, "tone": "produce + distinguish phonemes; map to script" },
     { "id": "highfreq",    "label": "High-frequency", "weight": 0.30, "tone": "top 200-500 words + the grammar that ties them; hyper-personal sentences" },

@@ -743,6 +743,10 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
   const [goal, setGoal] = React.useState('');
   const [timeCommit, setTimeCommit] = React.useState('month'); // 'week' | 'month' | 'two-month' | 'quarter' | 'open' | 'custom'
   const [customLessons, setCustomLessons] = React.useState(50);  // 1-200 when timeCommit==='custom'
+  // v0.6.0 — tier picker (gentle / moderate / heroic). Default 'moderate' so
+  // existing behavior is unchanged (multiplier = 1.0×). Passed to curriculum
+  // create; agent.computePhaseLessonCounts applies multiplier.
+  const [tier, setTier] = React.useState('moderate'); // 'gentle' | 'moderate' | 'heroic'
   // v0.5.0 — optional uploaded source corpus (PDF/MD/TXT). When non-null, the
   // curriculum is built from this document instead of web harvest.
   const [uploadedSource, setUploadedSource] = React.useState(null);
@@ -774,11 +778,23 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
   // every 5s during the LLM call; we surface the elapsed counter in the
   // status line so user can tell the call is alive even when it's slow.
   const [elapsedSec, setElapsedSec] = React.useState(0);
-  // v0.5.2 — harvest-thin warning. TEAM C emits a `harvest_complete` event
-  // with totalUseful < 5 when the web/code/forum/arxiv channels collectively
-  // returned too little signal; we surface a small italic banner so the user
-  // knows the corpus is thin before the LLM hallucinates around it.
-  const [harvestThin, setHarvestThin] = React.useState(null); // { count, perChannel } | null
+  // v0.6.0 — harvestStatus extends v0.5.2's harvest-thin signal. Now ALWAYS
+  // surfaces a per-channel breakdown during the creating phase (not only when
+  // total < 5). `fired:true` once the harvest_complete event has arrived so
+  // we can ALSO drive the Tavily-onboarding nudge (web channel = 0 + no key).
+  // null until first event; reset on phase transitions.
+  const [harvestStatus, setHarvestStatus] = React.useState(null);
+  // v0.6.0 — Tavily key presence drives onboarding nudge. Default true so we
+  // do not flash the nudge before settings load resolves.
+  const [hasTavilyKey, setHasTavilyKey] = React.useState(true);
+  // v0.6.0 — placement probe state. probeStage is the renderer's source of
+  // truth for the inline panel; questions hold `correct` flags for client-side
+  // grading (we strip the flag from the visible labels but keep it in state).
+  const [probeStage, setProbeStage] = React.useState(null); // null | 'loading' | 'questions' | 'submitted'
+  const [probeQuestions, setProbeQuestions] = React.useState([]); // [{id, q, options:[{id,label,correct}], rationale}]
+  const [probeAnswers, setProbeAnswers] = React.useState({}); // { questionId: optionId }
+  const [probeResult, setProbeResult] = React.useState(null); // { score, band, correctCount, total }
+  const [probeError, setProbeError] = React.useState(null);
   React.useEffect(() => {
     if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.onCurriculumProgress) return;
     const off = window.ptor.hypha.onCurriculumProgress((p) => {
@@ -788,14 +804,20 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
         setElapsedSec(Number(p.elapsed) || 0);
         return;
       }
-      // Harvest-complete telemetry — surface thin-corpus banner if applicable.
+      // Harvest-complete telemetry — v0.6.0 always-on per-channel preview.
+      // Renderer below colors the banner amber when totalUseful < 5; we keep
+      // the full perChannel snapshot so the Tavily onboarding nudge can fire
+      // when web.n === 0 + no key configured.
       if (p.stage === 'harvest_complete') {
         const total = Number(p.totalUseful);
-        if (Number.isFinite(total) && total < 5) {
-          setHarvestThin({ count: total, perChannel: p.perChannel || null });
-        } else {
-          setHarvestThin(null);
-        }
+        const perChannel = p.perChannel || {
+          github: { n: 0 }, hn: { n: 0 }, arxiv: { n: 0 }, web: { n: 0 },
+        };
+        setHarvestStatus({
+          totalUseful: Number.isFinite(total) ? total : 0,
+          perChannel,
+          fired: true,
+        });
         return; // not a real status flip
       }
       // Real stage change. Reset elapsed when leaving 'designing'.
@@ -810,6 +832,27 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
       if (window.RuntimeSubstrate) window.RuntimeSubstrate.set({ a1Cure: 0 });
     };
   }, []);
+
+  // v0.6.0 — pull settings on mount so we know whether the Tavily key is
+  // configured. Drives the onboarding nudge logic (web channel = 0 + no key).
+  // Falls open (assume key present) on any error so we never falsely scold
+  // the user about a missing key when settings IPC is unavailable.
+  React.useEffect(() => {
+    let alive = true;
+    if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.settingsGet) return;
+    window.ptor.hypha.settingsGet()
+      .then((s) => { if (alive) setHasTavilyKey(!!(s && s.tavilyKey)); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  // v0.6.0 — tier multiplier helper. Mirrors agent.computePhaseLessonCounts
+  // server-side; renderer uses it for the scope-coverage % display only.
+  const tierMultiplier = (t) => {
+    if (t === 'gentle') return 0.6;
+    if (t === 'heroic') return 1.6;
+    return 1.0;
+  };
 
   // 2026-05-01 — depth-first totals (user pushback: 3 months ≥ 100 lessons).
   // Custom slot lets the user override anywhere in 1-200.
@@ -857,19 +900,20 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
     setPhase('creating');
     setStatus('harvesting');
     setCreateError(null);
-    setHarvestThin(null);                       // reset banner for fresh run
+    setHarvestStatus(null);                     // reset banner for fresh run
     if (typeof setCreatingTopic === 'function') setCreatingTopic(t);
     try {
       const r = await window.ptor.hypha.curriculumCreate(t, 'intermediate', {
         goal: (goal || '').trim(),
         timeCommit: timeCommit,
         customLessons: timeCommit === 'custom' ? Math.max(1, Math.min(200, Number(customLessons) || 50)) : null,
+        tier: tier,                       // v0.6.0 — gentle / moderate / heroic; multiplier applied server-side
         clarifications: clarifications,
         uploadedSource: uploadedSource,   // v0.5.0 — null when user did not pick a file
       });
       if (r && r.ok && r.lessonRels && r.lessonRels[0]) {
         setStatus(null);
-        setHarvestThin(null);
+        setHarvestStatus(null);
         setTopic('');
         setGoal('');
         setUploadedSource(null);
@@ -881,22 +925,22 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
       } else if (r && r.cancelled) {
         // User pressed ESC — silent reset to fresh form, don't show error.
         setStatus(null);
-        setHarvestThin(null);
+        setHarvestStatus(null);
         setPhase('form');
         if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
       } else {
         setStatus('error');
-        setHarvestThin(null);
+        setHarvestStatus(null);
         setCreateError((r && r.error) || 'unknown error');
         if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
       }
     } catch (err) {
       setStatus('error');
-      setHarvestThin(null);
+      setHarvestStatus(null);
       setCreateError((err && err.message) || String(err));
       if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
     }
-  }, [topic, goal, timeCommit, customLessons, uploadedSource, onPick, setCreatingTopic]);
+  }, [topic, goal, timeCommit, customLessons, tier, uploadedSource, onPick, setCreatingTopic]);
 
   // v0.4.4 — listen for global cancel event from App's ESC handler. Optimistic
   // reset of UI; backend cleanup runs in parallel (curriculum:cancel deletes
@@ -907,7 +951,7 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
       if (!t) return;
       setPhase('form');
       setStatus(null);
-      setHarvestThin(null);
+      setHarvestStatus(null);
       setCreateError(null);
       if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
       try {
@@ -1057,6 +1101,85 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
     });
   };
 
+  // v0.6.0 — placement probe: 5 calibrated MCQs replace the prose self-intro
+  // as the primary baseline signal for classifyPriorKnowledge. Inline panel
+  // (NOT a modal) so the welcome flow stays continuous.
+  const openProbe = React.useCallback(async () => {
+    const t = (topic || '').trim();
+    if (!t || !window.ptor || !window.ptor.hypha || !window.ptor.hypha.profileProbe) {
+      setProbeError('probe not available');
+      return;
+    }
+    setProbeStage('loading');
+    setProbeError(null);
+    setProbeResult(null);
+    setProbeAnswers({});
+    try {
+      const r = await window.ptor.hypha.profileProbe({ topic: t, goal: (goal || '').trim() });
+      if (r && r.ok && Array.isArray(r.questions) && r.questions.length > 0) {
+        setProbeQuestions(r.questions.slice(0, 5));
+        setProbeStage('questions');
+      } else {
+        setProbeStage(null);
+        setProbeError((r && r.error) || 'no questions returned');
+      }
+    } catch (err) {
+      setProbeStage(null);
+      setProbeError((err && err.message) || String(err));
+    }
+  }, [topic, goal]);
+
+  const cancelProbe = React.useCallback(() => {
+    setProbeStage(null);
+    setProbeQuestions([]);
+    setProbeAnswers({});
+    setProbeResult(null);
+    setProbeError(null);
+  }, []);
+
+  const pickProbeOption = React.useCallback((qid, optId) => {
+    setProbeAnswers((a) => ({ ...a, [qid]: optId }));
+  }, []);
+
+  const submitProbe = React.useCallback(async () => {
+    if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.profileProbeSubmit) {
+      setProbeError('submit not available');
+      return;
+    }
+    const t = (topic || '').trim();
+    // Self-grade: renderer holds the `correct` flags in probeQuestions; build
+    // the answers payload with isCorrect tallied client-side so the backend
+    // tally is a pure sum (no LLM, no re-fetch of questions).
+    const answers = probeQuestions.map((q) => {
+      const optionId = probeAnswers[q.id] || null;
+      const opt = (q.options || []).find((o) => o.id === optionId);
+      return {
+        questionId: q.id,
+        optionId,
+        correct: !!(opt && opt.correct === true),
+      };
+    });
+    setProbeError(null);
+    try {
+      const r = await window.ptor.hypha.profileProbeSubmit({
+        topic: t, goal: (goal || '').trim(), answers,
+      });
+      if (r && r.ok) {
+        setProbeResult({
+          score: Number(r.score) || 0,
+          band: r.band || 'foundational',
+          correctCount: Number(r.correctCount) || 0,
+          total: Number(r.total) || answers.length,
+        });
+        setProbeStage('submitted');
+      } else {
+        setProbeError((r && r.error) || 'submit failed');
+      }
+    } catch (err) {
+      setProbeError((err && err.message) || String(err));
+    }
+  }, [topic, goal, probeQuestions, probeAnswers]);
+
   const statusLine = (() => {
     switch (status) {
       case 'reading-source': return uploadedSource
@@ -1133,6 +1256,12 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
         @media (prefers-reduced-motion: reduce) {
           .hypha-bubble--on { animation: none; }
         }
+        /* v0.6.0 — probe submitted ack: hairline appearance animation.
+           Subtle fade + lift, no scale on the box (avoids layout-shift). */
+        @keyframes hypha-probe-ack {
+          0%   { opacity: 0; transform: translateY(-4px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
       <div style={{ maxWidth: 720, width: '100%', textAlign: 'center' }}>
         <h1 style={{
@@ -1195,6 +1324,214 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
                 boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brass-bright) 22%, transparent)',
               }}
             />
+
+            {/* v0.6.0 — placement-probe CTA. Only shows once a topic exists
+                (otherwise we have nothing to probe against). 5-MCQ inline
+                panel replaces the prose self-intro as the primary baseline
+                signal — see TEAM-D classifyPriorKnowledge prompt update. */}
+            {topic.trim() && probeStage === null && (
+              <div style={{
+                marginBottom: 24, fontStyle: 'italic', fontSize: 13,
+                color: 'var(--ink-faint)', lineHeight: 1.55,
+              }}>
+                {probeResult ? (
+                  <span>
+                    baseline updated · {probeResult.band} ({Math.round(probeResult.score * 100)}%) ·{' '}
+                    <button
+                      type="button"
+                      onClick={openProbe}
+                      style={{
+                        background: 'transparent', border: 'none', padding: 0,
+                        font: 'inherit', fontStyle: 'italic',
+                        color: 'var(--brass-bright)', cursor: 'pointer',
+                        borderBottom: '1px solid transparent',
+                        transition: 'border-color 200ms',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderBottomColor = 'transparent'; }}
+                    >re-take →</button>
+                  </span>
+                ) : (
+                  <span>
+                    not sure how much you already know?{' '}
+                    <button
+                      type="button"
+                      onClick={openProbe}
+                      style={{
+                        background: 'transparent', border: 'none', padding: 0,
+                        font: 'inherit', fontStyle: 'italic',
+                        color: 'var(--brass-bright)', cursor: 'pointer',
+                        borderBottom: '1px solid transparent',
+                        transition: 'border-color 200ms',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderBottomColor = 'transparent'; }}
+                    >sharpen your baseline · 5 questions →</button>
+                  </span>
+                )}
+                {probeError && (
+                  <span style={{ color: 'var(--verdict-flag)', marginLeft: 8 }}>· {probeError}</span>
+                )}
+              </div>
+            )}
+
+            {/* Probe loading — VinylSpinner + breath copy, identical visual
+                language as ASKING phase so the loading state feels "of a
+                piece" with the rest of the welcome flow. */}
+            {probeStage === 'loading' && (
+              <div style={{
+                marginBottom: 24,
+                padding: '20px 18px',
+                background: 'color-mix(in srgb, var(--brass-mid) 8%, transparent)',
+                borderRadius: '14px 18px 14px 18px',
+                boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brass-mid) 18%, transparent)',
+                display: 'flex', alignItems: 'center', gap: 18,
+              }}>
+                <VinylSpinner />
+                <p className="hypha-breath" style={{
+                  fontStyle: 'italic', fontSize: 14, color: 'var(--ink-muted)', margin: 0, lineHeight: 1.5,
+                }}>drafting 5 calibrated questions for your topic…</p>
+              </div>
+            )}
+
+            {/* Probe questions — 5 MCQs in a hairline-framed panel. Each
+                question is one row with the prompt + 4 option buttons, all
+                in the existing 千金 register. We strip the `correct` flag
+                from button labels — only the renderer's state knows answers
+                until submit, when we self-grade and POST tallied results. */}
+            {probeStage === 'questions' && probeQuestions.length > 0 && (
+              <div style={{
+                marginBottom: 24,
+                padding: '18px 20px',
+                background: 'color-mix(in srgb, var(--brass-mid) 6%, transparent)',
+                borderRadius: '14px 18px 14px 18px',
+                boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brass-mid) 22%, transparent)',
+              }}>
+                <div style={{
+                  fontFamily: '"Cormorant Garamond", "EB Garamond", Georgia, serif',
+                  fontWeight: 500, fontSize: 12, letterSpacing: '0.16em',
+                  textTransform: 'uppercase', color: 'var(--ink-faint)',
+                  marginBottom: 14,
+                }}>placement probe · 5 questions</div>
+                {probeQuestions.map((q, qi) => {
+                  const picked = probeAnswers[q.id];
+                  return (
+                    <div key={q.id || qi} style={{ marginBottom: qi === probeQuestions.length - 1 ? 6 : 18 }}>
+                      <div style={{
+                        fontFamily: 'inherit', fontSize: 15.5,
+                        color: 'var(--ink-title)', marginBottom: 8, lineHeight: 1.5,
+                      }}>{qi + 1}. {q.q || q.question}</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {(q.options || []).map((opt) => {
+                          const on = picked === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => pickProbeOption(q.id, opt.id)}
+                              style={{
+                                background: on ? 'color-mix(in srgb, var(--brass-bright) 18%, transparent)' : 'transparent',
+                                border: 'none',
+                                borderRadius: '12px 8px 12px 8px',
+                                boxShadow: on
+                                  ? 'inset 0 0 0 1.5px var(--brass-bright)'
+                                  : 'inset 0 0 0 1px color-mix(in srgb, var(--brass-mid) 30%, transparent)',
+                                color: on ? 'var(--ink-title)' : 'var(--ink-muted)',
+                                fontFamily: 'inherit', fontStyle: 'italic',
+                                fontSize: 14, padding: '7px 13px',
+                                cursor: 'pointer',
+                                transition:
+                                  'background 240ms cubic-bezier(0.4, 0, 0.15, 1), ' +
+                                  'color 220ms cubic-bezier(0.3, 0.7, 0.2, 1), ' +
+                                  'box-shadow 200ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+                              }}
+                              onMouseEnter={e => { if (!on) e.currentTarget.style.color = 'var(--ink-title)'; }}
+                              onMouseLeave={e => { if (!on) e.currentTarget.style.color = 'var(--ink-muted)'; }}
+                            >{opt.label}</button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                {(() => {
+                  const allAnswered = probeQuestions.length > 0 && probeQuestions.every(q => !!probeAnswers[q.id]);
+                  return (
+                    <div style={{
+                      marginTop: 16, display: 'flex', alignItems: 'center', gap: 12,
+                    }}>
+                      <button
+                        type="button"
+                        onClick={cancelProbe}
+                        style={{
+                          background: 'transparent', border: 'none', padding: 0,
+                          font: 'inherit', fontStyle: 'italic', fontSize: 13,
+                          color: 'var(--ink-faint)', cursor: 'pointer',
+                          borderBottom: '1px solid transparent',
+                          transition: 'border-color 200ms, color 200ms',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--ink-muted)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--ink-faint)'; }}
+                      >cancel</button>
+                      <div style={{ flex: 1 }} />
+                      <button
+                        type="button"
+                        onClick={submitProbe}
+                        disabled={!allAnswered}
+                        style={{
+                          background: allAnswered ? 'color-mix(in srgb, var(--brass-bright) 22%, transparent)' : 'transparent',
+                          border: '1px solid ' + (allAnswered ? 'var(--brass-bright)' : 'color-mix(in srgb, var(--brass-mid) 28%, transparent)'),
+                          borderRadius: '12px 8px 12px 8px',
+                          color: allAnswered ? 'var(--ink-title)' : 'var(--ink-faint)',
+                          fontFamily: 'inherit', fontStyle: 'italic',
+                          fontSize: 14, padding: '8px 18px',
+                          cursor: allAnswered ? 'pointer' : 'not-allowed',
+                          opacity: allAnswered ? 1 : 0.55,
+                          transition: 'all 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+                        }}
+                      >submit baseline →</button>
+                    </div>
+                  );
+                })()}
+                {probeError && (
+                  <div style={{ marginTop: 10, fontStyle: 'italic', fontSize: 13, color: 'var(--verdict-flag)' }}>
+                    {probeError}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Probe submitted — subtle hairline ack. Auto-collapses 1.6s
+                after appearing (handled below in an effect-light pattern)
+                so the form doesn't carry a stale verdict forever. */}
+            {probeStage === 'submitted' && probeResult && (
+              <div
+                style={{
+                  marginBottom: 24,
+                  padding: '12px 16px',
+                  background: 'color-mix(in srgb, var(--brass-bright) 8%, transparent)',
+                  borderRadius: '12px 16px 12px 16px',
+                  boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brass-bright) 30%, transparent)',
+                  fontFamily: 'inherit', fontStyle: 'italic', fontSize: 14,
+                  color: 'var(--ink-title)', lineHeight: 1.5,
+                  animation: 'hypha-probe-ack 460ms cubic-bezier(0.22, 1, 0.36, 1) 1',
+                }}
+              >
+                baseline updated · {probeResult.band} ({Math.round(probeResult.score * 100)}%) ·{' '}
+                <button
+                  type="button"
+                  onClick={() => { setProbeStage(null); }}
+                  style={{
+                    background: 'transparent', border: 'none', padding: 0,
+                    font: 'inherit', fontStyle: 'italic',
+                    color: 'var(--ink-faint)', cursor: 'pointer',
+                    marginLeft: 4,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--ink-muted)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--ink-faint)'; }}
+                >dismiss</button>
+              </div>
+            )}
 
             {/* In-flow chain planner link. Per user 2026-05-01: chain is a
                 RESULT computed from welcome-form data, not a separate
@@ -1338,6 +1675,85 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
                 }}>between 1 and 200</span>
               </div>
             )}
+
+            {/* v0.6.0 — TIER PICKER. 3 buttons in TIME_OPTIONS visual style.
+                Multiplier is server-side (agent.computePhaseLessonCounts);
+                renderer just displays scope-coverage % computed from the
+                multiplier so the user sees an honest answer to "how broad
+                is this." Default 'moderate' = 1.0× = pre-v0.6 behavior. */}
+            <label style={{
+              display: 'block', fontFamily: '"Cormorant Garamond", "EB Garamond", Georgia, serif',
+              fontWeight: 500, fontSize: 13, letterSpacing: '0.16em', textTransform: 'uppercase',
+              color: 'var(--ink-faint)', marginBottom: 8,
+            }}>depth of traversal</label>
+            <div style={{
+              display: 'flex', gap: 4, padding: 4,
+              background: 'color-mix(in srgb, var(--brass-mid) 10%, transparent)',
+              borderRadius: '18px 14px 18px 14px',
+              boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brass-mid) 18%, transparent)',
+              marginBottom: 8,
+            }}>
+              {[
+                { id: 'gentle',   label: 'gentle',   sub: 'lighter scope · 60% lessons' },
+                { id: 'moderate', label: 'moderate', sub: 'balanced · standard count' },
+                { id: 'heroic',   label: 'heroic',   sub: 'deep traversal · 60% more lessons' },
+              ].map((t, i, arr) => {
+                const on = tier === t.id;
+                const radius = i === 0 ? '14px 10px 14px 10px'
+                              : i === arr.length - 1 ? '10px 14px 10px 14px'
+                              : '12px 12px 12px 12px';
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTier(t.id)}
+                    style={{
+                      flex: 1,
+                      background: on ? 'var(--bg-modal-card)' : 'transparent',
+                      border: 'none', borderRadius: radius,
+                      color: on ? 'var(--ink-title)' : 'var(--ink-muted)',
+                      fontFamily: 'inherit', fontStyle: 'normal',
+                      fontWeight: on ? 500 : 400, padding: '10px 8px', cursor: 'pointer',
+                      boxShadow: on ? 'inset 0 0 0 1px color-mix(in srgb, var(--brass-bright) 32%, transparent), 0 3px 10px -2px rgba(0,0,0,0.16)' : 'none',
+                      transform: on ? 'scale(1.02)' : 'scale(1)',
+                      transition: 'all 280ms cubic-bezier(0.25, 1.18, 0.4, 1.02)',
+                    }}
+                  >
+                    <div style={{ fontSize: 14 }}>{t.label}</div>
+                    <div style={{ fontSize: 11, fontStyle: 'italic', color: 'var(--ink-faint)', marginTop: 2 }}>{t.sub}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Scope-coverage sentence — derived from tierMultiplier and the
+                selected timeCommit. Heroic is the 100% baseline (1.6× → 100%);
+                moderate ≈ 63% (1.0/1.6); gentle ≈ 38% (0.6/1.6). hrs/wk and
+                weeks come from the existing timeCommit buckets so the user
+                sees real arithmetic, not a placeholder. */}
+            {(() => {
+              const HRS_PER_WK = { week: 1, month: 4, 'two-month': 8, quarter: 12, open: 4 };
+              const WKS = { week: 1, month: 4, 'two-month': 8, quarter: 12, open: 12 };
+              let hrs, weeks;
+              if (timeCommit === 'custom') {
+                const lessons = Math.max(1, Math.min(200, Number(customLessons) || 50));
+                weeks = Math.max(1, Math.ceil(lessons / 8));   // assume ~8 lessons / wk avg
+                hrs = Math.max(1, Math.round(lessons / weeks));
+              } else {
+                hrs = HRS_PER_WK[timeCommit] || 4;
+                weeks = WKS[timeCommit] || 4;
+              }
+              const N = Math.round(tierMultiplier(tier) * 100 / 1.6 * 100) / 100;
+              return (
+                <div style={{
+                  marginBottom: 32,
+                  fontFamily: 'inherit', fontStyle: 'italic', fontSize: 13,
+                  color: 'var(--ink-faint)', lineHeight: 1.55,
+                }}>
+                  this tier covers ~{N}% of the field's typical phases at {hrs}/wk for ~{weeks} week{weeks === 1 ? '' : 's'}
+                </div>
+              );
+            })()}
 
             <button
               onClick={submitForm}
@@ -1649,24 +2065,51 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
             padding: '40px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22,
           }}>
             <VinylSpinner stopped={status === 'error'} />
-            {/* v0.5.2 — harvest-thin banner. Inline italic notice ABOVE the
-                normal status line when TEAM C reports < 5 useful sources.
-                Quiet signal, not a popup, so the user can decide whether to
-                cancel and upload a document for richer ground truth. */}
-            {harvestThin && status !== 'error' && (
-              <div style={{
-                marginBottom: 8,
-                color: 'var(--ink-faint)',
-                fontStyle: 'italic',
-                fontSize: 13,
-                lineHeight: 1.5,
-                maxWidth: 520,
-                textAlign: 'center',
-              }}>
-                harvested only {harvestThin.count} source{harvestThin.count === 1 ? '' : 's'} from the web —
-                consider uploading a document for richer ground truth
-              </div>
-            )}
+            {/* v0.6.0 — always-on source-preview banner. Replaces v0.5.2's
+                thin-only signal. Color shifts to amber (--verdict-flag) when
+                totalUseful < 5, otherwise stays in ink-muted. The Tavily-key
+                nudge is rendered inline beneath when web channel returned 0
+                AND no key is configured — single click takes the user to
+                settings (colophon) to paste their key. */}
+            {harvestStatus && harvestStatus.fired && status !== 'error' && (() => {
+              const pc = harvestStatus.perChannel || {};
+              const n = (k) => (pc[k] && Number.isFinite(pc[k].n)) ? pc[k].n : 0;
+              const thin = harvestStatus.totalUseful < 5;
+              const showTavilyNudge = n('web') === 0 && !hasTavilyKey;
+              return (
+                <div style={{
+                  marginBottom: 8, maxWidth: 520, textAlign: 'center',
+                }}>
+                  <div style={{
+                    color: thin ? 'var(--verdict-flag)' : 'var(--ink-muted)',
+                    fontStyle: 'italic', fontSize: 13, lineHeight: 1.5,
+                    transition: 'color 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+                  }}>
+                    harvested {harvestStatus.totalUseful} source{harvestStatus.totalUseful === 1 ? '' : 's'} —{' '}
+                    {n('github')}/{n('hn')}/{n('arxiv')}/{n('web')} (gh/hn/arxiv/web)
+                  </div>
+                  {showTavilyNudge && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try { window.dispatchEvent(new CustomEvent('hypha:open-colophon')); } catch (_) {}
+                      }}
+                      style={{
+                        marginTop: 4,
+                        background: 'transparent', border: 'none', padding: 0,
+                        font: 'inherit', fontStyle: 'italic', fontSize: 13,
+                        color: 'var(--brass-bright)',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid transparent',
+                        transition: 'border-color 200ms',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderBottomColor = 'transparent'; }}
+                    >→ add a free Tavily key in settings for broader coverage</button>
+                  )}
+                </div>
+              );
+            })()}
             <p className={status !== 'error' ? 'hypha-breath' : undefined} style={{
               fontStyle: 'italic', fontSize: 15, lineHeight: 1.5, maxWidth: 480,
               color: status === 'error' ? 'var(--verdict-flag)' : 'var(--ink-muted)', margin: 0,

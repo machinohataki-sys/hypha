@@ -1,6 +1,11 @@
 {
   "archetype": "TECH-CONCEPT",
   "description": "Concept-heavy technical fields (transformer architecture, distributed systems, statistics, quantum mechanics). Theory mechanism > skill drill.",
+  "frontier_definition": {
+    "window_months": 12,
+    "currency_signal": "arXiv submittedDate within last 12mo + GitHub stars trajectory + HN discussion velocity",
+    "prompt_anchor": "Cite specific 2025-2026 papers/preprints by author/year. Mark anything > 12 months old as 'foundational' not 'frontier'. Frontier here = active debate in the last 12 months."
+  },
   "phases": [
     { "id": "foundations", "label": "Foundations",  "weight": 0.20, "tone": "ground the vocabulary; isolate the core question this field answers" },
     { "id": "tools",       "label": "Tools",        "weight": 0.18, "tone": "the canonical instruments + notation the field uses to think" },

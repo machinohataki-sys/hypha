@@ -1,6 +1,11 @@
 {
   "archetype": "TECH-PROC",
   "description": "Procedural / skill-based technical fields (Tailwind, React patterns, SQL, CUDA programming). Drill > theory mechanism.",
+  "frontier_definition": {
+    "window_months": 6,
+    "currency_signal": "current best practitioner blog posts + repos + dev-conf talks last 6mo",
+    "prompt_anchor": "Frontier here means current-best practice as of last 6 months — name specific posts, repos, or talks. Anything older is 'pattern' not 'frontier'."
+  },
   "phases": [
     { "id": "primitives",  "label": "Primitives",   "weight": 0.22, "tone": "the smallest atomic moves; build muscle memory" },
     { "id": "patterns",    "label": "Patterns",     "weight": 0.28, "tone": "common combinations of primitives that solve recurring problems" },

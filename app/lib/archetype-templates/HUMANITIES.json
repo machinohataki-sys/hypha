@@ -1,6 +1,11 @@
 {
   "archetype": "HUMANITIES",
   "description": "Interpretive / argument-based fields (philosophy, political theory, literary criticism, history of science). Reading + claim-counter-claim > drill.",
+  "frontier_definition": {
+    "window_months": 60,
+    "currency_signal": "papers in last 5y + cited by ≥2 of the field's top-15 contemporary authors",
+    "prompt_anchor": "Frontier in interpretive fields = last 5 years of debate among the field's named contemporary authors. Cite specific 2020-2026 papers/books that are reviving or refuting older positions."
+  },
   "phases": [
     { "id": "context",     "label": "Context",       "weight": 0.20, "tone": "the historical / intellectual moment; what came before; what was at stake" },
     { "id": "claims",      "label": "Claims",        "weight": 0.28, "tone": "the central arguments + their named proponents; original sources by name" },

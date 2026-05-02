@@ -1001,7 +1001,7 @@ ipcMain.handle('curriculum:cancel', async (_e, { topic } = {}) => {
 // IPC handlers (e.g. chain:accept) can drive a curriculum end-to-end without
 // going through ipcRenderer round-trips. `event` may be null when invoked from
 // a non-renderer context — emit() guards against that.
-async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, customLessons, clarifications, uploadedSource } = {}) {
+async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, customLessons, clarifications, uploadedSource, tier } = {}) {
   const slug = _topicSlug(topic);
   const settings = _hyphaSettings();
   const emit = (stage, extra = {}) => {
@@ -1058,7 +1058,7 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
       // Step B: source digest (1 small LLM call, ~3s). Compresses 25 raw
       // sources to a ~500-token digest so designSeed isn't drowning in raw lines.
       let sourceDigest = '';
-      try { sourceDigest = await _hyphaAgent.summarizeSources(topic, sources, settings); }
+      try { sourceDigest = await _hyphaAgent.summarizeSources(topic, sources, settings, { archetype }); }
       catch (_) { sourceDigest = sources.slice(0, 10).map(s => `- ${s.title}`).join('\n'); }
       _hyphaCancelCheck(slug);
       // Step C: designSeed (1 small LLM call, ~5-8s). Returns phases (from
@@ -1069,6 +1069,7 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
         topic, goal: goal || '', archetype,
         timeCommit: timeCommit || 'month',
         customLessons: customLessons,
+        tier: tier || 'moderate',
         clarifications: clarifications || [],
         sourceDigest,
       }, settings);
@@ -1131,6 +1132,7 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
       goal: goal || '',
       timeCommit: timeCommit || 'month',
       customLessons: (typeof customLessons === 'number') ? customLessons : null,
+      tier: tier || 'moderate',
       sourceMode: uploadedSource ? 'upload' : 'web',
       uploadedFileName: uploadedSource ? uploadedSource.fileName : null,
       clarifications: clarifications || [],
@@ -1692,7 +1694,27 @@ async function _materializeNextGhost(slug, state, justIdx, settled, settings) {
       const lg = String((n.frontmatter && n.frontmatter.learn_goal) || '').replace(/^"|"$/g, '');
       priorLessons.push({ idx: i, title: t, learnGoal: lg });
     }
-    const sources = vault.readJSON(`${slug}/sources.json`, []) || [];
+    let sources = vault.readJSON(`${slug}/sources.json`, []) || [];
+    // v0.6.0 — per-lesson re-harvest. Augment sources.json with fresh items
+    // for the upcoming lesson's specific topic, so BM25 below ranks against a
+    // lesson-relevant pool instead of the frozen lesson-1 corpus.
+    // (Lung 2026-05-02 council: lesson 14 was anchoring to lesson-1 broad search.)
+    // Additive — never break the materialization path on harvest failure.
+    try {
+      const upcomingTopic = `${slot.phaseLabel || ''} ${slot.phaseTone || ''} ${state.topic || slug}`.trim();
+      if (typeof _hyphaAgent._harvestPerLesson === 'function') {
+        const newSources = await _hyphaAgent._harvestPerLesson(sources, upcomingTopic, settings);
+        if (Array.isArray(newSources) && newSources.length) {
+          const seen = new Set((sources || []).map(s => s && s.url).filter(Boolean));
+          const fresh = newSources.filter(s => s && s.url && !seen.has(s.url));
+          if (fresh.length) {
+            sources = [...sources, ...fresh];
+            vault.writeJSON(`${slug}/sources.json`, sources);
+            try { _hyphaAppendEvent('per_lesson_reharvest', { slug, idx: nextIdx, added: fresh.length, total: sources.length }); } catch (_) {}
+          }
+        }
+      }
+    } catch (_) { /* re-harvest is additive; never break the materialization path */ }
     const queryStr = `${slot.phaseLabel} ${slot.phaseTone} ${state.goal || ''}`;
     const retrievedSources = _hyphaAgent.rankSourcesBM25(sources, queryStr, 5);
     const next = await _hyphaAgent.proposeNextLesson({
@@ -2526,6 +2548,72 @@ ipcMain.handle('profile:set', (_e, patch = {}) => {
     }
   } catch (_) {}
   return { ok: true, profile: next };
+});
+
+// profile:probe — generate 5 calibrated MCQs for the given topic so the user
+// can establish a structured baseline (overrides the prose self-introduction
+// signal in classifyPriorKnowledge). v0.6.0; agent.generateProbeMCQ owned by
+// TEAM D — returns array of { id, q, options:[{id,label,correct}], rationale }.
+// Renderer is expected to strip `correct` flags before display, then resend
+// them with the answer payload to profile:probe-submit for tally.
+ipcMain.handle('profile:probe', async (_e, { topic, goal } = {}) => {
+  if (!topic || !String(topic).trim()) return { ok: false, error: 'topic required' };
+  const settings = _hyphaSettings();
+  try {
+    const questions = await _hyphaAgent.generateProbeMCQ(String(topic).trim(), String(goal || '').trim(), settings);
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return { ok: false, error: 'probe gen returned no questions' };
+    }
+    return { ok: true, questions };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+// profile:probe-submit — tally the user's MCQ answers (pure scoring; no LLM)
+// and persist the structured baseline into data/profile.json under `probe`.
+// _hyphaSettings() then automatically surfaces the probe to all classifiers via
+// settings.userProfile.probe (v0.5.1 pinning). History sidecar pattern reused.
+ipcMain.handle('profile:probe-submit', async (_e, { topic, goal, answers } = {}) => {
+  if (!topic) return { ok: false, error: 'topic required' };
+  if (!Array.isArray(answers) || answers.length === 0) {
+    return { ok: false, error: 'answers required' };
+  }
+  const settings = _hyphaSettings();
+  try {
+    const result = await _hyphaAgent.scoreProbe(String(topic).trim(), String(goal || '').trim(), answers, settings);
+    // Persist into profile.json. Preserve other fields (name/about/tutorName).
+    let cur = (vault.exists && vault.exists('data/profile.json'))
+      ? (vault.readJSON('data/profile.json', null) || {})
+      : {};
+    if (!cur.name && !cur.about && !cur.tutorName) {
+      const restored = _hyphaProfileRestoreFromHistory();
+      if (restored) cur = { ...cur, ...restored };
+    }
+    cur.probe = {
+      topic: String(topic).trim(),
+      goal: String(goal || '').trim(),
+      ...result,
+      raw_answers: answers,
+      storedAt: new Date().toISOString(),
+    };
+    cur.updatedAt = cur.probe.storedAt;
+    vault.writeJSON('data/profile.json', cur);
+    if (vault.appendJSONL) {
+      try {
+        vault.appendJSONL('data/profile.history.jsonl', {
+          ts: cur.updatedAt,
+          name: cur.name || '',
+          about: cur.about || '',
+          tutorName: cur.tutorName || '',
+          probe: cur.probe,
+        });
+      } catch (_) {}
+    }
+    return { ok: true, ...result };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
 });
 
 // settings:test — ping the configured LLM endpoint with a tiny prompt so the

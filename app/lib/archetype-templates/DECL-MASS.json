@@ -1,6 +1,11 @@
 {
   "archetype": "DECL-MASS",
   "description": "Declarative / mass-fact fields (anatomy, history-of-WWII, organic chemistry nomenclature, taxonomy). Recall + spaced repetition > derivation.",
+  "frontier_definition": {
+    "window_months": 24,
+    "currency_signal": "discoveries / revisions in last 24mo that shifted the canon",
+    "prompt_anchor": "Frontier = canonical revisions in the last 24 months. Name the specific finding (paper, study, dataset) that shifted the standard list/taxonomy/recall set."
+  },
   "phases": [
     { "id": "scaffold",    "label": "Scaffold",       "weight": 0.20, "tone": "the high-level chunking system; how the field organizes its facts" },
     { "id": "anchors",     "label": "Anchor cases",   "weight": 0.32, "tone": "the canonical exemplars every practitioner knows by name" },

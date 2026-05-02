@@ -182,6 +182,13 @@ contextBridge.exposeInMainWorld('ptor', {
     // User identity — name + avatar (data-URL). Stored at vault/data/profile.json.
     profileGet: () => ipcRenderer.invoke('profile:get'),
     profileSet: (patch) => ipcRenderer.invoke('profile:set', patch),
+    // v0.6.0 placement-probe (Lung's PLACEMENT_PROBE — calibrated 5-MCQ baseline
+    // overrides prose self-introduction signal). profileProbe generates;
+    // profileProbeSubmit tallies + persists into profile.json under `probe`.
+    // Renderer holds the full questions structure (with `correct` flags) and
+    // sends back per-answer `correct: true|false` triples for tally.
+    profileProbe: (args) => ipcRenderer.invoke('profile:probe', args || {}),
+    profileProbeSubmit: (args) => ipcRenderer.invoke('profile:probe-submit', args || {}),
     // Concept Atlas Phase A.1 — substrate layer.
     // atlasGet(rel) → returns atlas object (or empty default if no atlas yet).
     // atlasAppendTurn(rel, role, text) → after each tutor/user turn streams

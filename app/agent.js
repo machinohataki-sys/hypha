@@ -319,6 +319,103 @@ async function _harvestWebSearch(topic, settings) {
   }
 }
 
+// _harvestCitations — v0.6.0 5th channel. Given top arxiv IDs from the upfront
+// harvest, pull each paper's references (papers it cites) and citations
+// (papers that cite it) via Semantic Scholar's free Graph API. This is the
+// "citation graph traversal" Lung flagged as the highest-leverage missing
+// primitive — the system can now reach the paper that the harvested paper
+// itself names as the actual frontier.
+//
+// Semantic Scholar free tier: ~100 req/sec unauthenticated, no API key
+// needed. We pause 100ms between calls to stay courteous. Capped at top-3
+// arxiv seeds × 2 endpoints each = max 6 HTTP calls per harvest.
+//
+// Additive: silent no-op on network error / 404 / empty paper. Never throws.
+async function _harvestCitations(arxivIds, maxRefs = 5, maxCitedBy = 3) {
+  const out = [];
+  if (!Array.isArray(arxivIds) || arxivIds.length === 0) return out;
+  const fetchFn = (typeof fetch !== 'undefined' && fetch) ? fetch : require('node-fetch');
+  for (const id of arxivIds.slice(0, 3)) {
+    if (!id) continue;
+    try {
+      const headers = { 'User-Agent': 'Hypha-frontier-harvest/0.6' };
+      // References (papers this paper cites — what the seed paper anchors to)
+      const refsUrl = `https://api.semanticscholar.org/graph/v1/paper/ARXIV:${encodeURIComponent(id)}/references?fields=title,abstract,year,externalIds&limit=${maxRefs}`;
+      const refsRes = await fetchFn(refsUrl, { headers });
+      if (refsRes && refsRes.ok) {
+        const data = await refsRes.json();
+        for (const r of (data.data || []).slice(0, maxRefs)) {
+          if (!r || !r.citedPaper) continue;
+          const arxivId = r.citedPaper.externalIds && r.citedPaper.externalIds.ArXiv;
+          out.push({
+            url: arxivId ? `https://arxiv.org/abs/${arxivId}` : '',
+            title: String(r.citedPaper.title || '').slice(0, 200),
+            excerpt: String(r.citedPaper.abstract || '').slice(0, 400),
+            sourceType: 'cited-ref',
+            stars: 0,
+            year: r.citedPaper.year || null,
+            parentArxivId: id,
+          });
+        }
+      }
+      await new Promise(r => setTimeout(r, 100));
+      // Citations (papers that cite this paper — frontier extending forward)
+      const citesUrl = `https://api.semanticscholar.org/graph/v1/paper/ARXIV:${encodeURIComponent(id)}/citations?fields=title,abstract,year,externalIds&limit=${maxCitedBy}`;
+      const citesRes = await fetchFn(citesUrl, { headers });
+      if (citesRes && citesRes.ok) {
+        const data = await citesRes.json();
+        for (const r of (data.data || []).slice(0, maxCitedBy)) {
+          if (!r || !r.citingPaper) continue;
+          const arxivId = r.citingPaper.externalIds && r.citingPaper.externalIds.ArXiv;
+          out.push({
+            url: arxivId ? `https://arxiv.org/abs/${arxivId}` : '',
+            title: String(r.citingPaper.title || '').slice(0, 200),
+            excerpt: String(r.citingPaper.abstract || '').slice(0, 400),
+            sourceType: 'cited-by',
+            stars: 0,
+            year: r.citingPaper.year || null,
+            parentArxivId: id,
+          });
+        }
+      }
+      await new Promise(r => setTimeout(r, 100));
+    } catch (_) { /* additive; never throw */ }
+  }
+  return out.filter(s => s.url && s.title);
+}
+
+// _harvestPerLesson — v0.6.0 lightweight per-lesson re-harvest. Called from
+// main.js's lessons:adapt-after-finish IPC just BEFORE proposeNextLesson, so
+// the upcoming lesson sees frontier-fresh sources rather than lesson-1's
+// frozen broad-search residue. Skips GitHub/HN/arxiv (covered upfront);
+// only Tavily web-search + citation-graph traversal of existing arxiv hits.
+//
+// Returns ≤ ~15 raw sources; main.js dedupes against existing sources.json
+// by URL before appending.
+async function _harvestPerLesson(existingSources, lessonTopic, settings) {
+  const arxivIds = (existingSources || [])
+    .map(s => {
+      const m = s && s.url && s.url.match(/arxiv\.org\/abs\/([\d.v]+)/);
+      return m ? m[1] : null;
+    })
+    .filter(Boolean)
+    .slice(0, 2);
+  const tasks = [];
+  if ((settings && settings.tavilyKey) || process.env.TAVILY_API_KEY) {
+    tasks.push(_harvestWebSearch(lessonTopic, settings));
+  }
+  if (arxivIds.length) {
+    tasks.push(_harvestCitations(arxivIds, 3, 2));
+  }
+  if (tasks.length === 0) return [];
+  const results = await Promise.allSettled(tasks);
+  const out = [];
+  for (const r of results) {
+    if (r.status === 'fulfilled' && Array.isArray(r.value)) out.push(...r.value);
+  }
+  return out;
+}
+
 async function harvest(topic, settings, onProgress = null) {
   const t0 = Date.now();
   const perChannel = {
@@ -326,6 +423,7 @@ async function harvest(topic, settings, onProgress = null) {
     hn:       { n: 0, ms: 0, err: null, items: [] },
     arxiv:    { n: 0, ms: 0, err: null, items: [] },
     web:      { n: 0, ms: 0, err: null, items: [] },
+    citation: { n: 0, ms: 0, err: null, items: [] },
     fallback: { n: 0, ms: 0, err: null, items: [] },
   };
 
@@ -351,6 +449,31 @@ async function harvest(topic, settings, onProgress = null) {
     runChannel('web',    () => _harvestWebSearch(topic, settings)),
   ]);
 
+  // v0.6.0 — 5th channel: citation graph traversal seeded by top arxiv hits.
+  // Sequential after the 4 parallel channels so we have arxiv IDs to seed.
+  // Each seed paper contributes its references (what it cites) AND citations
+  // (what cites it) — gives the system reach beyond keyword search into the
+  // actual citation network around the seed papers. Free Semantic Scholar
+  // Graph API; no key required. Errors are absorbed silently — never block
+  // the harvest contract.
+  const citationT0 = Date.now();
+  try {
+    const arxivIds = (perChannel.arxiv.items || [])
+      .map(s => {
+        const m = s && s.url && s.url.match(/arxiv\.org\/abs\/([\d.v]+)/);
+        return m ? m[1] : null;
+      })
+      .filter(Boolean);
+    if (arxivIds.length) {
+      perChannel.citation.items = await _harvestCitations(arxivIds, 5, 3);
+      perChannel.citation.n = perChannel.citation.items.length;
+    }
+  } catch (e) {
+    perChannel.citation.err = (e && e.message) ? String(e.message) : String(e);
+  } finally {
+    perChannel.citation.ms = Date.now() - citationT0;
+  }
+
   // Curated frontier+university anchors (Eternal Law 8) — always added so the
   // downstream BM25/rank pass has at least these tier-1 endpoints to pull from.
   const fbStart = Date.now();
@@ -367,6 +490,7 @@ async function harvest(topic, settings, onProgress = null) {
     ...perChannel.hn.items,
     ...perChannel.arxiv.items,
     ...perChannel.web.items,
+    ...perChannel.citation.items,
   ];
   // totalUseful = topic-specific signal only (excludes fallback anchors).
   // Title + (url OR substantive excerpt) → counts as a real source.
@@ -389,6 +513,7 @@ async function harvest(topic, settings, onProgress = null) {
           hn:       { n: perChannel.hn.n,       ms: perChannel.hn.ms,       err: perChannel.hn.err },
           arxiv:    { n: perChannel.arxiv.n,    ms: perChannel.arxiv.ms,    err: perChannel.arxiv.err },
           web:      { n: perChannel.web.n,      ms: perChannel.web.ms,      err: perChannel.web.err },
+          citation: { n: perChannel.citation.n, ms: perChannel.citation.ms, err: perChannel.citation.err },
           fallback: { n: perChannel.fallback.n, ms: perChannel.fallback.ms, err: perChannel.fallback.err },
         },
         totalUseful,
@@ -416,6 +541,7 @@ async function harvest(topic, settings, onProgress = null) {
           hn:       { n: perChannel.hn.n,       err: perChannel.hn.err },
           arxiv:    { n: perChannel.arxiv.n,    err: perChannel.arxiv.err },
           web:      { n: perChannel.web.n,      err: perChannel.web.err },
+          citation: { n: perChannel.citation.n, err: perChannel.citation.err },
           fallback: { n: perChannel.fallback.n, err: perChannel.fallback.err },
         },
       });
@@ -630,7 +756,7 @@ async function classifyArchetype(topic, goal, settings) {
 // input-token bloat with no downstream use (designLesson only ships the top
 // 10 titles). Output: dense paragraph naming the field's main subareas +
 // 2026-currency papers/repos/debates by name. Falls back gracefully.
-async function summarizeSources(topic, sources, settings) {
+async function summarizeSources(topic, sources, settings, opts = {}) {
   const lines = sources.slice(0, 25)
     .map((s, i) => `${i + 1}. [${s.sourceType}] ${s.title} — ${(s.excerpt || '').slice(0, 200)}`)
     .join('\n');
@@ -638,9 +764,24 @@ async function summarizeSources(topic, sources, settings) {
   // the document's shape (so designSeed's trajectory talks about THIS book's
   // arc), not "the field's" general shape.
   const isUpload = Array.isArray(sources) && sources.length > 0 && sources.every(s => s && s.sourceType === 'user-upload');
+  // v0.6.0 — accept optional archetype hint to inject a frontier window into
+  // the digest prompt so the resulting "shape of the field" paragraph
+  // anchors against the right time horizon (12mo for TECH-CONCEPT,
+  // undated for MINDSET, 5y for HUMANITIES, etc.). Caller passes archetype
+  // when known; otherwise we skip the anchor (back-compat with v0.5.x sites).
+  const archetypeHint = opts && opts.archetype ? String(opts.archetype) : null;
+  let frontierLine = '';
+  if (archetypeHint) {
+    try {
+      const tmpl = loadArchetypeTemplate(archetypeHint);
+      if (tmpl && tmpl.frontier_definition && tmpl.frontier_definition.prompt_anchor) {
+        frontierLine = ` Frontier window: ${tmpl.frontier_definition.prompt_anchor}`;
+      }
+    } catch (_) {}
+  }
   const sys = isUpload
-    ? `Compress an uploaded document's chapter list into a single dense "shape of this document" paragraph (≤450 tokens). Name the book/document's 4-7 movements (its actual arc, in its own terms — not the wider field's). Cite specific chapter titles. No fluff, no list format, no markdown. This digest will feed a curriculum-design step that needs to see how THIS document is structured so the curriculum can move foundations → frontier through it.`
-    : `Compress a list of harvested sources about a learning topic into a single dense "shape of the field" paragraph (≤450 tokens). Name 4-7 subareas. Cite specific recent papers / repos / debates BY NAME (author/year/title) where the source list contains them. No fluff, no list format, no markdown. This digest will feed a curriculum-design step that needs to see the field's actual structure, not 25 disconnected items.`;
+    ? `Compress an uploaded document's chapter list into a single dense "shape of this document" paragraph (≤450 tokens). Name the book/document's 4-7 movements (its actual arc, in its own terms — not the wider field's). Cite specific chapter titles. No fluff, no list format, no markdown.${frontierLine} This digest will feed a curriculum-design step that needs to see how THIS document is structured so the curriculum can move foundations → frontier through it.`
+    : `Compress a list of harvested sources about a learning topic into a single dense "shape of the field" paragraph (≤450 tokens). Name 4-7 subareas. Cite specific recent papers / repos / debates BY NAME (author/year/title) where the source list contains them. No fluff, no list format, no markdown.${frontierLine} This digest will feed a curriculum-design step that needs to see the field's actual structure, not 25 disconnected items.`;
   const user = isUpload
     ? `Topic: ${topic}\n\nUploaded document chapters:\n${lines}\n\nReturn the digest paragraph describing THIS document's shape.`
     : `Topic: ${topic}\n\nHarvested sources:\n${lines}\n\nReturn the digest paragraph.`;
@@ -1213,7 +1354,19 @@ async function classifyPriorKnowledge(goal, answers, settings) {
     `Q: ${a.question}\nA: ${Array.isArray(a.answer) ? a.answer.join(', ') : a.answer}`
   ).join('\n\n');
   const profileBlock = userProfileBlock(settings && settings.userProfile);
-  const sys = `${HYPHA_SHORT}${profileBlock}Given a learning GOAL and the student's self-reported BACKGROUND, score how close they currently are to the goal. Use the STUDENT PROFILE block above (if present) as the PRIMARY signal — the answers below are supplementary disambiguators, not the baseline. Output JSON: { "score": float 0..1, "rationale": string, "missing_prerequisites": [string] }.
+  // v0.6.0 — if a calibrated probe exists in profile.probe, surface it as the
+  // PRIMARY ground-truth signal. Self-introduction prose (humble-brag or
+  // impostor-syndrome) is a known-noisy channel; the probe is calibrated
+  // against actual MCQs the student answered. Empty clause when no probe.
+  const probe = (settings && settings.userProfile && settings.userProfile.probe) || null;
+  const probeClause = (probe && typeof probe.score === 'number') ? `
+
+PROBE RESULTS (calibrated baseline — use as PRIMARY signal over self-introduction):
+- Topic probed: ${probe.topic || '(unspecified)'}
+- Score: ${Math.round(probe.score * 100)}% (${probe.correctCount || 0}/${probe.total || 0})
+- Band: ${probe.band || 'unknown'}
+Map band → score: novice → 0.05-0.20, foundational → 0.20-0.40, intermediate → 0.40-0.65, advanced → 0.65-0.90.` : '';
+  const sys = `${HYPHA_SHORT}${profileBlock}${probeClause}Given a learning GOAL and the student's self-reported BACKGROUND, score how close they currently are to the goal. Use the STUDENT PROFILE block above (if present) as the PRIMARY signal — the answers below are supplementary disambiguators, not the baseline. Output JSON: { "score": float 0..1, "rationale": string, "missing_prerequisites": [string] }.
 
 Closeness calibration:
 - 0.0 = total novice (no relevant background at all)
@@ -1239,6 +1392,71 @@ Return JSON only.`;
       missing_prerequisites: Array.isArray(p.missing_prerequisites) ? p.missing_prerequisites : [],
     };
   } catch (_) { return { score: 0.2, rationale: 'classify failed', missing_prerequisites: [] }; }
+}
+
+// generateProbeMCQ — v0.6.0 Lung's PLACEMENT_PROBE. Issues 5 calibrated
+// multiple-choice questions ranging foundational → frontier on the topic, so
+// the curriculum can anchor at the actual baseline (vs. the self-introduction
+// prose, which under- or over-states routinely). LLM returns each question
+// with options including a `correct: boolean` flag. Renderer is expected to
+// HOLD the full structure (answers + correctness) for tally; main.js's
+// profile:probe IPC may strip `correct` flags before sending to the renderer
+// for display, but for v0.6 simplicity we ship the full structure (so the
+// renderer can self-grade and report `{questionId, optionId, correct}`
+// triples back to scoreProbe).
+async function generateProbeMCQ(topic, goal, settings) {
+  const profileBlock = userProfileBlock(settings && settings.userProfile);
+  const sys = `${HYPHA_SHORT}${profileBlock}Generate 5 calibrated multiple-choice questions to assess a learner's baseline knowledge of "${topic}" so a curriculum can start from the right level. Output JSON: { "questions": [{"id":string, "q":string, "options":[{"id":string,"label":string,"correct":boolean}], "rationale":string}, ...] }.
+
+Hard rules:
+- Exactly 5 questions, ranging from foundational (Q1) to frontier (Q5) by difficulty.
+- 4 options per question; exactly 1 option has "correct": true.
+- "rationale" 1 sentence explaining what skill the question tests.
+- For Q5 (frontier), use a 2025-2026 development if domain has one.
+- No throwaway tricks. Each question's correct answer is genuinely diagnostic.
+- Question text concise (≤ 30 words). Option labels ≤ 12 words each.
+Output JSON only.`;
+  const user = `Topic: ${topic}\nGoal: ${goal || '(not stated)'}\n\nReturn JSON.`;
+  const raw = await llmJSON(
+    [{ role: 'system', content: sys }, { role: 'user', content: user }],
+    settings,
+    { json: true, temperature: 0.4, max_tokens: 1500, timeoutMs: 30_000, fn: 'generateProbeMCQ' }
+  );
+  const p = JSON.parse(raw);
+  const questions = Array.isArray(p.questions) ? p.questions.slice(0, 5) : [];
+  // Defensive normalization: fill missing ids, clamp lengths, coerce correct flag.
+  return questions.map((q, i) => ({
+    id: q.id || `q${i + 1}`,
+    q: String(q.q || '').slice(0, 240),
+    options: Array.isArray(q.options) ? q.options.slice(0, 6).map((o, oi) => ({
+      id: o.id || `o${oi + 1}`,
+      label: String(o.label || '').slice(0, 100),
+      correct: o.correct === true,
+    })) : [],
+    rationale: String(q.rationale || '').slice(0, 200),
+  }));
+}
+
+// scoreProbe — v0.6.0. Pure tally: renderer self-grades each MCQ (it has the
+// `correct` flag from generateProbeMCQ's output) and submits triples
+// `[{questionId, optionId, correct}, ...]`. We compute score (correct/total),
+// derive a band, and return both. No LLM call — fast deterministic grading.
+//
+// Bands (used downstream by classifyPriorKnowledge to anchor the prior):
+//   < 0.30  → novice
+//   < 0.60  → foundational
+//   < 0.85  → intermediate
+//   ≥ 0.85  → advanced
+async function scoreProbe(topic, goal, answers, settings) {
+  const list = Array.isArray(answers) ? answers : [];
+  const correctCount = list.filter(a => a && a.correct === true).length;
+  const total = Math.max(1, list.length);
+  const score = correctCount / total;
+  const band = score < 0.3 ? 'novice'
+    : score < 0.6 ? 'foundational'
+    : score < 0.85 ? 'intermediate'
+    : 'advanced';
+  return { score, band, correctCount, total };
 }
 
 async function planChain(goal, ctx, settings) {
@@ -1536,6 +1754,15 @@ function timeCommitToCountIdx(timeCommit) {
   return 1;
 }
 
+// tierMultiplier — v0.6.0 picker. gentle (0.6×) and heroic (1.6×) modulate the
+// final lesson count around the moderate baseline (1.0×). 'moderate' or unknown
+// tier returns 1.0 → preserves v0.5.x behavior.
+function tierMultiplier(tier) {
+  if (tier === 'gentle') return 0.6;
+  if (tier === 'heroic') return 1.6;
+  return 1.0; // moderate / unknown
+}
+
 // computePhaseLessonCounts — distribute target total across phases by weight.
 //
 // Total mapping (depth-first; user pushed back on shallow counts 2026-05-01):
@@ -1546,9 +1773,13 @@ function timeCommitToCountIdx(timeCommit) {
 //   open        → 100   (default to deep)
 //   custom      → customLessons (clamped to 1-200)
 //
+// v0.6.0 — `tier` (gentle/moderate/heroic) modulates the base target by
+// 0.6/1.0/1.6×. Multiplier applies AFTER the time-commit base so a 'heroic'
+// month curriculum yields ~56 lessons instead of 35; 'gentle' month → ~21.
+//
 // Largest-remainder method: floor(weight × target), then distribute leftover
 // to phases with largest fractional parts. Min 1 lesson per phase enforced.
-function computePhaseLessonCounts(phases, timeCommit, customLessons) {
+function computePhaseLessonCounts(phases, timeCommit, customLessons, tier) {
   const TOTAL_BY_TIME = {
     week: 6, month: 35, 'two-month': 70, quarter: 100, open: 100,
   };
@@ -1559,6 +1790,10 @@ function computePhaseLessonCounts(phases, timeCommit, customLessons) {
   } else {
     target = TOTAL_BY_TIME[timeCommit] || 35;
   }
+  // Apply tier multiplier (v0.6.0). Round AFTER multiply so distribution
+  // operates on a single integer target. Min phases.length still enforced
+  // below — gentle tier on a tiny phase template won't drop below 1/phase.
+  target = Math.round(target * tierMultiplier(tier));
   if (target < phases.length) target = phases.length; // ≥1 per phase
 
   let weights = phases.map(p => {
@@ -1652,9 +1887,9 @@ function rankSourcesBM25(sources, query, k = 5) {
 //                 + timeCommit. Each slot = { idx, phaseId, phaseLabel,
 //                 phaseLessonIdx, ghost: true }. Lesson 0 gets the firstLesson
 //                 fields filled; rest stay as pending ghosts.
-async function designSeed({ topic, goal, archetype, timeCommit, customLessons, clarifications, sourceDigest }, settings) {
+async function designSeed({ topic, goal, archetype, timeCommit, customLessons, tier, clarifications, sourceDigest }, settings) {
   const tmpl = loadArchetypeTemplate(archetype || 'TECH-CONCEPT');
-  const counts = computePhaseLessonCounts(tmpl.phases, timeCommit, customLessons);
+  const counts = computePhaseLessonCounts(tmpl.phases, timeCommit, customLessons, tier);
   const phases = tmpl.phases.map((p, i) => ({
     id: p.id,
     label: p.label,
@@ -1682,6 +1917,7 @@ async function designSeed({ topic, goal, archetype, timeCommit, customLessons, c
   const totalLessons = lessonPlan.length;
 
   const profileBlock = userProfileBlock(settings && settings.userProfile);
+  const frontierAnchor = (tmpl && tmpl.frontier_definition && tmpl.frontier_definition.prompt_anchor) || '';
   const sys = `${HYPHA_FULL}${profileBlock}You are seeding a Hypha curriculum: a sequence of one-on-one tutor conversations that build basics → frontier in the manuscript register. The PHASE STRUCTURE is already fixed (the user will see ${phases.length} phases: ${phases.map(p => p.label).join(', ')}, totaling ${totalLessons} lessons). Your job here is ONLY to:
 
 1. Write the title + 1-sentence learnGoal of LESSON 1 (the very first lesson, in phase "${phases[0].label}", phase tone: "${phases[0].tone}"). If the STUDENT PROFILE shows the student already knows the typical lesson-1 material, lift LESSON 1 to a higher entry point that matches their actual baseline.
@@ -1693,7 +1929,7 @@ Hard rules:
 - title: 4-10 words, concrete + specific. NEVER generic ("Introduction to X", "Overview"). Names a specific mechanism / claim / starting move.
 - learnGoal: 1 sentence, plain. Single concrete claim or skill.
 - trajectory: ≤ 80 words. Names specific mechanisms / papers / artifacts the learner will reach by phase ${phases[phases.length - 1].label}. No generic words like "fundamentals", "essentials".
-- Banned words: AI, LLM, embedding, model, prompt, agent, RAG, vector, fine-tune.`;
+- Banned words: AI, LLM, embedding, model, prompt, agent, RAG, vector, fine-tune.${frontierAnchor ? `\n- Frontier window: ${frontierAnchor}` : ''}`;
 
   const userMsg = `Topic: ${topic}
 Archetype: ${archetype}
@@ -1825,10 +2061,17 @@ module.exports = {
   generateQuizBank,
   scoreQuizAnswer,
   computeVariance,
+  summarizeSources,
   // v0.4.0 three-stage pipeline
   loadArchetypeTemplate,
   rankSourcesBM25,
   designSeed,
   proposeNextLesson,
   adaptLessonGoal,
+  // v0.6.0 — tier multiplier + probe + per-lesson re-harvest
+  tierMultiplier,
+  computePhaseLessonCounts,
+  generateProbeMCQ,
+  scoreProbe,
+  _harvestPerLesson,
 };

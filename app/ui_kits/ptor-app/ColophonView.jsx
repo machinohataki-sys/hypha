@@ -154,6 +154,15 @@ function HyphaCloudAuth({ settings, saveSettings }) {
   );
 }
 
+// formatProbeDate — short month+day for the baseline display. Returns '' on
+// any parse failure (the surrounding render guards against missing dates).
+function formatProbeDate(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  } catch (_) { return ''; }
+}
+
 // Token — one editable italic word/phrase in the colophon prose. Default state
 // is brass-italic-text-as-button; hover reveals a 1px brass hairline beneath
 // (affordance signal). Click → inline editor (kind=text/pill/textarea/secret).
@@ -409,6 +418,20 @@ function ColophonView() {
     } catch (_) {}
   }, []);
 
+  // onRetakeProbe — navigate to the welcome / evolution surface and request
+  // re-opening the probe panel. TEAM A's welcome surface owns the reopen-probe
+  // listener; for v0.6.0 the user can also manually click "sharpen baseline"
+  // there. The dispatch is a forward hook — emit, don't depend.
+  const onRetakeProbe = React.useCallback(() => {
+    try {
+      window.dispatchEvent(new CustomEvent('hypha:open-evolution'));
+      const probe = (profile && profile.probe) || {};
+      window.dispatchEvent(new CustomEvent('hypha:reopen-probe', {
+        detail: { topic: probe.topic || '', goal: probe.goal || '' },
+      }));
+    } catch (_) {}
+  }, [profile]);
+
   if (loading) {
     return (
       <div style={{
@@ -541,6 +564,25 @@ function ColophonView() {
           />
         </p>
 
+        {profile.probe && profile.probe.score !== undefined && (
+          <p style={{ margin: '0 0 24px' }}>
+            Your baseline · <span style={{ fontStyle: 'italic' }}>{profile.probe.band}</span>
+            {' '}({Math.round(profile.probe.score * 100)}%) on{' '}
+            <span style={{ fontStyle: 'italic' }}>{profile.probe.topic}</span>
+            {profile.probe.storedAt ? `, taken ${formatProbeDate(profile.probe.storedAt)}` : ''}.
+            {' '}
+            <button onClick={onRetakeProbe} style={{
+              background: 'transparent', border: 'none', padding: 0,
+              font: 'inherit', fontStyle: 'italic', color: 'var(--brass-bright)',
+              cursor: 'pointer', borderBottom: '1px solid transparent',
+              transition: 'border-color 200ms',
+            }}
+              onMouseEnter={e => e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'}
+              onMouseLeave={e => e.currentTarget.style.borderBottomColor = 'transparent'}
+            >re-take →</button>
+          </p>
+        )}
+
         {providerObj.via === 'hypha-server' && (
           <HyphaCloudAuth
             settings={settings}
@@ -563,6 +605,29 @@ function ColophonView() {
             />
           </p>
         )}
+
+        {/* Frontier search — Tavily web channel. Optional; without it the
+            harvest still works against GitHub/HN/arXiv but a user-facing
+            domain like a named-author MINDSET topic ("巴菲特投资思维")
+            tends to come back light. Free tier covers most users. */}
+        <p style={{ margin: '0 0 24px' }}>
+          Frontier search — broader-coverage web channel beyond GitHub / HN / arXiv. Optional.
+          {' '}
+          <Token value={settings.tavilyKey || ''} kind="text"
+            onChange={v => saveSettings({ tavilyKey: v })}
+            placeholder="tvly-..."
+            dim={!settings.tavilyKey}
+          />
+          <span style={{ fontStyle: 'italic', fontSize: 13, color: 'var(--ink-faint)' }}>
+            {' '}— free 1k searches/month at{' '}
+            <a href="#" onClick={e => {
+              e.preventDefault();
+              if (window.ptor && window.ptor.shell && window.ptor.shell.openExternal) {
+                window.ptor.shell.openExternal('https://tavily.com');
+              }
+            }}>tavily.com</a>.
+          </span>
+        </p>
 
         {/* Phase 3.3 — adaptation audit feed. Editorial prose, not a table.
             Each adaptation = one short paragraph with italic Garamond rationale
