@@ -1,0 +1,11 @@
+{
+  "archetype": "LANG-ACQ",
+  "description": "Language acquisition (Japanese, Mandarin, Russian). Repetition + comprehensible-input > theory.",
+  "phases": [
+    { "id": "phonology",   "label": "Sound + script", "lessonCount": [2, 3, 5], "tone": "produce + distinguish phonemes; map to script" },
+    { "id": "highfreq",    "label": "High-frequency", "lessonCount": [2, 4, 7], "tone": "top 200-500 words + the grammar that ties them; hyper-personal sentences" },
+    { "id": "patterns",    "label": "Patterns",       "lessonCount": [2, 4, 6], "tone": "the 12-15 sentence frames that compose 80% of daily speech" },
+    { "id": "frontier",    "label": "Native register","lessonCount": [1, 2, 4], "tone": "current slang / register shifts / dialects; recent media" },
+    { "id": "synthesis",   "label": "Synthesis",      "lessonCount": [1, 2, 3], "tone": "produce a sustained monologue or dialogue with a real native speaker" }
+  ]
+}

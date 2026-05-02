@@ -929,49 +929,78 @@ ipcMain.handle('curriculum:create', async (event, { topic, level, goal, timeComm
     vault.writeJSON(`${slug}/sources.json`, sources);
 
     emit('designing', { sourceCount: sources.length });
-    // 2026-05-01 — heartbeat events every 5s during designing so the user
-    // sees a live "elapsed" counter instead of a static spinner. Without
-    // this, a 30-90s LLM call is indistinguishable from a hung call.
+    // v0.4.0 three-stage pipeline replaces the 14k-token monolith. Wall time
+    // target ≤ 15s end-to-end. Heartbeat retained in case any sub-call drags.
     const designStart = Date.now();
     const heartbeatId = setInterval(() => {
       const elapsed = Math.round((Date.now() - designStart) / 1000);
       try { emit('designing-heartbeat', { elapsed }); } catch (_) {}
     }, 5000);
-    let archetype, sequence;
+
+    let archetype, seedResult;
     try {
-      const r = await _hyphaAgent.designSequence(topic, sources, level || 'intermediate', settings, {
-        goal: goal || '',
+      // Step A: classify archetype (1 small LLM call, ~2s). Used to pick the
+      // phase template + tone for designSeed.
+      archetype = await _hyphaAgent.classifyArchetype(topic, goal, settings);
+      // Step B: source digest (1 small LLM call, ~3s). Compresses 25 raw
+      // sources to a ~500-token digest so designSeed isn't drowning in raw lines.
+      let sourceDigest = '';
+      try { sourceDigest = await _hyphaAgent.summarizeSources(topic, sources, settings); }
+      catch (_) { sourceDigest = sources.slice(0, 10).map(s => `- ${s.title}`).join('\n'); }
+      // Step C: designSeed (1 small LLM call, ~5-8s). Returns phases (from
+      // template, no LLM cost), firstLesson, trajectory, and a flat lessonPlan
+      // with one slot per phase × phaseLessonCount. Slot 0 has firstLesson;
+      // rest are ghost slots awaiting just-in-time materialization.
+      seedResult = await _hyphaAgent.designSeed({
+        topic, goal: goal || '', archetype,
         timeCommit: timeCommit || 'month',
         clarifications: clarifications || [],
-      });
-      archetype = r.archetype;
-      sequence = r.lessons;
+        sourceDigest,
+      }, settings);
     } catch (err) {
       clearInterval(heartbeatId);
+      try { vault.del(slug); } catch (_) {}
+      try { _hyphaAppendEvent('curriculum_failed', { topic: slug, error: err.message, stage: 'seed' }); } catch (_) {}
       if (err && err.code === 'LLM_TIMEOUT') {
-        emit('error', { error: 'curriculum design took too long. try a smaller time commitment, or check your network and retry.' });
-        return { ok: false, error: 'design timeout' };
+        emit('error', { error: 'curriculum seeding took too long; check your network and retry.' });
+        return { ok: false, error: 'seed timeout' };
       }
-      throw err;
+      emit('error', { error: err.message || 'curriculum seeding failed' });
+      return { ok: false, error: err.message };
     }
     clearInterval(heartbeatId);
 
-    emit('writing-lessons', { lessonCount: sequence.length, archetype });
+    emit('writing-lessons', { lessonCount: seedResult.lessonPlan.length, archetype });
+    // Write only lesson 0 as a real .md; remaining slots write as GHOST stubs
+    // (tiny .md with frontmatter ghost: true and body '_pending_'). Ghost
+    // lessons will materialize when the user finishes the prior lesson —
+    // see the lessons:adapt-after-finish IPC, generalized below.
     const lessonRels = [];
-    for (let i = 0; i < sequence.length; i++) {
-      const lesson = sequence[i];
-      const fm = [
+    const today = new Date().toISOString().slice(0, 10);
+    for (const slot of seedResult.lessonPlan) {
+      const isFirst = slot.idx === 0;
+      const isGhost = !!slot.ghost;
+      const title = slot.title || (isGhost ? `${slot.phaseLabel} step ${slot.phaseLessonIdx + 1}` : 'Lesson');
+      const learnGoal = slot.learnGoal || '';
+      const fmLines = [
         '---',
-        `lesson_idx: ${i}`,
-        `learn_goal: ${JSON.stringify(lesson.learnGoal || '')}`,
-        `locked: ${i > 0}`,
+        `lesson_idx: ${slot.idx}`,
+        `learn_goal: ${JSON.stringify(learnGoal)}`,
+        `locked: ${!isFirst}`,
         `topic_slug: ${slug}`,
-        `date_created: ${new Date().toISOString().slice(0, 10)}`,
+        `date_created: ${today}`,
         `date_distilled: null`,
-        '---',
-      ].join('\n');
-      const body = `${fm}\n\n# ${lesson.title || 'Lesson ' + (i + 1)}\n\n## 课程基础\n\n*This lesson hasn't been taught yet. Open the Tutor to begin.*\n\n## 用户灵感\n\n`;
-      const rel = `${slug}/${String(i).padStart(2, '0')}-${_topicSlug(lesson.title || 'lesson').slice(0, 30)}.md`;
+        `phase_id: ${slot.phaseId}`,
+        `phase_label: ${JSON.stringify(slot.phaseLabel)}`,
+        `phase_lesson_idx: ${slot.phaseLessonIdx}`,
+      ];
+      if (isGhost) fmLines.push('ghost: true');
+      fmLines.push('---');
+      const fm = fmLines.join('\n');
+      const body = isGhost
+        ? `${fm}\n\n# (pending — grows in as you advance)\n\n_pending_\n`
+        : `${fm}\n\n# ${title}\n\n## 课程基础\n\n*This lesson hasn't been taught yet. Open the Tutor to begin.*\n\n## 用户灵感\n\n`;
+      const rel = `${slug}/${String(slot.idx).padStart(2, '0')}-${isGhost ? 'pending' : _topicSlug(title).slice(0, 30)}.md`;
       vault.write(rel, body);
       lessonRels.push(rel);
     }
@@ -983,6 +1012,8 @@ ipcMain.handle('curriculum:create', async (event, { topic, level, goal, timeComm
       timeCommit: timeCommit || 'month',
       clarifications: clarifications || [],
       archetype,
+      phases: seedResult.phases,
+      trajectory: seedResult.trajectory,
       concepts: {},
       lastIdx: -1,
       lessonRels,
@@ -1002,9 +1033,9 @@ ipcMain.handle('curriculum:create', async (event, { topic, level, goal, timeComm
       });
     }
 
-    _hyphaAppendEvent('curriculum_done', { topic: slug, lessons: sequence.length });
+    _hyphaAppendEvent('curriculum_done', { topic: slug, lessons: lessonRels.length, archetype });
     emit('done', { lessonRels, firstLessonRel: lessonRels[0] });
-    return { ok: true, topic: slug, lessonRels, sequence };
+    return { ok: true, topic: slug, lessonRels, archetype, phases: seedResult.phases };
   } catch (err) {
     _hyphaAppendEvent('curriculum_error', { topic: slug, error: err.message });
     emit('error', { error: err.message });
@@ -1497,6 +1528,71 @@ ipcMain.handle('quote:add-insight', (_e, { rel, quoteId, insight } = {}) => {
 // + title on still-locked future lessons. Same observable effect (next lesson
 // teaches deeper or shallower) without breaking the DAG.
 //
+// v0.4.0 — ghost materialization helper. Called at EVERY exit path of the
+// adapt-after-finish handler so the next ghost lesson always gets filled in
+// once the user finishes the current one — regardless of whether adaptation
+// itself was triggered (BASIC/DEEP) or skipped (STANDARD/no_atlas/disabled).
+async function _materializeNextGhost(slug, state, justIdx, settled, settings) {
+  try {
+    const lessonRels = state.lessonRels || [];
+    const nextIdx = justIdx + 1;
+    const nextRel = lessonRels[nextIdx];
+    if (!nextRel) return null;
+    const nextNote = vault.read(nextRel);
+    if (!nextNote) return null;
+    const nextFm = nextNote.frontmatter || {};
+    const isGhost = String(nextFm.ghost || '').toLowerCase() === 'true' ||
+                    /\n_pending_\s*\n/.test(nextNote.body || '');
+    if (!isGhost) return null;
+    const slot = {
+      idx: nextIdx,
+      phaseId: nextFm.phase_id || (state.phases && state.phases[0] && state.phases[0].id) || 'foundations',
+      phaseLabel: String(nextFm.phase_label || '').replace(/^"|"$/g, '') || 'Phase',
+      phaseLessonIdx: parseInt(nextFm.phase_lesson_idx, 10) || 0,
+      phaseTone: '',
+    };
+    if (state.phases) {
+      const phaseDef = state.phases.find(p => p.id === slot.phaseId);
+      if (phaseDef) slot.phaseTone = phaseDef.tone || '';
+    }
+    const priorLessons = [];
+    for (let i = Math.max(0, nextIdx - 3); i < nextIdx; i++) {
+      const r = lessonRels[i];
+      if (!r) continue;
+      const n = vault.read(r);
+      if (!n) continue;
+      const t = (n.frontmatter && n.frontmatter.title) || (n.body.match(/^# (.+)$/m) || [])[1] || `Lesson ${i + 1}`;
+      const lg = String((n.frontmatter && n.frontmatter.learn_goal) || '').replace(/^"|"$/g, '');
+      priorLessons.push({ idx: i, title: t, learnGoal: lg });
+    }
+    const sources = vault.readJSON(`${slug}/sources.json`, []) || [];
+    const queryStr = `${slot.phaseLabel} ${slot.phaseTone} ${state.goal || ''}`;
+    const retrievedSources = _hyphaAgent.rankSourcesBM25(sources, queryStr, 5);
+    const next = await _hyphaAgent.proposeNextLesson({
+      topic: slug,
+      archetype: state.archetype || 'TECH-CONCEPT',
+      slot,
+      priorLessons,
+      priorAtlas: settled.slice(0, 12),
+      priorVariance: null,
+      retrievedSources,
+    }, settings);
+    const today = new Date().toISOString().slice(0, 10);
+    const newFmMap = { ...nextFm };
+    delete newFmMap.ghost;
+    newFmMap.learn_goal = JSON.stringify(next.learnGoal);
+    newFmMap.date_created = today;
+    const newFm = ['---', ...Object.entries(newFmMap).map(([k, v]) => `${k}: ${v}`), '---'].join('\n');
+    const newBody = `${newFm}\n\n# ${next.title}\n\n## 课程基础\n\n*This lesson hasn't been taught yet. Open the Tutor to begin.*\n\n## 用户灵感\n\n`;
+    vault.write(nextRel, newBody);
+    _hyphaAppendEvent('lesson_materialized', { slug, idx: nextIdx, fromIdx: justIdx });
+    return { idx: nextIdx, rel: nextRel, title: next.title, learnGoal: next.learnGoal };
+  } catch (err) {
+    console.error('[materializeNextGhost] failed:', err.message);
+    return null;
+  }
+}
+
 // Audit: every adaptation appended to <slug>/adaptations.jsonl with old → new.
 ipcMain.handle('lessons:adapt-after-finish', async (_e, { rel } = {}) => {
   if (!rel) return { ok: false, error: 'rel required' };
@@ -1510,12 +1606,20 @@ ipcMain.handle('lessons:adapt-after-finish', async (_e, { rel } = {}) => {
   // Honor user opt-out (state.adapt_enabled === false freezes curriculum).
   const state = vault.readJSON(`${slug}/state.json`, null);
   if (!state) return { ok: false, error: 'state.json missing' };
-  if (state.adapt_enabled === false) return { ok: true, skipped: 'adapt_disabled' };
+  const settings = _hyphaSettings();
+  if (state.adapt_enabled === false) {
+    // adapt is disabled; still try to materialize next ghost.
+    const m = await _materializeNextGhost(slug, state, justIdx, [], settings);
+    return { ok: true, skipped: 'adapt_disabled', materialized: m };
+  }
 
   // Read just-finished atlas — compute signal.
   const atlasP = _atlasPath(slug, justIdx);
   const atlas = vault.readJSON(atlasP, null);
-  if (!atlas || !atlas.concepts) return { ok: true, skipped: 'no_atlas' };
+  if (!atlas || !atlas.concepts) {
+    const m = await _materializeNextGhost(slug, state, justIdx, [], settings);
+    return { ok: true, skipped: 'no_atlas', materialized: m };
+  }
 
   const settled = [];
   const missing = [];
@@ -1531,7 +1635,11 @@ ipcMain.handle('lessons:adapt-after-finish', async (_e, { rel } = {}) => {
   let affectedCount;
   if (settledCount === 0) { signalTier = 'BASIC'; affectedCount = 2; }
   else if (settledCount >= 4) { signalTier = 'DEEP'; affectedCount = 3; }
-  else { return { ok: true, skipped: 'standard_tier', settledCount }; }
+  else {
+    // STANDARD tier — no goal rewrite. Still materialize next ghost.
+    const m = await _materializeNextGhost(slug, state, justIdx, settled, settings);
+    return { ok: true, skipped: 'standard_tier', settledCount, materialized: m };
+  }
 
   // Identify next N still-LOCKED lessons.
   const lessonRels = state.lessonRels || [];
@@ -1560,7 +1668,7 @@ ipcMain.handle('lessons:adapt-after-finish', async (_e, { rel } = {}) => {
     title: fm.title || (note.body.match(/^# (.+)$/m) || [])[1] || '',
     learnGoal: String(fm.learn_goal || '').replace(/^"|"$/g, ''),
   };
-  const settings = _hyphaSettings();
+  // settings already declared above
 
   const today = new Date().toISOString().slice(0, 10);
   const adaptedTargets = [];
@@ -1637,7 +1745,9 @@ ipcMain.handle('lessons:adapt-after-finish', async (_e, { rel } = {}) => {
     adaptedTargets.push({ idx: t.idx, oldGoal: t.learnGoal, newGoal: result.newGoal, reason: result.reason });
   }
 
-  return { ok: true, signalTier, settledCount, adaptedCount: adaptedTargets.length, adapted: adaptedTargets };
+  // v0.4.0 — also materialize next ghost (BASIC/DEEP path runs through here).
+  const materialized = await _materializeNextGhost(slug, state, justIdx, settled, settings);
+  return { ok: true, signalTier, settledCount, adaptedCount: adaptedTargets.length, adapted: adaptedTargets, materialized };
 });
 
 // lesson-adaptations:list — Phase 3.3. Walks all curriculum folders, reads

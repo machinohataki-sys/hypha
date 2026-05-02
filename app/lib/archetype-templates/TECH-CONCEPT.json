@@ -1,0 +1,11 @@
+{
+  "archetype": "TECH-CONCEPT",
+  "description": "Concept-heavy technical fields (transformer architecture, distributed systems, statistics, quantum mechanics). Theory mechanism > skill drill.",
+  "phases": [
+    { "id": "foundations", "label": "Foundations",  "lessonCount": [2, 4, 6],  "tone": "ground the vocabulary; isolate the core question this field answers" },
+    { "id": "tools",       "label": "Tools",        "lessonCount": [2, 3, 5],  "tone": "the canonical instruments + notation the field uses to think" },
+    { "id": "mechanisms",  "label": "Mechanisms",   "lessonCount": [3, 5, 8],  "tone": "how the actual machinery works; named theorems / canonical examples" },
+    { "id": "frontier",    "label": "Frontier",     "lessonCount": [2, 3, 5],  "tone": "what's unsolved or recently shifted; cite specific 2025-2026 papers" },
+    { "id": "synthesis",   "label": "Synthesis",    "lessonCount": [1, 2, 3],  "tone": "the learner's own re-derivation; one production-grade artifact" }
+  ]
+}

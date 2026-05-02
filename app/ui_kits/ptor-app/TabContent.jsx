@@ -836,15 +836,14 @@ function HyphaEvolutionWelcome({ onPick }) {
     switch (status) {
       case 'harvesting': return 'gathering sources from the better parts of the web…';
       case 'designing': {
-        // 2026-05-01 — show live elapsed counter so the wait isn't ambiguous.
-        // Typical: "designing the sequence… 30s elapsed". After 60s, hint at
-        // patience; the hard 180s timeout will surface its own error.
-        const base = 'designing the sequence';
-        if (elapsedSec >= 60) return `${base} — still working at ${elapsedSec}s (will time out at 180s)…`;
-        if (elapsedSec >= 5)  return `${base}… ${elapsedSec}s elapsed`;
+        // v0.4.0 — three-stage pipeline. Wall time target ≤ 15s. After
+        // 30s we hint at patience; hard ceiling per stage in agent.js.
+        const base = 'seeding the curriculum';
+        if (elapsedSec >= 30) return `${base} — still arranging at ${elapsedSec}s…`;
+        if (elapsedSec >= 5)  return `${base}… ${elapsedSec}s`;
         return `${base}…`;
       }
-      case 'writing-lessons': return 'writing lesson stubs to your vault…';
+      case 'writing-lessons': return 'placing the first lesson…';
       case 'error': return createError
         ? `failed — ${createError.slice(0, 200)}`
         : 'couldn\'t begin — check api key in settings and try again.';

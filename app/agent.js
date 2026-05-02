@@ -1343,6 +1343,244 @@ Output the JSON variance card.`;
   }
 }
 
+// ─── v0.4.0 — Three-stage curriculum gen ────────────────────────────────────
+
+// loadArchetypeTemplate — read the per-archetype phase template from disk.
+// Falls back to TECH-CONCEPT if the archetype is unknown or template missing.
+// Templates live at app/lib/archetype-templates/<archetype>.json.
+const _path = require('path');
+const _fs = require('fs');
+function loadArchetypeTemplate(archetype) {
+  const dir = _path.join(__dirname, 'lib', 'archetype-templates');
+  const tryRead = (a) => {
+    try { return JSON.parse(_fs.readFileSync(_path.join(dir, `${a}.json`), 'utf8')); }
+    catch (_) { return null; }
+  };
+  return tryRead(archetype) || tryRead('TECH-CONCEPT') || {
+    archetype: 'TECH-CONCEPT',
+    phases: [
+      { id: 'foundations', label: 'Foundations', lessonCount: [2, 4, 6], tone: '' },
+      { id: 'mechanisms',  label: 'Mechanisms',  lessonCount: [3, 5, 8], tone: '' },
+      { id: 'frontier',    label: 'Frontier',    lessonCount: [2, 3, 5], tone: '' },
+      { id: 'synthesis',   label: 'Synthesis',   lessonCount: [1, 2, 3], tone: '' },
+    ],
+  };
+}
+
+// timeCommitToCountIdx — pick column from lessonCount [week, month, quarter]
+// triple. open-ended folds into quarter (most generous).
+function timeCommitToCountIdx(timeCommit) {
+  if (timeCommit === 'week')   return 0;
+  if (timeCommit === 'month')  return 1;
+  if (timeCommit === 'quarter' || timeCommit === 'open' || timeCommit === 'open-ended') return 2;
+  return 1;  // default month
+}
+
+// rankSourcesBM25 — pure-JS BM25 over title + excerpt. No LLM, no embeddings.
+// Returns top-k sources sorted by relevance. Used by Stage 2 (frontier
+// retrieval) to pick which 5 sources to pass to proposeNextLesson per
+// upcoming lesson — citations always real, never invented.
+function rankSourcesBM25(sources, query, k = 5) {
+  const list = Array.isArray(sources) ? sources : [];
+  if (list.length === 0) return [];
+  const q = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
+  if (q.length === 0) return list.slice(0, k);
+  // BM25 params (standard).
+  const k1 = 1.5, b = 0.75;
+  const docs = list.map(s => `${s.title || ''} ${s.excerpt || ''}`.toLowerCase());
+  const docTokens = docs.map(d => d.split(/\s+/).filter(Boolean));
+  const docLens = docTokens.map(t => t.length);
+  const avgLen = docLens.reduce((a, b) => a + b, 0) / docLens.length || 1;
+  const N = list.length;
+  // df per query term
+  const df = {};
+  for (const term of q) {
+    df[term] = docTokens.filter(t => t.includes(term)).length;
+  }
+  // score each doc
+  const scored = list.map((src, i) => {
+    let score = 0;
+    const tokens = docTokens[i];
+    const len = docLens[i];
+    for (const term of q) {
+      const tf = tokens.filter(t => t === term).length;
+      if (tf === 0) continue;
+      const idf = Math.log(1 + (N - df[term] + 0.5) / (df[term] + 0.5));
+      score += idf * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * len / avgLen));
+    }
+    // Star/recency boost — small multiplier so popular sources tie-break ahead.
+    const stars = Number(src.stars) || 0;
+    const starBoost = stars > 0 ? Math.log10(1 + stars) * 0.3 : 0;
+    return { src, score: score + starBoost };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, k).map(s => s.src);
+}
+
+// designSeed — Stage 1 of the three-stage pipeline. Replaces the 14000-token
+// monolithic designSequence call. Reads phase structure from per-archetype
+// JSON template (no LLM call for SHAPE) and runs ONE small LLM call to write
+// only lesson 1's title + learnGoal + a one-paragraph trajectory description.
+//
+// Total wall time target: 5-8 seconds. Token output ~400, max_tokens 600.
+//
+// Returns { archetype, phases, firstLesson, trajectory, lessonPlan }.
+//   - phases:    [{id, label, lessonCount, tone}] from template
+//   - lessonPlan: flat list of pending lesson-slot specs derived from phases
+//                 + timeCommit. Each slot = { idx, phaseId, phaseLabel,
+//                 phaseLessonIdx, ghost: true }. Lesson 0 gets the firstLesson
+//                 fields filled; rest stay as pending ghosts.
+async function designSeed({ topic, goal, archetype, timeCommit, clarifications, sourceDigest }, settings) {
+  const tmpl = loadArchetypeTemplate(archetype || 'TECH-CONCEPT');
+  const countIdx = timeCommitToCountIdx(timeCommit);
+  const phases = tmpl.phases.map(p => ({
+    id: p.id,
+    label: p.label,
+    lessonCount: Array.isArray(p.lessonCount) ? p.lessonCount[countIdx] : 3,
+    tone: p.tone || '',
+  }));
+
+  // Build the pending lesson-plan: flat slots, one per planned lesson.
+  // Slot 0 will be filled by firstLesson; all others stay ghosts until
+  // proposeNextLesson materializes them just-ahead-of-need.
+  const lessonPlan = [];
+  let idx = 0;
+  for (const ph of phases) {
+    for (let li = 0; li < ph.lessonCount; li++) {
+      lessonPlan.push({
+        idx,
+        phaseId: ph.id,
+        phaseLabel: ph.label,
+        phaseLessonIdx: li,
+        phaseTone: ph.tone,
+      });
+      idx += 1;
+    }
+  }
+  const totalLessons = lessonPlan.length;
+
+  const sys = `${HYPHA_FULL}You are seeding a Hypha curriculum: a sequence of one-on-one tutor conversations that build basics → frontier in the manuscript register. The PHASE STRUCTURE is already fixed (the user will see ${phases.length} phases: ${phases.map(p => p.label).join(', ')}, totaling ${totalLessons} lessons). Your job here is ONLY to:
+
+1. Write the title + 1-sentence learnGoal of LESSON 1 (the very first lesson, in phase "${phases[0].label}", phase tone: "${phases[0].tone}")
+2. Write a 2-3 sentence "trajectory" paragraph describing where the curriculum heads — concrete (names of mechanisms / frontier debates / final artifact), not generic.
+
+Output STRICT JSON: { "firstLesson": { "title": string, "learnGoal": string }, "trajectory": string }
+
+Hard rules:
+- title: 4-10 words, concrete + specific. NEVER generic ("Introduction to X", "Overview"). Names a specific mechanism / claim / starting move.
+- learnGoal: 1 sentence, plain. Single concrete claim or skill.
+- trajectory: ≤ 80 words. Names specific mechanisms / papers / artifacts the learner will reach by phase ${phases[phases.length - 1].label}. No generic words like "fundamentals", "essentials".
+- Banned words: AI, LLM, embedding, model, prompt, agent, RAG, vector, fine-tune.`;
+
+  const userMsg = `Topic: ${topic}
+Archetype: ${archetype}
+Time commitment: ${timeCommit} (${totalLessons} lessons across ${phases.length} phases)
+${goal ? `Student's stated goal: ${goal}\n` : ''}
+${Array.isArray(clarifications) && clarifications.length ? `Clarifications:\n${clarifications.map(c => `  - ${c.question} → ${Array.isArray(c.answer) ? c.answer.join(', ') : c.answer}`).join('\n')}\n` : ''}
+Shape of the field (digest):
+${(sourceDigest || '').slice(0, 1500)}
+
+Return the JSON now. Lesson 1 should be the most accessible entry point that an absolute beginner could start in one breath.`;
+
+  let firstLesson = { title: topic, learnGoal: `Begin a deep traversal of ${topic}.` };
+  let trajectory = `${phases.length} phases of conversation: ${phases.map(p => p.label).join(' → ')}.`;
+  try {
+    const raw = await llmJSON(
+      [{ role: 'system', content: sys }, { role: 'user', content: userMsg }],
+      settings,
+      { json: true, temperature: 0.4, max_tokens: 600, timeoutMs: 30_000, fn: 'designSeed' }
+    );
+    const parsed = JSON.parse(raw);
+    if (parsed.firstLesson && parsed.firstLesson.title && parsed.firstLesson.learnGoal) {
+      firstLesson = parsed.firstLesson;
+    }
+    if (parsed.trajectory) trajectory = String(parsed.trajectory).slice(0, 600);
+  } catch (err) {
+    console.error('[designSeed] failed, using fallback:', err.message);
+  }
+
+  // Fill slot 0 of lessonPlan with firstLesson; rest stay ghosts.
+  if (lessonPlan.length > 0) {
+    lessonPlan[0].title = firstLesson.title;
+    lessonPlan[0].learnGoal = firstLesson.learnGoal;
+    lessonPlan[0].ghost = false;
+    for (let i = 1; i < lessonPlan.length; i++) {
+      lessonPlan[i].ghost = true;
+    }
+  }
+  return { archetype: archetype || 'TECH-CONCEPT', phases, firstLesson, trajectory, lessonPlan };
+}
+
+// proposeNextLesson — Stage 3 of the pipeline. Given prior lesson outcomes
+// (atlas + variance) and the next pending slot's phase context, generate ONE
+// lesson's title + learnGoal. Cheap (~250 tokens out, 3-5s wall time). Fires
+// from the existing lessons:adapt-after-finish IPC when the next slot is a
+// ghost (body still '_pending_').
+//
+// Inputs:
+//   topic           — curriculum topic
+//   archetype       — for tone reference
+//   slot            — { idx, phaseId, phaseLabel, phaseLessonIdx, phaseTone }
+//   priorLessons    — array of { idx, title, learnGoal } already taught/written
+//   priorAtlas      — top settled concepts from prior lessons (string[])
+//   priorVariance   — last variance card { intentEcho, driftSummary }
+//   retrievedSources — top-K sources from BM25 ranking (max 5 entries)
+//
+// Returns { title, learnGoal }.
+async function proposeNextLesson({ topic, archetype, slot, priorLessons, priorAtlas, priorVariance, retrievedSources }, settings) {
+  const sys = `${HYPHA_FULL}You write ONE lesson's title + learnGoal for a Hypha curriculum mid-flight. You see what the learner has already covered + settled, and write the next lesson with concrete knowledge of priors.
+
+Phase: ${slot.phaseLabel} (slot ${slot.phaseLessonIdx + 1} within phase). Tone: "${slot.phaseTone || 'editorial, specific'}".
+
+Output STRICT JSON: { "title": string, "learnGoal": string }
+
+Rules:
+- title: 4-10 words, concrete + specific. Reference the actual mechanism / paper / technique. NEVER generic.
+- learnGoal: 1 plain-language sentence. The single concrete claim or skill.
+- Stay within the phase tone. Reference at least one concept from priorAtlas where natural (continuity).
+- If retrievedSources contain a recent named paper, cite the author / title in the learnGoal where it fits.
+- Banned words: AI, LLM, embedding, model, prompt, agent, RAG, vector, fine-tune.`;
+
+  const priorTitlesLine = (priorLessons || [])
+    .slice(-3)
+    .map(l => `  · ${l.title} → ${l.learnGoal}`)
+    .join('\n');
+  const sourcesLine = (retrievedSources || [])
+    .slice(0, 5)
+    .map(s => `  · [${s.sourceType}] ${s.title}${s.excerpt ? ' — ' + s.excerpt.slice(0, 120) : ''}`)
+    .join('\n');
+
+  const userMsg = `Topic: ${topic}
+Archetype: ${archetype}
+Phase: ${slot.phaseLabel}, lesson ${slot.phaseLessonIdx + 1} of phase
+
+${priorTitlesLine ? `Last 3 lessons taught:\n${priorTitlesLine}\n` : ''}
+${(priorAtlas && priorAtlas.length) ? `Concepts the student has settled so far: ${priorAtlas.slice(0, 12).join(', ')}\n` : ''}
+${priorVariance && priorVariance.driftSummary ? `Recent drift: ${priorVariance.driftSummary}\n` : ''}
+${sourcesLine ? `Available sources for citation:\n${sourcesLine}\n` : ''}
+
+Write the next lesson now.`;
+
+  try {
+    const raw = await llmJSON(
+      [{ role: 'system', content: sys }, { role: 'user', content: userMsg }],
+      settings,
+      { json: true, temperature: 0.4, max_tokens: 400, timeoutMs: 20_000, fn: 'proposeNextLesson' }
+    );
+    const parsed = JSON.parse(raw);
+    if (parsed.title && parsed.learnGoal) {
+      return { title: String(parsed.title).slice(0, 200), learnGoal: String(parsed.learnGoal).slice(0, 400) };
+    }
+  } catch (err) {
+    console.error('[proposeNextLesson] failed:', err.message);
+  }
+  // Fallback: derive from phase tone.
+  return {
+    title: `${slot.phaseLabel} step ${slot.phaseLessonIdx + 1}`,
+    learnGoal: `Continue ${slot.phaseLabel.toLowerCase()} of ${topic}.`,
+  };
+}
+
 module.exports = {
   harvest,
   clarifyQuestions,
@@ -1364,5 +1602,10 @@ module.exports = {
   generateQuizBank,
   scoreQuizAnswer,
   computeVariance,
+  // v0.4.0 three-stage pipeline
+  loadArchetypeTemplate,
+  rankSourcesBM25,
+  designSeed,
+  proposeNextLesson,
   adaptLessonGoal,
 };

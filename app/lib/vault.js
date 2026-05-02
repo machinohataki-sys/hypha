@@ -115,6 +115,12 @@ function list() {
       // adaptLessonGoal mutates a downstream lesson. VaultTree shows a quiet
       // italic mark on adapted items.
       const adapted = String(fm.adapted || '').toLowerCase() === 'true';
+      // v0.4.0 — `ghost: true` flags pending lessons that haven't materialized
+      // yet (body == '_pending_'). VaultTree renders them as italic dimmed
+      // rows with a "(pending)" suffix; click is disabled.
+      const ghost = String(fm.ghost || '').toLowerCase() === 'true';
+      const phaseLabel = String(fm.phase_label || '').replace(/^"|"$/g, '');
+      const phaseId = String(fm.phase_id || '');
       return {
         id: `${d.name}/${e.name}`,
         rel: `${d.name}/${e.name}`,
@@ -127,6 +133,9 @@ function list() {
         learnGoal,
         distilled,
         adapted,
+        ghost,
+        phaseLabel,
+        phaseId,
       };
     });
 

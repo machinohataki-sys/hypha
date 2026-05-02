@@ -456,8 +456,11 @@ function VaultTree({ active, onSelect, viewMode }) {
                   const on = active === item.id;
                   const isRenaming = renameTarget && renameTarget.kind === 'item' && renameTarget.id === item.id;
                   // Hypha — locked lessons: dim + cursor:not-allowed + click is no-op.
+                  // v0.4.0 — ghost lessons (unmaterialized, body == _pending_)
+                  // get even more dim + italic + "(pending)" suffix.
                   const isLocked = item.locked;
-                  const lockedDim = isLocked ? 0.42 : 1;
+                  const isGhost = !!item.ghost;
+                  const lockedDim = isGhost ? 0.32 : (isLocked ? 0.42 : 1);
                   // Patina decay — not-active rows fade with neglect. Active row
                   // re-saturates to full opacity (read becomes attention signal).
                   const patinaOp = on ? 1 : patinaOpacity(item.lastAttendedAt);
@@ -468,17 +471,23 @@ function VaultTree({ active, onSelect, viewMode }) {
                   return (
                     <div key={item.id}
                          data-ctx-target={isCtxTarget ? 'true' : undefined}
-                         onClick={() => { if (!isRenaming && !isLocked) onSelect(item.id); }}
+                         onClick={() => { if (!isRenaming && !isLocked && !isGhost) onSelect(item.id); }}
                          onContextMenu={(e) => {
                            e.preventDefault();
-                           if (!isLocked) setCtxMenu({ kind: 'item', id: item.id, x: e.clientX, y: e.clientY });
+                           if (!isLocked && !isGhost) setCtxMenu({ kind: 'item', id: item.id, x: e.clientX, y: e.clientY });
                          }}
-                         title={isLocked ? 'Locked — finish the previous lesson first.' : undefined}
+                         title={isGhost
+                           ? 'this lesson grows in as you finish the prior one'
+                           : isLocked
+                             ? 'Locked — finish the previous lesson first.'
+                             : undefined}
                          style={{
                            display: 'flex', alignItems: 'center', gap: 10,
                            padding: '5px 14px 5px 30px', margin: '0 6px',
-                           borderRadius: 2, cursor: isLocked ? 'not-allowed' : 'pointer',
-                           fontFamily: '"JetBrains Mono", monospace', fontSize: 13,
+                           borderRadius: 2, cursor: (isLocked || isGhost) ? 'not-allowed' : 'pointer',
+                           fontFamily: isGhost ? '"EB Garamond", "Noto Serif SC", serif' : '"JetBrains Mono", monospace',
+                           fontStyle: isGhost ? 'italic' : 'normal',
+                           fontSize: 13,
                            // Ink darken: ctx-target → ink-title (Muse macOS Notes pattern, 200ms@40ms)
                            color: (on || isCtxTarget) ? 'var(--ink-title)' : 'var(--ink-primary)',
                            // Background fill: hover 9%, ctx-target 8% mid + 280ms
@@ -519,7 +528,11 @@ function VaultTree({ active, onSelect, viewMode }) {
                           fontSize={13}
                         />
                       ) : (
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {isGhost
+                            ? <span style={{ color: 'var(--ink-faint)' }}>· pending</span>
+                            : item.label}
+                        </span>
                       )}
                       {/* Phase 3.1 — `adapted` mark. Quiet italic Garamond `·`
                           in brass-mid. Tooltip explains the lesson was
