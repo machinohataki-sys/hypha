@@ -160,6 +160,9 @@ contextBridge.exposeInMainWorld('ptor', {
     // chainRefuse({ slug, reason?, checklistFlags? }) → { ok, mode:'reason-recorded'|'cancelled', newPlan? }
     chainAccept: (args) => ipcRenderer.invoke('chain:accept', args || {}),
     chainRefuse: (args) => ipcRenderer.invoke('chain:refuse', args || {}),
+    // v0.6.5 — after chain:accept (lazy commit), the welcome form's continue
+    // button fires chain:start to actually run the first link's curriculum.
+    chainStart: (args) => ipcRenderer.invoke('chain:start', args || {}),
     // v0.6.2 — per-curriculum LLM response language override.
     curriculumGetLanguage: (slug) => ipcRenderer.invoke('curriculum:get-language', { slug }),
     curriculumSetLanguage: (slug, language) => ipcRenderer.invoke('curriculum:set-language', { slug, language }),

@@ -152,7 +152,27 @@ function ChainPlannerView({ open, onClose, context }) {
         slug: result.slug,
         covenantSnapshot,
       });
-      if (r && r.ok && r.lessonRel) {
+      // v0.6.5 — chain:accept is now LAZY-COMMIT (no generation here). Dispatch
+      // hypha:chain-committed so the welcome form switches into chain-mode;
+      // its continue button then fires chain:start to launch link 0. This
+      // eliminates the v0.6.4-and-prior race where chain accept generated
+      // first link while the welcome form was still alive (two contradicting
+      // generation paths).
+      if (r && r.ok && r.mode === 'committed') {
+        try {
+          window.dispatchEvent(new CustomEvent('hypha:chain-committed', {
+            detail: {
+              chainSlug: r.chainSlug,
+              links: r.links || [],
+              ultimate_goal: r.ultimate_goal || '',
+              tier: r.tier || 'moderate',
+            },
+          }));
+        } catch (_) {}
+        setAcceptStage(null);
+        if (typeof onClose === 'function') onClose();
+      } else if (r && r.ok && r.lessonRel) {
+        // v0.6.4-back-compat: legacy code path (shouldn't fire post-v0.6.5).
         try {
           window.dispatchEvent(new CustomEvent('hypha:open-rel', { detail: { rel: r.lessonRel } }));
         } catch (_) {}
@@ -695,7 +715,7 @@ function ChainPlannerView({ open, onClose, context }) {
                       background: 'var(--brass-bright)',
                       animation: 'hypha-breath 1400ms ease-in-out infinite',
                     }} />
-                    {t('正在准备第一节课程…', 'preparing your first course…')}
+                    {t('正在确认蓝图…', 'committing the blueprint…')}
                   </div>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 36 }}>

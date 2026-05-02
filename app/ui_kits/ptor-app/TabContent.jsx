@@ -763,6 +763,13 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
   // curriculum is built from this document instead of web harvest.
   const [uploadedSource, setUploadedSource] = React.useState(null);
   const [uploadError, setUploadError] = React.useState(null);
+  // v0.6.5 — chain blueprint commit. After ChainPlannerView's Accept fires
+  // hypha:chain-committed, this state holds the committed chain. The continue
+  // button switches into chain-mode and fires chain:start instead of
+  // curriculum:create. Eliminates the race where accept auto-generated link 0
+  // while the welcome form was still alive with conflicting fields.
+  const [committedChain, setCommittedChain] = React.useState(null);
+  // { chainSlug, links, ultimate_goal, tier } | null
   const [status, setStatus] = React.useState(null);
   // Clarification stage state.
   const [questions, setQuestions] = React.useState([]); // [{id, question, options[], multiSelect, allowOther}]
@@ -875,6 +882,62 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
     { id: 'quarter',   label: '3 months',   sub: '100 lessons · deep traversal' },
     { id: 'custom',    label: 'custom',     sub: 'you choose · 1-200' },
   ];
+
+  // v0.6.5 — listen for chain-committed event from ChainPlannerView's Accept.
+  // Switches the welcome form into chain-mode: continue now fires chain:start
+  // instead of curriculum:create.
+  React.useEffect(() => {
+    const onCommitted = (e) => {
+      const d = (e && e.detail) || {};
+      if (!d.chainSlug) return;
+      setCommittedChain({
+        chainSlug: d.chainSlug,
+        links: Array.isArray(d.links) ? d.links : [],
+        ultimate_goal: d.ultimate_goal || '',
+        tier: d.tier || 'moderate',
+      });
+    };
+    window.addEventListener('hypha:chain-committed', onCommitted);
+    return () => window.removeEventListener('hypha:chain-committed', onCommitted);
+  }, []);
+
+  // v0.6.5 — chain-mode continue. Fires chain:start to launch link 0's
+  // curriculum. Mirrors startCreate's status flow so the existing creating-
+  // phase UI (banner, vinyl, harvest indicators) renders the same way.
+  const startChainFromCommitted = React.useCallback(async () => {
+    if (!committedChain || !committedChain.chainSlug) return;
+    if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.chainStart) {
+      setCreateError('chainStart IPC unavailable');
+      setStatus('error');
+      return;
+    }
+    setPhase('creating');
+    setStatus('harvesting');   // first stage of curriculum:create flow
+    setCreateError(null);
+    if (typeof setCreatingTopic === 'function') setCreatingTopic(committedChain.ultimate_goal || committedChain.chainSlug);
+    try {
+      const r = await window.ptor.hypha.chainStart({ chainSlug: committedChain.chainSlug });
+      if (r && r.ok && r.lessonRel) {
+        setStatus(null);
+        setTopic(''); setGoal(''); setUploadedSource(null); setUploadError(null);
+        setQuestions([]); setAnswers({});
+        setCommittedChain(null);
+        if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
+        if (typeof onPick === 'function') onPick(r.lessonRel);
+      } else if (r && r.cancelled) {
+        setStatus(null); setPhase('form');
+        if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
+      } else {
+        setStatus('error');
+        setCreateError((r && r.error) || 'chain start failed');
+        if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
+      }
+    } catch (err) {
+      setStatus('error');
+      setCreateError((err && err.message) || String(err));
+      if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
+    }
+  }, [committedChain, setCreatingTopic, onPick]);
 
   // Stage 1 → 2 transition. Submit form, request clarifying questions.
   const submitForm = React.useCallback(async () => {
@@ -1825,9 +1888,55 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
               );
             })()}
 
+            {/* v0.6.5 — chain-blueprint commit banner. After Accept, shows
+                the blueprint summary above the continue button; continue
+                fires chain:start instead of the welcome form's curriculum
+                pipeline. User can discard to return to solo mode. */}
+            {committedChain && (
+              <div style={{
+                marginBottom: 16, padding: '14px 18px',
+                background: 'color-mix(in srgb, var(--brass-bright) 10%, transparent)',
+                borderRadius: '14px 18px 14px 18px',
+                boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brass-bright) 36%, transparent)',
+                fontFamily: '"EB Garamond", Georgia, serif',
+              }}>
+                <div style={{
+                  fontFamily: '"Cormorant Garamond", Georgia, serif',
+                  fontWeight: 500, fontSize: 12, letterSpacing: '0.16em',
+                  textTransform: 'uppercase', color: 'var(--ink-faint)',
+                  marginBottom: 6,
+                }}>chain blueprint accepted</div>
+                <div style={{
+                  fontStyle: 'italic', fontSize: 15, lineHeight: 1.5,
+                  color: 'var(--ink-title)',
+                }}>
+                  {committedChain.links.length} {committedChain.links.length === 1 ? 'link' : 'links'} → <span style={{ color: 'var(--brass-bright)' }}>{committedChain.ultimate_goal || committedChain.chainSlug}</span>
+                </div>
+                <div style={{
+                  marginTop: 4, fontStyle: 'italic', fontSize: 12.5,
+                  color: 'var(--ink-faint)',
+                }}>
+                  continue starts the first link · or{' '}
+                  <button
+                    type="button"
+                    onClick={() => setCommittedChain(null)}
+                    style={{
+                      background: 'transparent', border: 'none', padding: 0,
+                      font: 'inherit', fontStyle: 'italic',
+                      color: 'var(--ink-muted)', cursor: 'pointer',
+                      borderBottom: '1px solid transparent',
+                      transition: 'border-color 200ms, color 200ms',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderBottomColor = 'var(--ink-muted)'; e.currentTarget.style.color = 'var(--ink-title)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderBottomColor = 'transparent'; e.currentTarget.style.color = 'var(--ink-muted)'; }}
+                  >discard this blueprint →</button>
+                </div>
+              </div>
+            )}
+
             <button
-              onClick={submitForm}
-              disabled={!topic.trim()}
+              onClick={committedChain ? startChainFromCommitted : submitForm}
+              disabled={committedChain ? false : !topic.trim()}
               style={{
                 width: '100%',
                 background: 'color-mix(in srgb, var(--brass-bright) 22%, transparent)',
@@ -1836,13 +1945,13 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
                 color: 'var(--ink-title)',
                 fontFamily: 'inherit', fontStyle: 'normal',
                 fontSize: 17, fontWeight: 500, padding: '14px 26px',
-                cursor: !topic.trim() ? 'not-allowed' : 'pointer',
-                opacity: !topic.trim() ? 0.4 : 1,
+                cursor: (committedChain ? false : !topic.trim()) ? 'not-allowed' : 'pointer',
+                opacity: (committedChain ? false : !topic.trim()) ? 0.4 : 1,
                 transition: 'background 220ms cubic-bezier(0.22, 1, 0.36, 1)',
               }}
-              onMouseEnter={e => { if (topic.trim()) e.currentTarget.style.background = 'color-mix(in srgb, var(--brass-bright) 32%, transparent)'; }}
+              onMouseEnter={e => { if (committedChain || topic.trim()) e.currentTarget.style.background = 'color-mix(in srgb, var(--brass-bright) 32%, transparent)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--brass-bright) 22%, transparent)'; }}
-            >continue</button>
+            >{committedChain ? 'begin the chain →' : 'continue'}</button>
 
             {clarifyError && (
               <div style={{ marginTop: 16, fontStyle: 'italic', fontSize: 13, color: 'var(--verdict-flag)' }}>

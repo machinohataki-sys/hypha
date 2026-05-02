@@ -2939,6 +2939,16 @@ function _mapWeeksToTimeCommit(weeks) {
   return 'open';
 }
 
+// v0.6.5 — chain:accept now LAZY-COMMITS (no generation). User flow per
+// 2026-05-02 feedback: "I want accept ≠ generate; the welcome form's
+// continue is the canonical trigger that uses the blueprint."
+//
+// Old behavior generated the first link's curriculum immediately, racing
+// against the welcome form's own continue button → contradictory output.
+// Now: accept persists covenant + links-state (all pending, no active),
+// returns the chain context. Welcome form listens for hypha:chain-committed,
+// switches into chain-mode, and its continue button fires chain:start to
+// activate the first link.
 ipcMain.handle('chain:accept', async (event, { slug, covenantSnapshot } = {}) => {
   if (!slug || !String(slug).trim()) return { ok: false, error: 'slug required' };
   try {
@@ -2949,7 +2959,7 @@ ipcMain.handle('chain:accept', async (event, { slug, covenantSnapshot } = {}) =>
     const links = chain.chain.links;
     if (!links.length) return { ok: false, error: 'chain has zero links' };
 
-    // 1. Persist covenant — what the user accepted, with full chain snapshot.
+    // 1. Persist covenant snapshot — audit trail of what the user accepted.
     vault.writeJSON(`${slug}/covenant.json`, {
       ...(covenantSnapshot || {}),
       acceptedAt: (covenantSnapshot && covenantSnapshot.acceptedAt) || new Date().toISOString(),
@@ -2957,65 +2967,29 @@ ipcMain.handle('chain:accept', async (event, { slug, covenantSnapshot } = {}) =>
       chainSnapshot: chain,
     });
 
-    // 2. Build curriculum-create args from the first link.
-    const firstLink = links[0];
-    const firstTopic = firstLink.topic || (chain.ultimate_goal || slug);
-    const firstGoal = firstLink.exit_criterion || '';
-    const timeCommit = _mapWeeksToTimeCommit(firstLink.duration_weeks);
-
-    // 3. Drive the curriculum pipeline directly (no IPC round-trip).
-    // v0.6.1 — forward chain.tier (gentle/moderate/heroic) so the first-link
-    // curriculum honors the user's depth choice. Without this, accepting a
-    // chain forced 'moderate' regardless of the welcome-form selection.
-    const r = await _runCurriculumCreate(event, {
-      topic: firstTopic,
-      level: 'intermediate',
-      goal: firstGoal,
-      timeCommit,
-      tier: chain.tier || 'moderate',
-      clarifications: [],
-    });
-    if (!r || !r.ok) {
-      return { ok: false, error: (r && r.error) || 'first-link curriculum failed' };
-    }
-    const firstSlug = r.topic;
-    // v0.6.1 — stamp first-link's curriculum state.json with chainSlug + linkIdx
-    // so NoteView's chain-link banner can render its position in the chain.
-    try {
-      const curState = vault.readJSON(`${firstSlug}/state.json`, {}) || {};
-      curState.chainSlug = slug;
-      curState.chainLinkIdx = 0;
-      vault.writeJSON(`${firstSlug}/state.json`, curState);
-    } catch (_) {}
-
-    // 4. Persist multi-link state. Subsequent links stay 'pending' until the
-    // user finishes link N and the chain transitions to N+1.
-    const linksState = links.map((link, idx) => {
-      if (idx === 0) {
-        return {
-          idx, slug: firstSlug,
-          status: 'active',
-          topic: firstTopic,
-          goal: firstGoal,
-          duration_weeks: link.duration_weeks || null,
-          role: link.role || null,
-        };
-      }
-      return {
-        idx, slug: null,
-        status: 'pending',
-        topic: link.topic || '',
-        goal: link.exit_criterion || '',
-        duration_weeks: link.duration_weeks || null,
-        role: link.role || null,
-      };
-    });
+    // 2. Persist links-state with ALL pending. Welcome form's continue
+    //    button (or chain:start IPC) activates link 0 when user proceeds.
+    const linksState = links.map((link, idx) => ({
+      idx, slug: null,
+      status: 'pending',
+      topic: link.topic || '',
+      goal: link.exit_criterion || '',
+      duration_weeks: link.duration_weeks || null,
+      role: link.role || null,
+    }));
     vault.writeJSON(`${slug}/links-state.json`, { links: linksState, updatedAt: new Date().toISOString() });
+    _hyphaAppendEvent('chain_committed', { chainSlug: slug, linkCount: links.length });
 
     return {
       ok: true,
-      firstSlug,
-      lessonRel: (r.lessonRels && r.lessonRels[0]) || null,
+      mode: 'committed',
+      chainSlug: slug,
+      links: linksState,
+      ultimate_goal: chain.ultimate_goal || '',
+      tier: chain.tier || 'moderate',
+      // v0.6.4-back-compat fields (renderer may still read these on success):
+      firstSlug: null,
+      lessonRel: null,
     };
   } catch (err) {
     return { ok: false, error: (err && err.message) || String(err) };
@@ -3102,6 +3076,70 @@ ipcMain.handle('chain:refuse', async (_e, { slug, reason, checklistFlags } = {})
 //   5. Stamp the new curriculum's state.json with chainSlug + linkIdx so
 //      NoteView's chain banner can render the new position.
 //   6. Persist links-state.json with active → done, next → active.
+// v0.6.5 — chain:start. After chain:accept (lazy commit), the welcome form's
+// continue button fires this IPC to actually run the curriculum pipeline for
+// link[0]. Stamps the resulting curriculum's state.json with chainSlug + linkIdx
+// so NoteView's chain banner renders, and updates links-state.json so link 0
+// flips pending → active.
+ipcMain.handle('chain:start', async (event, { chainSlug } = {}) => {
+  if (!chainSlug || !String(chainSlug).trim()) return { ok: false, error: 'chainSlug required' };
+  try {
+    const chain = vault.readJSON(`${chainSlug}/chain.json`, null);
+    const linksState = vault.readJSON(`${chainSlug}/links-state.json`, null);
+    if (!chain || !chain.chain || !Array.isArray(chain.chain.links)) {
+      return { ok: false, error: 'chain.json missing or malformed' };
+    }
+    if (!linksState || !Array.isArray(linksState.links)) {
+      return { ok: false, error: 'links-state.json missing — chain not committed?' };
+    }
+    // Idempotency: if link 0 is already active or done, return what's there.
+    const link0State = linksState.links[0];
+    if (link0State && link0State.status === 'active' && link0State.slug) {
+      return {
+        ok: true,
+        firstSlug: link0State.slug,
+        lessonRel: link0State.lessonRel || null,
+        alreadyStarted: true,
+      };
+    }
+    const firstLink = chain.chain.links[0];
+    if (!firstLink) return { ok: false, error: 'chain has no first link' };
+    const firstTopic = firstLink.topic || (chain.ultimate_goal || chainSlug);
+    const firstGoal = firstLink.exit_criterion || '';
+    const timeCommit = _mapWeeksToTimeCommit(firstLink.duration_weeks);
+    const r = await _runCurriculumCreate(event, {
+      topic: firstTopic,
+      level: 'intermediate',
+      goal: firstGoal,
+      timeCommit,
+      tier: chain.tier || 'moderate',
+      clarifications: [],
+    });
+    if (!r || !r.ok) {
+      return { ok: false, error: (r && r.error) || 'first-link curriculum failed' };
+    }
+    const firstSlug = r.topic;
+    const lessonRel = (r.lessonRels && r.lessonRels[0]) || null;
+    // Stamp curriculum's state.json with chain context for NoteView banner.
+    try {
+      const curState = vault.readJSON(`${firstSlug}/state.json`, {}) || {};
+      curState.chainSlug = chainSlug;
+      curState.chainLinkIdx = 0;
+      vault.writeJSON(`${firstSlug}/state.json`, curState);
+    } catch (_) {}
+    // Update links-state: link 0 → active with slug + lessonRel.
+    linksState.links[0].slug = firstSlug;
+    linksState.links[0].status = 'active';
+    linksState.links[0].lessonRel = lessonRel;
+    linksState.updatedAt = new Date().toISOString();
+    vault.writeJSON(`${chainSlug}/links-state.json`, linksState);
+    _hyphaAppendEvent('chain_started', { chainSlug, firstSlug });
+    return { ok: true, firstSlug, lessonRel };
+  } catch (err) {
+    return { ok: false, error: (err && err.message) || String(err) };
+  }
+});
+
 ipcMain.handle('chain:advance', async (event, { chainSlug } = {}) => {
   if (!chainSlug || !String(chainSlug).trim()) return { ok: false, error: 'chainSlug required' };
   try {
