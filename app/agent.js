@@ -384,6 +384,263 @@ async function _harvestCitations(arxivIds, maxRefs = 5, maxCitedBy = 3) {
   return out.filter(s => s.url && s.title);
 }
 
+// ── v0.7.0 — 4 new harvest channels ─────────────────────────────────────────
+// All fail-soft: lib import inside try/catch so a missing dep doesn't break
+// the harvest contract. Each returns array of {url, title, excerpt, ...}.
+
+// Channel 7 — Wikipedia full text (intro paragraph). No key. Language-aware.
+async function _harvestWikipedia(topic) {
+  const q = String(topic).trim();
+  if (!q) return [];
+  const lang = /[一-龥]/.test(q) ? 'zh' : 'en';
+  const fetchFn = (typeof fetch !== 'undefined') ? fetch : require('node-fetch');
+  try {
+    // Step 1: opensearch → top 8 article titles + URLs
+    const searchRes = await fetchFn(
+      `https://${lang}.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(q)}&limit=8&namespace=0&format=json`,
+      { headers: { 'User-Agent': 'Hypha/0.7' } }
+    );
+    if (!searchRes.ok) return [];
+    const sd = await searchRes.json();
+    const titles = sd[1] || [];
+    const urls = sd[3] || [];
+    if (titles.length === 0) return [];
+    // Step 2: extract intros for all titles in one query
+    const titlesParam = titles.map(encodeURIComponent).join('|');
+    const extractRes = await fetchFn(
+      `https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=true&explaintext=true&titles=${titlesParam}&format=json&redirects=1`,
+      { headers: { 'User-Agent': 'Hypha/0.7' } }
+    );
+    if (!extractRes.ok) return [];
+    const ed = await extractRes.json();
+    const pages = (ed.query && ed.query.pages) ? Object.values(ed.query.pages) : [];
+    const titleToExtract = {};
+    for (const p of pages) {
+      if (p && p.title) titleToExtract[p.title] = String(p.extract || '');
+    }
+    const out = [];
+    for (let i = 0; i < titles.length; i++) {
+      const t = titles[i];
+      const u = urls[i] || `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(t)}`;
+      const intro = titleToExtract[t] || '';
+      if (!intro || intro.length < 50) continue;  // skip stubs
+      if (!passesSourcePolicy(u)) continue;
+      out.push({
+        url: u, title: t,
+        excerpt: intro.slice(0, 600),
+        sourceType: 'wikipedia', stars: 0, lang,
+      });
+    }
+    return out;
+  } catch (_) { return []; }
+}
+
+// Channel 8 — OpenAlex (250M scholarly works incl. humanities). No key.
+async function _harvestOpenAlex(topic) {
+  const q = String(topic).trim();
+  if (!q) return [];
+  const fetchFn = (typeof fetch !== 'undefined') ? fetch : require('node-fetch');
+  try {
+    const res = await fetchFn(
+      `https://api.openalex.org/works?search=${encodeURIComponent(q)}&per-page=8&mailto=hypha@machinohataki.dev`,
+      { headers: { 'User-Agent': 'Hypha/0.7' } }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const out = [];
+    for (const w of (data.results || [])) {
+      if (!w || !w.title) continue;
+      // OpenAlex stores abstract as inverted_index — reconstruct.
+      let abstract = '';
+      if (w.abstract_inverted_index && typeof w.abstract_inverted_index === 'object') {
+        const positions = [];
+        for (const [word, idxs] of Object.entries(w.abstract_inverted_index)) {
+          for (const i of idxs) positions[i] = word;
+        }
+        abstract = positions.filter(Boolean).join(' ');
+      }
+      if (!abstract || abstract.length < 50) continue;  // skip works without abstracts
+      const url = (w.doi && w.doi.startsWith('http')) ? w.doi
+        : (w.doi ? `https://doi.org/${String(w.doi).replace(/^https?:\/\/doi\.org\//, '')}`
+        : (w.id || ''));
+      if (!url) continue;
+      if (!passesSourcePolicy(url)) continue;
+      out.push({
+        url,
+        title: String(w.title || '').slice(0, 200),
+        excerpt: abstract.slice(0, 600),
+        sourceType: 'openalex',
+        stars: Number(w.cited_by_count) || 0,
+        year: Number(w.publication_year) || null,
+      });
+    }
+    return out;
+  } catch (_) { return []; }
+}
+
+// Channel 6 — YouTube transcript. Lib-dependent (youtube-search-api +
+// youtube-transcript). Skip-on-fail per video. ~3-6s for 8 videos.
+async function _harvestYouTube(topic) {
+  const q = String(topic).trim();
+  if (!q) return [];
+  let YTSearch, YTTranscript;
+  try { YTSearch = require('youtube-search-api'); } catch (_) { return []; }
+  try { YTTranscript = require('youtube-transcript'); } catch (_) { /* transcript optional */ }
+  let videos;
+  try {
+    const r = await Promise.race([
+      YTSearch.GetListByKeyword(q, false, 8, [{ type: 'video' }]),
+      new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 6000)),
+    ]);
+    videos = (r && r.items) ? r.items : [];
+  } catch (_) { return []; }
+  const out = [];
+  await Promise.allSettled(videos.slice(0, 8).map(async v => {
+    if (!v || !v.id) return;
+    const url = `https://www.youtube.com/watch?v=${v.id}`;
+    let transcript = '';
+    if (YTTranscript && YTTranscript.YoutubeTranscript) {
+      try {
+        const segs = await Promise.race([
+          YTTranscript.YoutubeTranscript.fetchTranscript(v.id),
+          new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 2500)),
+        ]);
+        transcript = (segs || []).map(s => s.text || '').join(' ');
+      } catch (_) {}
+    }
+    if (!passesSourcePolicy(url)) return;
+    out.push({
+      url, title: String(v.title || '').slice(0, 200),
+      excerpt: transcript ? transcript.slice(0, 600) : (v.description || '').slice(0, 400),
+      sourceType: 'youtube',
+      stars: Number((v.viewCount && v.viewCount.text || '').replace(/[^\d]/g, '')) || 0,
+      durationSec: (v.length && v.length.simpleText) || null,
+      channelName: (v.channelTitle) || null,
+      hasTranscript: !!transcript,
+    });
+  }));
+  return out;
+}
+
+// Channel 9 — Stanford Encyclopedia of Philosophy (gated to HUMANITIES).
+// Discovery via Tavily-filtered domain search; HTML scrape with cheerio.
+async function _harvestSEP(topic, settings) {
+  const tavilyKey = (settings && settings.tavilyKey) || process.env.TAVILY_API_KEY || '';
+  if (!tavilyKey) return [];  // no reliable discovery without Tavily
+  const q = String(topic).trim();
+  if (!q) return [];
+  let cheerio;
+  try { cheerio = require('cheerio'); } catch (_) { return []; }
+  const fetchFn = (typeof fetch !== 'undefined') ? fetch : require('node-fetch');
+  // Step 1: Tavily search restricted to plato.stanford.edu
+  let entryUrls = [];
+  try {
+    const tRes = await fetchFn('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: tavilyKey, query: q, search_depth: 'basic', max_results: 5,
+        include_domains: ['plato.stanford.edu'],
+      }),
+    });
+    if (!tRes.ok) return [];
+    const tj = await tRes.json();
+    entryUrls = (tj.results || []).map(r => r.url).filter(u => u && /plato\.stanford\.edu\/entries\//.test(u));
+  } catch (_) { return []; }
+  if (entryUrls.length === 0) return [];
+  // Step 2: fetch + extract intro per entry
+  const out = [];
+  await Promise.allSettled(entryUrls.slice(0, 4).map(async url => {
+    try {
+      const r = await Promise.race([
+        fetchFn(url, { headers: { 'User-Agent': 'Hypha/0.7' } }),
+        new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 4000)),
+      ]);
+      if (!r.ok) return;
+      const html = await r.text();
+      const $ = cheerio.load(html);
+      const title = $('h1').first().text().trim() || $('title').text().trim();
+      // SEP entry intro: first <p> after the table of contents OR inside #preamble.
+      let intro = $('#preamble p').first().text().trim();
+      if (!intro || intro.length < 50) intro = $('#main-text p').first().text().trim();
+      if (!intro || intro.length < 50) intro = $('p').slice(0, 3).map((_, el) => $(el).text().trim()).get().join(' ');
+      intro = intro.replace(/\s+/g, ' ').slice(0, 600);
+      if (!intro || !title) return;
+      out.push({ url, title: String(title).slice(0, 200), excerpt: intro, sourceType: 'sep', stars: 0 });
+    } catch (_) {}
+  }));
+  return out;
+}
+
+// Channel 10 — YC Library (gated to MINDSET / startup keywords). Discovery
+// via Tavily filtered to YC-canon domains, fallback to ycombinator.com search.
+async function _harvestYCLibrary(topic, settings) {
+  const tavilyKey = (settings && settings.tavilyKey) || process.env.TAVILY_API_KEY || '';
+  const q = String(topic).trim();
+  if (!q) return [];
+  if (tavilyKey) {
+    const fetchFn = (typeof fetch !== 'undefined') ? fetch : require('node-fetch');
+    try {
+      const r = await fetchFn('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: tavilyKey, query: q, search_depth: 'basic', max_results: 8,
+          include_domains: ['ycombinator.com', 'paulgraham.com', 'samaltman.com', 'startupschool.org'],
+        }),
+      });
+      if (!r.ok) return [];
+      const j = await r.json();
+      return (j.results || []).map(x => ({
+        url: x.url || '',
+        title: String(x.title || '').slice(0, 200),
+        excerpt: String(x.content || '').slice(0, 600),
+        sourceType: 'yc', stars: 0,
+      })).filter(s => s.url && s.title && passesSourcePolicy(s.url));
+    } catch (_) { return []; }
+  }
+  return [];  // fallback HTML scrape deferred — Tavily covers most cases
+}
+
+// Hacker News deepen (v0.7.0). Existing _harvestHN got titles + algolia
+// snippets; this enrichment fetches top-3 high-points hits' comment threads
+// and appends top-3 expert comments to excerpt.
+async function _enrichHNComments(items) {
+  const fetchFn = (typeof fetch !== 'undefined') ? fetch : require('node-fetch');
+  const top3 = (items || [])
+    .filter(it => it && it.stars && it.stars >= 100)
+    .sort((a, b) => b.stars - a.stars)
+    .slice(0, 3);
+  await Promise.allSettled(top3.map(async it => {
+    const m = it.url && it.url.match(/news\.ycombinator\.com\/item\?id=(\d+)/);
+    const objectId = m ? m[1] : null;
+    if (!objectId) return;
+    try {
+      const r = await fetchFn(`https://hn.algolia.com/api/v1/items/${objectId}`, {
+        headers: { 'User-Agent': 'Hypha/0.7' },
+      });
+      if (!r.ok) return;
+      const data = await r.json();
+      // Walk the comment tree, collect comments with points >= 10
+      const comments = [];
+      const walk = (node) => {
+        if (!node) return;
+        if (node.text && (node.points || 0) >= 10) {
+          comments.push({ points: node.points, text: String(node.text).replace(/<[^>]+>/g, '').slice(0, 200) });
+        }
+        if (node.children) for (const c of node.children) walk(c);
+      };
+      walk(data);
+      comments.sort((a, b) => b.points - a.points);
+      const top = comments.slice(0, 3);
+      if (top.length === 0) return;
+      const append = top.map(c => `TOP HN COMMENT (${c.points}pt): ${c.text}`).join(' | ');
+      it.excerpt = (it.excerpt || '') + ' | ' + append;
+    } catch (_) {}
+  }));
+  return items;
+}
+
 // _harvestPerLesson — v0.6.0 lightweight per-lesson re-harvest. Called from
 // main.js's lessons:adapt-after-finish IPC just BEFORE proposeNextLesson, so
 // the upcoming lesson sees frontier-fresh sources rather than lesson-1's
@@ -416,19 +673,46 @@ async function _harvestPerLesson(existingSources, lessonTopic, settings) {
   return out;
 }
 
-async function harvest(topic, settings, onProgress = null) {
-  const t0 = Date.now();
-  const perChannel = {
-    github:   { n: 0, ms: 0, err: null, items: [] },
-    hn:       { n: 0, ms: 0, err: null, items: [] },
-    arxiv:    { n: 0, ms: 0, err: null, items: [] },
-    web:      { n: 0, ms: 0, err: null, items: [] },
-    citation: { n: 0, ms: 0, err: null, items: [] },
-    fallback: { n: 0, ms: 0, err: null, items: [] },
-  };
+// v0.7.0 — archetype-aware channel routing. Each topic class gets the right
+// 4-7 channels in parallel; channels that wouldn't help are skipped (saves
+// latency + avoids polluting sources with noise — e.g., SEP firing for
+// "React Hooks" wastes 4s + injects irrelevant philosophy entries).
+const CHANNEL_ROUTES = {
+  'TECH-CONCEPT': ['github', 'arxiv', 'web', 'hn', 'youtube', 'openalex'],
+  'TECH-PROC':    ['github', 'hn', 'web', 'youtube'],
+  'HUMANITIES':   ['wikipedia', 'openalex', 'sep', 'web', 'hn'],
+  'MINDSET':      ['yclibrary', 'web', 'wikipedia', 'youtube', 'hn'],
+  'LANG-ACQ':     ['wikipedia', 'youtube', 'web'],
+  'DECL-MASS':    ['wikipedia', 'openalex', 'web', 'hn'],
+  '_default':     ['github', 'hn', 'arxiv', 'web'],
+};
 
-  // Run all 4 live channels in parallel. Promise.allSettled so a single
-  // network failure can't take down the whole harvest.
+async function harvest(topic, settings, onProgress = null, archetype = '_default') {
+  const t0 = Date.now();
+  const route = CHANNEL_ROUTES[archetype] || CHANNEL_ROUTES._default;
+  // Initialize perChannel only for the channels that will fire (saves bytes
+  // on telemetry + signals to renderer which channels were active).
+  const perChannel = {};
+  for (const key of route) {
+    perChannel[key] = { n: 0, ms: 0, err: null, items: [] };
+  }
+  // citation + fallback always present (citation conditional on arxiv hits,
+  // fallback always added). Initialize for telemetry consistency.
+  if (!perChannel.citation) perChannel.citation = { n: 0, ms: 0, err: null, items: [] };
+  perChannel.fallback = { n: 0, ms: 0, err: null, items: [] };
+
+  // Channel dispatcher — maps key to its helper invocation.
+  const CHANNEL_FNS = {
+    github:    () => _harvestGithub(topic),
+    hn:        () => _harvestHN(topic),
+    arxiv:     () => _harvestArxiv(topic),
+    web:       () => _harvestWebSearch(topic, settings),
+    wikipedia: () => _harvestWikipedia(topic),
+    openalex:  () => _harvestOpenAlex(topic),
+    youtube:   () => _harvestYouTube(topic),
+    sep:       () => _harvestSEP(topic, settings),
+    yclibrary: () => _harvestYCLibrary(topic, settings),
+  };
   const runChannel = async (key, fn) => {
     const start = Date.now();
     try {
@@ -442,12 +726,18 @@ async function harvest(topic, settings, onProgress = null) {
     }
   };
 
-  await Promise.allSettled([
-    runChannel('github', () => _harvestGithub(topic)),
-    runChannel('hn',     () => _harvestHN(topic)),
-    runChannel('arxiv',  () => _harvestArxiv(topic)),
-    runChannel('web',    () => _harvestWebSearch(topic, settings)),
-  ]);
+  // Fire all archetype-routed channels in parallel.
+  await Promise.allSettled(route.map(key => {
+    const fn = CHANNEL_FNS[key];
+    if (!fn) return Promise.resolve();
+    return runChannel(key, fn);
+  }));
+
+  // v0.7.0 — HN deepen: enrich HN items with top expert comments. Sequential
+  // after parallel batch so the top hits' points are known.
+  if (perChannel.hn && perChannel.hn.items && perChannel.hn.items.length > 0) {
+    try { await _enrichHNComments(perChannel.hn.items); } catch (_) {}
+  }
 
   // v0.6.0 — 5th channel: citation graph traversal seeded by top arxiv hits.
   // Sequential after the 4 parallel channels so we have arxiv IDs to seed.
@@ -458,7 +748,9 @@ async function harvest(topic, settings, onProgress = null) {
   // the harvest contract.
   const citationT0 = Date.now();
   try {
-    const arxivIds = (perChannel.arxiv.items || [])
+    // v0.7.0 — guard arxiv-channel access; archetype routing may have skipped it.
+    const arxivItems = (perChannel.arxiv && perChannel.arxiv.items) || [];
+    const arxivIds = arxivItems
       .map(s => {
         const m = s && s.url && s.url.match(/arxiv\.org\/abs\/([\d.v]+)/);
         return m ? m[1] : null;
@@ -485,13 +777,15 @@ async function harvest(topic, settings, onProgress = null) {
   perChannel.fallback.n = perChannel.fallback.items.length;
   perChannel.fallback.ms = Date.now() - fbStart;
 
-  const liveItems = [
-    ...perChannel.github.items,
-    ...perChannel.hn.items,
-    ...perChannel.arxiv.items,
-    ...perChannel.web.items,
-    ...perChannel.citation.items,
-  ];
+  // v0.7.0 — dynamic liveItems from whichever channels actually fired.
+  // perChannel keys are determined by archetype routing + always-on
+  // citation/fallback. Fallback is excluded from "live" (it's the safety net).
+  const liveItems = [];
+  for (const key of Object.keys(perChannel)) {
+    if (key === 'fallback') continue;
+    const items = (perChannel[key] && perChannel[key].items) || [];
+    liveItems.push(...items);
+  }
   // totalUseful = topic-specific signal only (excludes fallback anchors).
   // Title + (url OR substantive excerpt) → counts as a real source.
   const totalUseful = liveItems.filter(s =>
@@ -504,18 +798,22 @@ async function harvest(topic, settings, onProgress = null) {
   try {
     const vault = require('./lib/vault');
     if (vault && typeof vault.appendJSONL === 'function') {
+      // v0.7.0 — emit perChannel telemetry dynamically (variable keyset by archetype).
+      const perChannelTelemetry = {};
+      for (const key of Object.keys(perChannel)) {
+        perChannelTelemetry[key] = {
+          n: perChannel[key].n,
+          ms: perChannel[key].ms,
+          err: perChannel[key].err,
+        };
+      }
       vault.appendJSONL('events.jsonl', {
         ts: new Date().toISOString(),
         op: 'harvest_complete',
         topic: String(topic),
-        perChannel: {
-          github:   { n: perChannel.github.n,   ms: perChannel.github.ms,   err: perChannel.github.err },
-          hn:       { n: perChannel.hn.n,       ms: perChannel.hn.ms,       err: perChannel.hn.err },
-          arxiv:    { n: perChannel.arxiv.n,    ms: perChannel.arxiv.ms,    err: perChannel.arxiv.err },
-          web:      { n: perChannel.web.n,      ms: perChannel.web.ms,      err: perChannel.web.err },
-          citation: { n: perChannel.citation.n, ms: perChannel.citation.ms, err: perChannel.citation.err },
-          fallback: { n: perChannel.fallback.n, ms: perChannel.fallback.ms, err: perChannel.fallback.err },
-        },
+        archetype,
+        route,
+        perChannel: perChannelTelemetry,
         totalUseful,
         durationMs,
       });
@@ -523,15 +821,17 @@ async function harvest(topic, settings, onProgress = null) {
       // all-channels-thin (no single channel produced ≥3 sources). Per-channel
       // counts attached to the event so downstream telemetry can diagnose
       // which trigger fired and which channels under-delivered.
-      const liveChannelKeys = ['github', 'hn', 'arxiv', 'web', 'citation'];
+      // v0.7.0 — thin-trigger over whichever live channels actually ran.
+      const liveChannelKeys = Object.keys(perChannel).filter(k => k !== 'fallback');
       const channelMaxes = liveChannelKeys.map(c => (perChannel[c] && perChannel[c].n) || 0);
       const isAggregateThin = totalUseful < 5;
-      const isAllChannelsThin = channelMaxes.every(n => n < 3);
+      const isAllChannelsThin = channelMaxes.length > 0 && channelMaxes.every(n => n < 3);
       if (isAggregateThin || isAllChannelsThin) {
         vault.appendJSONL('events.jsonl', {
           ts: new Date().toISOString(),
           op: 'harvest_thin',
           topic: String(topic),
+          archetype,
           totalUseful,
           aggregateThin: isAggregateThin,
           allChannelsThin: isAllChannelsThin,
@@ -545,16 +845,18 @@ async function harvest(topic, settings, onProgress = null) {
   // so the renderer surfaces a thin-source banner inline.
   if (typeof onProgress === 'function') {
     try {
+      // v0.7.0 — dynamic perChannel for the renderer banner.
+      const perChannelOnProgress = {};
+      for (const key of Object.keys(perChannel)) {
+        perChannelOnProgress[key] = {
+          n: perChannel[key].n,
+          err: perChannel[key].err,
+        };
+      }
       onProgress('harvest_complete', {
         totalUseful,
-        perChannel: {
-          github:   { n: perChannel.github.n,   err: perChannel.github.err },
-          hn:       { n: perChannel.hn.n,       err: perChannel.hn.err },
-          arxiv:    { n: perChannel.arxiv.n,    err: perChannel.arxiv.err },
-          web:      { n: perChannel.web.n,      err: perChannel.web.err },
-          citation: { n: perChannel.citation.n, err: perChannel.citation.err },
-          fallback: { n: perChannel.fallback.n, err: perChannel.fallback.err },
-        },
+        archetype,
+        perChannel: perChannelOnProgress,
       });
     } catch (_) {}
   }

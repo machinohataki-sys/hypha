@@ -1016,6 +1016,10 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
   _curriculumCancelled.delete(slug);
   try {
     let sources;
+    // v0.7.0 — preHarvestArchetype: when the web-harvest branch runs, we
+    // classify archetype FIRST so harvest can route channels. Reused later
+    // by Step A so we avoid a second classifyArchetype call.
+    let preHarvestArchetype = null;
     if (uploadedSource && Array.isArray(uploadedSource.chapters) && uploadedSource.chapters.length > 0) {
       // v0.5.0 — user provided a source document. Skip web harvest; build the
       // sources.json from the file's chapters. Each chapter becomes one row
@@ -1034,8 +1038,14 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
       // re-read fresh per-lesson without keeping it all in memory.
       try { vault.write(`${slug}/source-document.txt`, uploadedSource.text || ''); } catch (_) {}
     } else {
+      // v0.7.0 — classify archetype BEFORE harvest so harvest can route channels.
+      // Adds ~2s upfront but archetype routing skips irrelevant channels (e.g.
+      // SEP for "React Hooks") so total harvest latency is lower or equal.
+      try { preHarvestArchetype = await _hyphaAgent.classifyArchetype(topic, goal, settings); }
+      catch (_) { preHarvestArchetype = 'TECH-CONCEPT'; }
+      _hyphaCancelCheck(slug);
       emit('harvesting');
-      sources = await _hyphaAgent.harvest(topic, settings);
+      sources = await _hyphaAgent.harvest(topic, settings, null, preHarvestArchetype || 'TECH-CONCEPT');
     }
     _hyphaCancelCheck(slug);
     vault.writeJSON(`${slug}/sources.json`, sources);
@@ -1051,9 +1061,14 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
 
     let archetype, seedResult;
     try {
-      // Step A: classify archetype (1 small LLM call, ~2s). Used to pick the
-      // phase template + tone for designSeed.
-      archetype = await _hyphaAgent.classifyArchetype(topic, goal, settings);
+      // Step A: classify archetype (1 small LLM call, ~2s). v0.7.0 — if we
+      // already classified pre-harvest (web path), reuse that result instead
+      // of re-running. Saves the second classifyArchetype call.
+      if (preHarvestArchetype) {
+        archetype = preHarvestArchetype;
+      } else {
+        archetype = await _hyphaAgent.classifyArchetype(topic, goal, settings);
+      }
       _hyphaCancelCheck(slug);
       // Step B: source digest (1 small LLM call, ~3s). Compresses 25 raw
       // sources to a ~500-token digest so designSeed isn't drowning in raw lines.
