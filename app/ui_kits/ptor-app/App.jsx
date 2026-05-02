@@ -766,11 +766,31 @@ function PTorApp() {
   // colophon, so Esc returns there rather than always to evolution.
   const viewBeforeColophonRef = React.useRef('evolution');
 
+  // Smooth cross-fade between viewModes via the CSS View Transitions API
+  // (Chrome 111+, supported by Electron 35). Wraps any setViewMode call;
+  // falls back to instant change on browsers without support.
+  // CSS rules in colors_and_type.css define the 320ms tonal fade.
+  const startViewMode = React.useCallback((next) => {
+    // setViewMode accepts either a value or an updater fn — React resolves it
+    // internally with the latest state, so this helper has no stale-state risk
+    // and an empty deps array keeps event listeners from re-binding.
+    if (typeof document.startViewTransition !== 'function') {
+      setViewMode(next);
+      return;
+    }
+    document.startViewTransition(() => {
+      // React 18 batching: state inside the callback is flushed synchronously
+      // when the callback returns (or its returned promise resolves), which
+      // is when the View Transitions API takes the "after" snapshot.
+      setViewMode(next);
+    });
+  }, []);
+
   // Open the colophon view from anywhere via Cmd+, → dispatched event from
   // VaultTree's keybinding handler. Esc returns to the prior view.
   React.useEffect(() => {
     const onOpen = () => {
-      setViewMode(prev => {
+      startViewMode(prev => {
         if (prev !== 'colophon') viewBeforeColophonRef.current = prev;
         return 'colophon';
       });
@@ -780,7 +800,7 @@ function PTorApp() {
         const isInput = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
         if (isInput) return;     // let the inline editor consume Esc first
         e.preventDefault();
-        setViewMode(viewBeforeColophonRef.current || 'evolution');
+        startViewMode(viewBeforeColophonRef.current || 'evolution');
       }
     };
     window.addEventListener('hypha:open-colophon', onOpen);
@@ -794,7 +814,7 @@ function PTorApp() {
   // Open evolution view from anywhere — VaultTree "+" dispatches this so
   // clicking + in settings/recall jumps back to evolution + then opens Learn.
   React.useEffect(() => {
-    const onOpen = () => setViewMode('evolution');
+    const onOpen = () => startViewMode('evolution');
     window.addEventListener('hypha:open-evolution', onOpen);
     return () => window.removeEventListener('hypha:open-evolution', onOpen);
   }, []);
@@ -1008,7 +1028,7 @@ function PTorApp() {
     // Hypha 2026-04-30: viewMode = { 'evolution' (default) | 'recall' (storage) }.
     // Old 'atlas' Theatrum strata view retired for v0; 'recall' replaces it as
     // the read-only browse surface; 'evolution' is the active-lesson surface.
-    setViewMode(v => v === 'evolution' ? 'recall' : 'evolution');
+    startViewMode(v => v === 'evolution' ? 'recall' : 'evolution');
   }, []);
 
   // Both modes render the same NoteView shell. Mode prop threads through to

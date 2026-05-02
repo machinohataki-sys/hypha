@@ -530,6 +530,30 @@
   .hypha-breath { animation: none !important; opacity: 0.78; }
 }
 
+/* Smooth view-mode transition (evolution ↔ recall ↔ colophon). Uses the
+   browser-native CSS View Transitions API (Chrome 111+, Electron 35).
+   App.jsx wraps state changes in document.startViewTransition() — the browser
+   snapshots the "before" render, applies the new state, snapshots "after",
+   and cross-fades for 320ms. Pure tonal opacity, no translate/scale per
+   manuscript register (Motion v1 §H banned-list). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 320ms;
+  animation-timing-function: var(--ease-cure);
+}
+::view-transition-old(root) { animation-name: hypha-vt-fade-out; }
+::view-transition-new(root) { animation-name: hypha-vt-fade-in; }
+@keyframes hypha-vt-fade-out { from { opacity: 1 } to { opacity: 0 } }
+@keyframes hypha-vt-fade-in  { from { opacity: 0 } to { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation-duration: 1ms; }
+}
+/* Independent of view-transition: the data-theme bg-color tween for users
+   who toggle in environments where view-transition is unavailable. Matches
+   the 320ms duration so theme + content shift in lockstep. */
+html { transition: background-color 320ms var(--ease-cure); }
+
 /* Lacquer Loop — Ink Reservoir nib-breath (W7 v1.2-REDUX, MUSE × LUNG council
    2026-05-01). Sine-eased opacity oscillation 0.22 ↔ 0.42 with micro-blur for
    "ink soaking through paper from a poised nib." Period set inline by
