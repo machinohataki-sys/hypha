@@ -444,14 +444,14 @@ function VerdictLedger({ onCommit }) {
   );
 }
 
-function VerifyTab({ active, onPick, onBack, viewMode }) {
+function VerifyTab({ active, onPick, onBack, viewMode, creatingTopic, setCreatingTopic }) {
   // RECALL = verbatim ptor-design NoteView surface (per 2026-05-01 port plan).
   // EVOLUTION = Hypha lesson-chat polymorphic NoteView.
   if (active && viewMode === 'recall' && window.RecallNoteView) {
     return <window.RecallNoteView rel={active} onBack={onBack} />;
   }
   if (active) return <NoteView rel={active} onBack={onBack} viewMode={viewMode} />;
-  if (viewMode === 'evolution') return <HyphaEvolutionWelcome onPick={onPick} />;
+  if (viewMode === 'evolution') return <HyphaEvolutionWelcome onPick={onPick} creatingTopic={creatingTopic} setCreatingTopic={setCreatingTopic} />;
   return <RecallDashboard onPick={onPick} />;
 }
 
@@ -570,16 +570,183 @@ function VinylSpinner({ stopped, progress }) {
   );
 }
 
+// SourceMaterialPicker — drop-or-pick affordance for an optional document
+// corpus (PDF / MD / TXT). Lifts the file via electron's native dialog (or
+// drag-drop reading the file via webUtils.getPathForFile + the source:extract
+// IPC). On extract success, parent gets `{ text, fileName, ext, pageCount,
+// chapterCount, chapters }` for plumbing into curriculum:create.
+//
+// 千金 register: brass-hairline frame at rest, italic Garamond, no chrome.
+// At-rest: "drop a PDF · MD · TXT here, or click to choose". Hover/drag-over:
+// frame brightens to brass-bright. After upload: filename · chapter count ·
+// page count · [×] remove. Errors render inline below in italic red-flag.
+function SourceMaterialPicker({ uploadedSource, setUploadedSource, uploadError, setUploadError }) {
+  const [dropActive, setDropActive] = React.useState(false);
+  const [reading, setReading] = React.useState(false);
+
+  const _extractFromPath = React.useCallback(async (filePath) => {
+    if (!filePath) return;
+    setReading(true);
+    setUploadError(null);
+    try {
+      const r = await window.ptor.hypha.sourceExtract(filePath);
+      if (r && r.ok) {
+        setUploadedSource({
+          text: r.text,
+          fileName: r.fileName,
+          ext: r.ext,
+          pageCount: r.pageCount,
+          chapterCount: r.chapterCount,
+          chapters: r.chapters,
+        });
+      } else {
+        setUploadError(r && r.error ? r.error : 'could not read this file');
+      }
+    } catch (err) {
+      setUploadError((err && err.message) || String(err));
+    } finally {
+      setReading(false);
+    }
+  }, [setUploadedSource, setUploadError]);
+
+  const onClickPick = React.useCallback(async () => {
+    if (reading) return;
+    try {
+      const r = await window.ptor.hypha.sourcePick();
+      if (r && r.ok && r.filePath) await _extractFromPath(r.filePath);
+    } catch (_) {}
+  }, [reading, _extractFromPath]);
+
+  const onDrop = React.useCallback(async (e) => {
+    e.preventDefault();
+    setDropActive(false);
+    if (reading) return;
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!file) return;
+    // Electron exposes the native filesystem path on dropped File objects via
+    // webUtils.getPathForFile (Electron 32+) — wrapped in preload as
+    // hypha.getDroppedFilePath. Falls back to file.path on older builds.
+    let filePath = null;
+    try {
+      if (window.ptor && window.ptor.hypha && typeof window.ptor.hypha.getDroppedFilePath === 'function') {
+        filePath = window.ptor.hypha.getDroppedFilePath(file);
+      }
+    } catch (_) {}
+    if (!filePath) filePath = file.path || null;
+    if (!filePath) {
+      setUploadError('could not read the dropped file path — try clicking to pick instead');
+      return;
+    }
+    await _extractFromPath(filePath);
+  }, [reading, _extractFromPath, setUploadError]);
+
+  const onDragOver = React.useCallback((e) => {
+    if (reading) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    setDropActive(true);
+  }, [reading]);
+  const onDragLeave = React.useCallback((e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) setDropActive(false);
+  }, []);
+
+  if (uploadedSource) {
+    // Compact filled-state row.
+    return (
+      <div style={{ marginBottom: 24 }}>
+        <div style={{
+          display: 'flex', alignItems: 'baseline', gap: 14,
+          padding: '12px 16px',
+          background: 'color-mix(in srgb, var(--brass-bright) 10%, transparent)',
+          borderRadius: '14px 18px 14px 18px',
+          boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brass-bright) 30%, transparent)',
+          fontFamily: '"EB Garamond", Georgia, serif',
+        }}>
+          <span style={{ color: 'var(--ink-title)', fontSize: 15, fontStyle: 'italic', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {uploadedSource.fileName}
+          </span>
+          <span style={{ color: 'var(--ink-faint)', fontSize: 13, fontStyle: 'italic' }}>
+            {uploadedSource.chapterCount} {uploadedSource.chapterCount === 1 ? 'section' : 'sections'}
+            {uploadedSource.ext === 'pdf' && uploadedSource.pageCount > 1 ? ` · ${uploadedSource.pageCount} pages` : ''}
+          </span>
+          <button
+            type="button"
+            onClick={() => { setUploadedSource(null); setUploadError(null); }}
+            title="remove this source — fall back to web harvest"
+            style={{
+              background: 'transparent', border: 'none', padding: '0 4px',
+              color: 'var(--ink-faint)', cursor: 'pointer',
+              fontFamily: 'inherit', fontStyle: 'italic', fontSize: 16,
+              transition: 'color 200ms',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--verdict-flag)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--ink-faint)'; }}
+          >×</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty / drop-or-pick state.
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div
+        onClick={onClickPick}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        style={{
+          padding: '14px 18px',
+          background: dropActive
+            ? 'color-mix(in srgb, var(--brass-bright) 14%, transparent)'
+            : 'color-mix(in srgb, var(--brass-mid) 8%, transparent)',
+          borderRadius: '14px 18px 14px 18px',
+          boxShadow: `inset 0 0 0 1px ${dropActive ? 'var(--brass-bright)' : 'color-mix(in srgb, var(--brass-mid) 22%, transparent)'}`,
+          fontFamily: '"EB Garamond", Georgia, serif',
+          fontStyle: 'italic', fontSize: 15,
+          color: dropActive ? 'var(--ink-title)' : 'var(--ink-muted)',
+          cursor: reading ? 'progress' : 'pointer',
+          opacity: reading ? 0.6 : 1,
+          textAlign: 'center',
+          transition: 'all 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+          userSelect: 'none',
+        }}
+      >
+        {reading
+          ? 'reading the document…'
+          : (dropActive
+              ? 'drop to read'
+              : 'drop a PDF · MD · TXT here, or click to choose')}
+      </div>
+      {uploadError && (
+        <div style={{
+          marginTop: 8,
+          fontFamily: '"EB Garamond", Georgia, serif',
+          fontStyle: 'italic', fontSize: 13,
+          color: 'var(--verdict-flag)',
+        }}>{uploadError}</div>
+      )}
+    </div>
+  );
+}
+
 // Hypha welcome — evolution mode default surface. Multi-stage form:
 //   phase 'form'    — topic / goal / time fields
 //   phase 'asking'  — LLM generating clarifying questions
 //   phase 'clarify' — user answers bubble-style multi-choice
 //   phase 'creating'— curriculum:create running (harvest + design + write stubs)
-function HyphaEvolutionWelcome({ onPick }) {
-  const [phase, setPhase] = React.useState('form'); // 'form' | 'asking' | 'clarify' | 'gate' | 'creating'
-  const [topic, setTopic] = React.useState('');
+function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
+  // v0.4.4 — initial phase derives from hoisted creatingTopic so re-mounting
+  // (after a colophon visit) preserves the creating-state UI.
+  const [phase, setPhase] = React.useState(creatingTopic ? 'creating' : 'form'); // 'form' | 'asking' | 'clarify' | 'gate' | 'creating'
+  const [topic, setTopic] = React.useState(creatingTopic || '');
   const [goal, setGoal] = React.useState('');
-  const [timeCommit, setTimeCommit] = React.useState('month'); // 'week' | 'month' | 'quarter' | 'open'
+  const [timeCommit, setTimeCommit] = React.useState('month'); // 'week' | 'month' | 'two-month' | 'quarter' | 'open' | 'custom'
+  const [customLessons, setCustomLessons] = React.useState(50);  // 1-200 when timeCommit==='custom'
+  // v0.5.0 — optional uploaded source corpus (PDF/MD/TXT). When non-null, the
+  // curriculum is built from this document instead of web harvest.
+  const [uploadedSource, setUploadedSource] = React.useState(null);
+  const [uploadError, setUploadError] = React.useState(null);
   const [status, setStatus] = React.useState(null);
   // Clarification stage state.
   const [questions, setQuestions] = React.useState([]); // [{id, question, options[], multiSelect, allowOther}]
@@ -596,6 +763,7 @@ function HyphaEvolutionWelcome({ onPick }) {
   // Also feed RuntimeSubstrate.a1Cure so VinylSpinner etches in time with
   // pipeline progress (motion-as-signal — see flickering-tickling-koala plan).
   const CURRICULUM_STAGE_CURE = {
+    'reading-source': 0.10,
     'harvesting': 0.15,
     'designing': 0.55,
     'writing-lessons': 0.85,
@@ -628,12 +796,14 @@ function HyphaEvolutionWelcome({ onPick }) {
     };
   }, []);
 
-  // 2026-05-01 — counts cut ~5× per Leo's waste-tax audit. Sub-text matches.
+  // 2026-05-01 — depth-first totals (user pushback: 3 months ≥ 100 lessons).
+  // Custom slot lets the user override anywhere in 1-200.
   const TIME_OPTIONS = [
-    { id: 'week',    label: 'a week',     sub: '~6 lessons · curiosity dive' },
-    { id: 'month',   label: 'a month',    sub: '~16 lessons · working understanding' },
-    { id: 'quarter', label: '3 months',   sub: '~30 lessons · deep traversal' },
-    { id: 'open',    label: 'open-ended', sub: '~24 lessons · no rush' },
+    { id: 'week',      label: 'a week',     sub: '6 lessons · curiosity dive' },
+    { id: 'month',     label: 'a month',    sub: '35 lessons · working understanding' },
+    { id: 'two-month', label: '2 months',   sub: '70 lessons · substantial' },
+    { id: 'quarter',   label: '3 months',   sub: '100 lessons · deep traversal' },
+    { id: 'custom',    label: 'custom',     sub: 'you choose · 1-200' },
   ];
 
   // Stage 1 → 2 transition. Submit form, request clarifying questions.
@@ -672,28 +842,62 @@ function HyphaEvolutionWelcome({ onPick }) {
     setPhase('creating');
     setStatus('harvesting');
     setCreateError(null);
+    if (typeof setCreatingTopic === 'function') setCreatingTopic(t);
     try {
       const r = await window.ptor.hypha.curriculumCreate(t, 'intermediate', {
         goal: (goal || '').trim(),
         timeCommit: timeCommit,
+        customLessons: timeCommit === 'custom' ? Math.max(1, Math.min(200, Number(customLessons) || 50)) : null,
         clarifications: clarifications,
+        uploadedSource: uploadedSource,   // v0.5.0 — null when user did not pick a file
       });
       if (r && r.ok && r.lessonRels && r.lessonRels[0]) {
         setStatus(null);
         setTopic('');
         setGoal('');
+        setUploadedSource(null);
+        setUploadError(null);
         setQuestions([]);
         setAnswers({});
+        if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
         if (typeof onPick === 'function') onPick(r.lessonRels[0]);
+      } else if (r && r.cancelled) {
+        // User pressed ESC — silent reset to fresh form, don't show error.
+        setStatus(null);
+        setPhase('form');
+        if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
       } else {
         setStatus('error');
         setCreateError((r && r.error) || 'unknown error');
+        if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
       }
     } catch (err) {
       setStatus('error');
       setCreateError((err && err.message) || String(err));
+      if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
     }
-  }, [topic, goal, timeCommit, onPick]);
+  }, [topic, goal, timeCommit, customLessons, uploadedSource, onPick, setCreatingTopic]);
+
+  // v0.4.4 — listen for global cancel event from App's ESC handler. Optimistic
+  // reset of UI; backend cleanup runs in parallel (curriculum:cancel deletes
+  // any partial slug + signals the in-flight create handler to bail).
+  React.useEffect(() => {
+    const onCancel = (e) => {
+      const t = (e && e.detail && e.detail.topic) || creatingTopic;
+      if (!t) return;
+      setPhase('form');
+      setStatus(null);
+      setCreateError(null);
+      if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
+      try {
+        if (window.ptor && window.ptor.hypha && window.ptor.hypha.curriculumCancel) {
+          window.ptor.hypha.curriculumCancel(t);
+        }
+      } catch (_) {}
+    };
+    window.addEventListener('hypha:cancel-create', onCancel);
+    return () => window.removeEventListener('hypha:cancel-create', onCancel);
+  }, [creatingTopic, setCreatingTopic]);
 
   // Build clarifications payload from answers map and dispatch.
   const submitClarify = React.useCallback(() => {
@@ -834,6 +1038,9 @@ function HyphaEvolutionWelcome({ onPick }) {
 
   const statusLine = (() => {
     switch (status) {
+      case 'reading-source': return uploadedSource
+        ? `reading ${uploadedSource.fileName}…`
+        : 'reading the document…';
       case 'harvesting': return 'gathering sources from the better parts of the web…';
       case 'designing': {
         // v0.4.0 — three-stage pipeline. Wall time target ≤ 15s. After
@@ -1013,6 +1220,22 @@ function HyphaEvolutionWelcome({ onPick }) {
               >plan a chain →</button>
             </div>
 
+            {/* v0.5.0 — source-material upload (optional). When set, the
+                curriculum is built from the uploaded document instead of
+                web harvest. Drag-and-drop on the affordance, or click to
+                pick. After upload: filename + chapter count + remove. */}
+            <label style={{
+              display: 'block', fontFamily: '"Cormorant Garamond", "EB Garamond", Georgia, serif',
+              fontWeight: 500, fontSize: 13, letterSpacing: '0.16em', textTransform: 'uppercase',
+              color: 'var(--ink-faint)', marginBottom: 8,
+            }}>source material <span style={{ fontStyle: 'italic', textTransform: 'none', letterSpacing: 0, color: 'var(--ink-faint)', opacity: 0.7 }}>(optional)</span></label>
+            <SourceMaterialPicker
+              uploadedSource={uploadedSource}
+              setUploadedSource={setUploadedSource}
+              uploadError={uploadError}
+              setUploadError={setUploadError}
+            />
+
             <label style={{
               display: 'block', fontFamily: '"Cormorant Garamond", "EB Garamond", Georgia, serif',
               fontWeight: 500, fontSize: 13, letterSpacing: '0.16em', textTransform: 'uppercase',
@@ -1052,6 +1275,48 @@ function HyphaEvolutionWelcome({ onPick }) {
                 );
               })}
             </div>
+
+            {timeCommit === 'custom' && (
+              <div style={{
+                marginTop: -20, marginBottom: 32,
+                display: 'flex', alignItems: 'baseline', gap: 14,
+                fontFamily: '"EB Garamond", Georgia, serif',
+              }}>
+                <label style={{
+                  fontFamily: '"Cormorant Garamond", "EB Garamond", Georgia, serif',
+                  fontWeight: 500, fontSize: 13, letterSpacing: '0.16em',
+                  textTransform: 'uppercase', color: 'var(--ink-faint)',
+                }}>lessons</label>
+                <input
+                  type="number"
+                  className="hypha-num-input"
+                  min={1}
+                  max={200}
+                  value={customLessons}
+                  onChange={e => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setCustomLessons(Math.max(1, Math.min(200, Math.round(v))));
+                  }}
+                  style={{
+                    width: 86, padding: '6px 10px 4px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: '1px solid color-mix(in srgb, var(--brass-mid) 32%, transparent)',
+                    borderRadius: 0,
+                    color: 'var(--ink-title)',
+                    fontFamily: 'inherit', fontStyle: 'italic',
+                    fontSize: 22, fontWeight: 500,
+                    textAlign: 'center', outline: 'none',
+                    transition: 'border-color 220ms',
+                  }}
+                  onFocus={e => { e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
+                  onBlur={e => { e.currentTarget.style.borderBottomColor = 'color-mix(in srgb, var(--brass-mid) 32%, transparent)'; }}
+                />
+                <span style={{
+                  fontStyle: 'italic', fontSize: 13, color: 'var(--ink-faint)',
+                }}>between 1 and 200</span>
+              </div>
+            )}
 
             <button
               onClick={submitForm}

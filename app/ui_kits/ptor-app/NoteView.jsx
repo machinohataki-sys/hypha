@@ -4014,29 +4014,11 @@ function ConceptAtlas({ rel }) {
     } catch (_) {}
   }, [rel]);
 
-  if (loading) {
-    return (
-      <div style={{ padding: '24px 16px', fontFamily: '"EB Garamond", Georgia, serif',
-        fontStyle: 'italic', fontSize: 13, color: 'var(--ink-faint)', opacity: 0.7 }}>
-        loading atlas…
-      </div>
-    );
-  }
-
-  // Not a lesson note (no lesson_idx in fm) → atlasGet returned null
-  if (!atlas || !atlas.lesson_idx === undefined && atlas.lesson_idx === null) {
-    return null;   // hide rail; no concept atlas for non-lesson notes
-  }
-
-  const concepts = (atlas && atlas.concepts) || {};
-  const expected = (atlas && atlas.expected) || [];
-  const quotes = (atlas && Array.isArray(atlas.quotes)) ? atlas.quotes : [];
-  const currentTurn = atlas.turn_count || 0;
-  const DRIFT_THRESHOLD = 3;
-
   // 金句 drag-and-drop handlers — drop zone is the entire ConceptAtlas panel.
   // Reads enriched payload from custom MIME 'application/hypha-quote' (set by
   // ChatBubble dragstart); falls back to plain text if dropped from elsewhere.
+  // NOTE: these hooks must be declared BEFORE any early return below — Rules of
+  // Hooks require a stable hook count across renders. v0.4.2 fix.
   const onDragOver = React.useCallback((e) => {
     if (!e.dataTransfer) return;
     const types = Array.from(e.dataTransfer.types || []);
@@ -4118,6 +4100,26 @@ function ConceptAtlas({ rel }) {
       setSavingQuoteId(null);
     }
   }, [rel, draftInsight]);
+
+  if (loading) {
+    return (
+      <div style={{ padding: '24px 16px', fontFamily: '"EB Garamond", Georgia, serif',
+        fontStyle: 'italic', fontSize: 13, color: 'var(--ink-faint)', opacity: 0.7 }}>
+        loading atlas…
+      </div>
+    );
+  }
+
+  // Not a lesson note (no lesson_idx in fm) → atlasGet returned null
+  if (!atlas || !atlas.lesson_idx === undefined && atlas.lesson_idx === null) {
+    return null;   // hide rail; no concept atlas for non-lesson notes
+  }
+
+  const concepts = (atlas && atlas.concepts) || {};
+  const expected = (atlas && atlas.expected) || [];
+  const quotes = (atlas && Array.isArray(atlas.quotes)) ? atlas.quotes : [];
+  const currentTurn = atlas.turn_count || 0;
+  const DRIFT_THRESHOLD = 3;
 
   // Bucket concepts by state. Compute "drifted" at render time:
   // any non-settled concept whose last occurrence is > DRIFT_THRESHOLD turns ago.

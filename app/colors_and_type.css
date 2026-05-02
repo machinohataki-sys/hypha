@@ -1128,3 +1128,13 @@ hr {
   opacity: 0.8;
 }
 
+/* Hypha — strip native number-input spinners. The default browser stepper
+   pair breaks the manuscript register (chrome, gradient, gray). Users still
+   type or use ↑/↓ arrow keys to step. */
+.hypha-num-input::-webkit-outer-spin-button,
+.hypha-num-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.hypha-num-input { -moz-appearance: textfield; }
+

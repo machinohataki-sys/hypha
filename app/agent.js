@@ -415,7 +415,7 @@ Return the JSON now.`;
 
 // === Hypha Lacquer Loop pedagogy v0 — see app/lib/pedagogy.md ===
 // Archetype-gated primitive directives folded into designSequence sys prompt.
-const ARCHETYPES = ['LANG-ACQ', 'TECH-CONCEPT', 'TECH-PROC', 'HUMANITIES', 'DECL-MASS'];
+const ARCHETYPES = ['LANG-ACQ', 'TECH-CONCEPT', 'TECH-PROC', 'HUMANITIES', 'DECL-MASS', 'MINDSET'];
 
 const PRIMITIVES = {
   P1: { name: 'EXPLAIN-TO-LEARN', directive: 'Each lesson MUST end with a 1-paragraph explain-to-child block where the tutor invites the learner to re-state the lesson\'s claim in plain language; tutor probes one ambiguity.' },
@@ -435,6 +435,7 @@ const EMPHASIS = {
   'TECH-PROC':    { P1: 1, P2: 2, P3: 1, P4: 0, P5: 2,  F1: 2,  F2: 1, F3: 2 },
   'HUMANITIES':   { P1: 2, P2: 1, P3: 1, P4: 2, P5: 0,  F1: 1,  F2: 1, F3: 0 },
   'DECL-MASS':    { P1: 0, P2: 0, P3: 2, P4: 0, P5: -1, F1: -1, F2: 0, F3: 1 },
+  'MINDSET':      { P1: 2, P2: 2, P3: 1, P4: 2, P5: 0,  F1: 1,  F2: 1, F3: 1 },
 };
 
 const EMPHASIS_LABEL = {
@@ -456,13 +457,14 @@ function getEmphasis(archetype, primitiveId) {
 // classifyArchetype — 1 small LLM call to bucket the topic into one of 5
 // archetypes. Caller may pass opts.archetype to skip this step.
 async function classifyArchetype(topic, goal, settings) {
-  const sys = `${HYPHA_SHORT}Classify the learning topic into ONE archetype. Return only JSON: {"archetype": "<one of: LANG-ACQ | TECH-CONCEPT | TECH-PROC | HUMANITIES | DECL-MASS>"}.
+  const sys = `${HYPHA_SHORT}Classify the learning topic into ONE archetype. Return only JSON: {"archetype": "<one of: LANG-ACQ | TECH-CONCEPT | TECH-PROC | HUMANITIES | DECL-MASS | MINDSET>"}.
 
 - LANG-ACQ: foreign/second-language learning (English, Japanese, Spanish — reading, speaking, grammar)
 - TECH-CONCEPT: theory-heavy technical (LLM algorithms, physics, cognitive science, statistics theory) — derive from atoms
 - TECH-PROC: skill-heavy technical (coding, lab procedures, instrumentation, frontend implementation) — practice patterns
 - HUMANITIES: interpretive (philosophy, literature, history, art criticism)
-- DECL-MASS: declarative mass (vocabulary, anatomy, legal codes, taxonomies) — high-volume facts`;
+- DECL-MASS: declarative mass (vocabulary, anatomy, legal codes, taxonomies) — high-volume facts
+- MINDSET: practitioner mental models / decision frameworks (Buffett's investing, Musk's first-principles, Munger's latticework, Bezos's day-1, Soros's reflexivity, leadership/founding-style biographies extracted as a way of thinking). Triggers when the topic is "<person>'s thinking / mindset / philosophy / approach", "X way / X school of <doing>", or a methodology named after its practitioner.`;
   const user = `Topic: ${topic}\nGoal: ${goal || '(none)'}\n\nReturn JSON.`;
   try {
     const raw = await llmJSON(
@@ -485,8 +487,16 @@ async function summarizeSources(topic, sources, settings) {
   const lines = sources.slice(0, 25)
     .map((s, i) => `${i + 1}. [${s.sourceType}] ${s.title} — ${(s.excerpt || '').slice(0, 200)}`)
     .join('\n');
-  const sys = `Compress a list of harvested sources about a learning topic into a single dense "shape of the field" paragraph (≤450 tokens). Name 4-7 subareas. Cite specific recent papers / repos / debates BY NAME (author/year/title) where the source list contains them. No fluff, no list format, no markdown. This digest will feed a curriculum-design step that needs to see the field's actual structure, not 25 disconnected items.`;
-  const user = `Topic: ${topic}\n\nHarvested sources:\n${lines}\n\nReturn the digest paragraph.`;
+  // v0.5.0 — when corpus is a single uploaded document, frame the digest as
+  // the document's shape (so designSeed's trajectory talks about THIS book's
+  // arc), not "the field's" general shape.
+  const isUpload = Array.isArray(sources) && sources.length > 0 && sources.every(s => s && s.sourceType === 'user-upload');
+  const sys = isUpload
+    ? `Compress an uploaded document's chapter list into a single dense "shape of this document" paragraph (≤450 tokens). Name the book/document's 4-7 movements (its actual arc, in its own terms — not the wider field's). Cite specific chapter titles. No fluff, no list format, no markdown. This digest will feed a curriculum-design step that needs to see how THIS document is structured so the curriculum can move foundations → frontier through it.`
+    : `Compress a list of harvested sources about a learning topic into a single dense "shape of the field" paragraph (≤450 tokens). Name 4-7 subareas. Cite specific recent papers / repos / debates BY NAME (author/year/title) where the source list contains them. No fluff, no list format, no markdown. This digest will feed a curriculum-design step that needs to see the field's actual structure, not 25 disconnected items.`;
+  const user = isUpload
+    ? `Topic: ${topic}\n\nUploaded document chapters:\n${lines}\n\nReturn the digest paragraph describing THIS document's shape.`
+    : `Topic: ${topic}\n\nHarvested sources:\n${lines}\n\nReturn the digest paragraph.`;
   try {
     const raw = await llmJSON(
       [{ role: 'system', content: sys }, { role: 'user', content: user }],
@@ -1367,13 +1377,76 @@ function loadArchetypeTemplate(archetype) {
   };
 }
 
-// timeCommitToCountIdx — pick column from lessonCount [week, month, quarter]
-// triple. open-ended folds into quarter (most generous).
+// timeCommitToCountIdx — DEPRECATED. Kept only for legacy designSequence path.
+// New pipeline uses computePhaseLessonCounts (weight-based, custom-aware).
 function timeCommitToCountIdx(timeCommit) {
   if (timeCommit === 'week')   return 0;
   if (timeCommit === 'month')  return 1;
   if (timeCommit === 'quarter' || timeCommit === 'open' || timeCommit === 'open-ended') return 2;
-  return 1;  // default month
+  if (timeCommit === 'two-month' || timeCommit === 'custom') return 2;
+  return 1;
+}
+
+// computePhaseLessonCounts — distribute target total across phases by weight.
+//
+// Total mapping (depth-first; user pushed back on shallow counts 2026-05-01):
+//   week        →   6   (curiosity dive)
+//   month       →  35   (working understanding)
+//   two-month   →  70   (substantial)
+//   quarter     → 100   (deep traversal — bachelor-foundation territory)
+//   open        → 100   (default to deep)
+//   custom      → customLessons (clamped to 1-200)
+//
+// Largest-remainder method: floor(weight × target), then distribute leftover
+// to phases with largest fractional parts. Min 1 lesson per phase enforced.
+function computePhaseLessonCounts(phases, timeCommit, customLessons) {
+  const TOTAL_BY_TIME = {
+    week: 6, month: 35, 'two-month': 70, quarter: 100, open: 100,
+  };
+  let target;
+  const cn = Number(customLessons);
+  if (Number.isFinite(cn) && cn >= 1 && cn <= 200) {
+    target = Math.round(cn);
+  } else {
+    target = TOTAL_BY_TIME[timeCommit] || 35;
+  }
+  if (target < phases.length) target = phases.length; // ≥1 per phase
+
+  let weights = phases.map(p => {
+    const w = Number(p.weight);
+    return Number.isFinite(w) && w > 0 ? w : 0;
+  });
+  const sumW = weights.reduce((a, b) => a + b, 0);
+  if (sumW <= 0) {
+    weights = phases.map(() => 1 / phases.length);
+  } else {
+    weights = weights.map(w => w / sumW);
+  }
+
+  const raw = weights.map(w => w * target);
+  const counts = raw.map(r => Math.max(1, Math.floor(r)));
+  let diff = target - counts.reduce((a, b) => a + b, 0);
+  if (diff > 0) {
+    const order = raw
+      .map((r, i) => ({ frac: r - Math.floor(r), i }))
+      .sort((a, b) => b.frac - a.frac);
+    let oi = 0;
+    while (diff > 0) {
+      counts[order[oi % order.length].i] += 1;
+      diff -= 1;
+      oi += 1;
+    }
+  } else if (diff < 0) {
+    while (diff < 0) {
+      let maxI = 0;
+      for (let i = 1; i < counts.length; i++) {
+        if (counts[i] > counts[maxI]) maxI = i;
+      }
+      if (counts[maxI] > 1) { counts[maxI] -= 1; diff += 1; }
+      else break;
+    }
+  }
+  return counts;
 }
 
 // rankSourcesBM25 — pure-JS BM25 over title + excerpt. No LLM, no embeddings.
@@ -1430,13 +1503,13 @@ function rankSourcesBM25(sources, query, k = 5) {
 //                 + timeCommit. Each slot = { idx, phaseId, phaseLabel,
 //                 phaseLessonIdx, ghost: true }. Lesson 0 gets the firstLesson
 //                 fields filled; rest stay as pending ghosts.
-async function designSeed({ topic, goal, archetype, timeCommit, clarifications, sourceDigest }, settings) {
+async function designSeed({ topic, goal, archetype, timeCommit, customLessons, clarifications, sourceDigest }, settings) {
   const tmpl = loadArchetypeTemplate(archetype || 'TECH-CONCEPT');
-  const countIdx = timeCommitToCountIdx(timeCommit);
-  const phases = tmpl.phases.map(p => ({
+  const counts = computePhaseLessonCounts(tmpl.phases, timeCommit, customLessons);
+  const phases = tmpl.phases.map((p, i) => ({
     id: p.id,
     label: p.label,
-    lessonCount: Array.isArray(p.lessonCount) ? p.lessonCount[countIdx] : 3,
+    lessonCount: counts[i],
     tone: p.tone || '',
   }));
 

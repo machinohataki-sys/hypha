@@ -2,10 +2,10 @@
   "archetype": "HUMANITIES",
   "description": "Interpretive / argument-based fields (philosophy, political theory, literary criticism, history of science). Reading + claim-counter-claim > drill.",
   "phases": [
-    { "id": "context",     "label": "Context",       "lessonCount": [2, 3, 5], "tone": "the historical / intellectual moment; what came before; what was at stake" },
-    { "id": "claims",      "label": "Claims",        "lessonCount": [2, 4, 6], "tone": "the central arguments + their named proponents; original sources by name" },
-    { "id": "counter",     "label": "Counter-claims","lessonCount": [2, 3, 5], "tone": "the strongest objections + who made them; productive disagreements" },
-    { "id": "frontier",    "label": "Frontier",      "lessonCount": [1, 2, 4], "tone": "current debates + 2025-2026 papers reviving / refuting old positions" },
-    { "id": "synthesis",   "label": "Synthesis",     "lessonCount": [1, 2, 3], "tone": "the learner's own argued essay defending a specific position" }
+    { "id": "context",     "label": "Context",       "weight": 0.20, "tone": "the historical / intellectual moment; what came before; what was at stake" },
+    { "id": "claims",      "label": "Claims",        "weight": 0.28, "tone": "the central arguments + their named proponents; original sources by name" },
+    { "id": "counter",     "label": "Counter-claims","weight": 0.22, "tone": "the strongest objections + who made them; productive disagreements" },
+    { "id": "frontier",    "label": "Frontier",      "weight": 0.16, "tone": "current debates + 2025-2026 papers reviving / refuting old positions" },
+    { "id": "synthesis",   "label": "Synthesis",     "weight": 0.14, "tone": "the learner's own argued essay defending a specific position" }
   ]
 }

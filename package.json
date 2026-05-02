@@ -1,6 +1,6 @@
 {
   "name": "hypha",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Hypha — the NOTE AGENT. Internal codename: ptor2. For self-directed researchers and bachelor-foundation learners.",
   "main": "app/main.js",
   "repository": {
@@ -43,6 +43,7 @@
     "mathjax": "^3.2.2",
     "node-fetch": "^2.7.0",
     "openai": "^4.65.0",
+    "pdf-parse": "^1.1.4",
     "turndown": "^7.2.4"
   },
   "engines": {

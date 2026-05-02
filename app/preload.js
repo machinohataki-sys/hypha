@@ -1,6 +1,6 @@
 'use strict';
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('windowControls', {
   minimize: () => ipcRenderer.invoke('window:minimize'),
@@ -136,7 +136,22 @@ contextBridge.exposeInMainWorld('ptor', {
   hypha: {
     curriculumClarify: (args) => ipcRenderer.invoke('curriculum:clarify', args || {}),
     curriculumCreate: (topic, level, opts) => ipcRenderer.invoke('curriculum:create', { topic, level, ...(opts || {}) }),
+    curriculumCancel: (topic) => ipcRenderer.invoke('curriculum:cancel', { topic }),
     curriculumList: () => ipcRenderer.invoke('curriculum:list'),
+    // v0.5.0 — source-document upload for the curriculum's corpus.
+    sourcePick: () => ipcRenderer.invoke('source:pick'),
+    sourceExtract: (filePath) => ipcRenderer.invoke('source:extract', { filePath }),
+    // For drag-drop files: get filesystem path from a dropped File. Electron
+    // 32+ moved this off the File prototype; webUtils.getPathForFile is the
+    // supported route under context isolation.
+    getDroppedFilePath: (file) => {
+      try {
+        if (webUtils && typeof webUtils.getPathForFile === 'function') {
+          return webUtils.getPathForFile(file);
+        }
+      } catch (_) {}
+      return (file && file.path) || null;
+    },
     // Lacquer Loop W7 Chain Planner.
     chainClarify: (goal) => ipcRenderer.invoke('chain:clarify', { goal }),
     chainCreate: (args) => ipcRenderer.invoke('chain:create', args || {}),

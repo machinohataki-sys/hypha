@@ -766,6 +766,14 @@ function PTorApp() {
   // colophon, so Esc returns there rather than always to evolution.
   const viewBeforeColophonRef = React.useRef('evolution');
 
+  // v0.4.4 — hoist curriculum-creation state above viewMode switching so that
+  // navigating to settings/recall (which unmounts HyphaEvolutionWelcome) and
+  // back doesn't reset the form. While creatingTopic is non-null, the welcome
+  // surface always renders the 'creating' phase regardless of remount cycles.
+  // ESC at app level cancels active creation when not in colophon (colophon
+  // owns its own ESC behavior — exit colophon).
+  const [creatingTopic, setCreatingTopic] = React.useState(null);
+
   // Smooth cross-fade between viewModes via the CSS View Transitions API
   // (Chrome 111+, supported by Electron 35). Wraps any setViewMode call;
   // falls back to instant change on browsers without support.
@@ -796,11 +804,19 @@ function PTorApp() {
       });
     };
     const onKey = (e) => {
-      if (e.key === 'Escape' && viewMode === 'colophon') {
-        const isInput = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
-        if (isInput) return;     // let the inline editor consume Esc first
+      if (e.key !== 'Escape') return;
+      const isInput = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
+      if (isInput) return;     // let the inline editor consume Esc first
+      // Colophon's ESC always wins (existing behavior).
+      if (viewMode === 'colophon') {
         e.preventDefault();
         startViewMode(viewBeforeColophonRef.current || 'evolution');
+        return;
+      }
+      // v0.4.4 — ESC during curriculum creation cancels it.
+      if (creatingTopic) {
+        e.preventDefault();
+        try { window.dispatchEvent(new CustomEvent('hypha:cancel-create', { detail: { topic: creatingTopic } })); } catch (_) {}
       }
     };
     window.addEventListener('hypha:open-colophon', onOpen);
@@ -809,7 +825,7 @@ function PTorApp() {
       window.removeEventListener('hypha:open-colophon', onOpen);
       window.removeEventListener('keydown', onKey);
     };
-  }, [viewMode]);
+  }, [viewMode, creatingTopic]);
 
   // Open evolution view from anywhere — VaultTree "+" dispatches this so
   // clicking + in settings/recall jumps back to evolution + then opens Learn.
@@ -1126,6 +1142,8 @@ function PTorApp() {
               onPick={setActive}
               onBack={() => setActive(null)}
               viewMode={viewMode}
+              creatingTopic={creatingTopic}
+              setCreatingTopic={setCreatingTopic}
             />
           )}
         </div>

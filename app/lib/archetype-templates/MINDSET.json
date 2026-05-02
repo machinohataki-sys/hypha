@@ -1,0 +1,11 @@
+{
+  "archetype": "MINDSET",
+  "description": "Practitioner mental models / decision frameworks (Buffett's investing, Musk's first-principles, Munger's mental models, leadership archetypes). Heuristic + case-study > theory derivation.",
+  "phases": [
+    { "id": "origin",      "label": "Origin",        "weight": 0.18, "tone": "the formative experience that produced this way of thinking; what the practitioner reacts against; the world they came up in" },
+    { "id": "decisions",   "label": "Decisions",     "weight": 0.30, "tone": "the canonical case studies — the trades / launches / calls / writings that defined them; situational detail by name and date" },
+    { "id": "heuristics",  "label": "Heuristics",    "weight": 0.22, "tone": "the rules-of-thumb they applied, in their own words where possible; the latticework / checklists / mental models they reach for" },
+    { "id": "edge_cases",  "label": "Edge cases",    "weight": 0.16, "tone": "where their model breaks; documented failure modes; strongest critics; situations the framework doesn't fit" },
+    { "id": "synthesis",   "label": "Synthesis",     "weight": 0.14, "tone": "the learner's own framework re-derived from the practitioner's — applied to a problem the practitioner never faced" }
+  ]
+}

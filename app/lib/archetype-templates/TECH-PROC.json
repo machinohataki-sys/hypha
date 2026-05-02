@@ -2,10 +2,10 @@
   "archetype": "TECH-PROC",
   "description": "Procedural / skill-based technical fields (Tailwind, React patterns, SQL, CUDA programming). Drill > theory mechanism.",
   "phases": [
-    { "id": "primitives",  "label": "Primitives",   "lessonCount": [2, 3, 5], "tone": "the smallest atomic moves; build muscle memory" },
-    { "id": "patterns",    "label": "Patterns",     "lessonCount": [2, 4, 6], "tone": "common combinations of primitives that solve recurring problems" },
-    { "id": "tradeoffs",   "label": "Tradeoffs",    "lessonCount": [2, 3, 5], "tone": "when each pattern is wrong; performance + maintainability cliffs" },
-    { "id": "frontier",    "label": "Frontier",     "lessonCount": [1, 2, 3], "tone": "what the best practitioners are debating right now; cite specific recent posts/repos" },
-    { "id": "synthesis",   "label": "Synthesis",    "lessonCount": [1, 2, 3], "tone": "build one real project end-to-end applying everything" }
+    { "id": "primitives",  "label": "Primitives",   "weight": 0.22, "tone": "the smallest atomic moves; build muscle memory" },
+    { "id": "patterns",    "label": "Patterns",     "weight": 0.28, "tone": "common combinations of primitives that solve recurring problems" },
+    { "id": "tradeoffs",   "label": "Tradeoffs",    "weight": 0.22, "tone": "when each pattern is wrong; performance + maintainability cliffs" },
+    { "id": "frontier",    "label": "Frontier",     "weight": 0.14, "tone": "what the best practitioners are debating right now; cite specific recent posts/repos" },
+    { "id": "synthesis",   "label": "Synthesis",    "weight": 0.14, "tone": "build one real project end-to-end applying everything" }
   ]
 }

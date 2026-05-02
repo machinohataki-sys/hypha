@@ -458,6 +458,48 @@ ipcMain.handle('vault:pick-folder', async (event) => {
   return res.filePaths[0];
 });
 
+// source:pick — open file picker for curriculum source corpus (PDF/MD/TXT).
+// Returns { ok, filePath, fileName } or { ok: false, cancelled: true }.
+ipcMain.handle('source:pick', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const res = await dialog.showOpenDialog(win, {
+    title: 'pick a source document — PDF, Markdown, or plain text',
+    properties: ['openFile', 'dontAddToRecent'],
+    filters: [
+      { name: 'Documents', extensions: ['pdf', 'md', 'markdown', 'txt'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+  });
+  if (res.canceled || !res.filePaths || !res.filePaths.length) {
+    return { ok: false, cancelled: true };
+  }
+  const filePath = res.filePaths[0];
+  return { ok: true, filePath, fileName: require('path').basename(filePath) };
+});
+
+// source:extract — read + parse the picked file. Returns text + chapter
+// breakdown for renderer preview, plus the extractor's full result so the
+// caller can pass it straight into curriculum:create as `uploadedSource`.
+ipcMain.handle('source:extract', async (_e, { filePath } = {}) => {
+  if (!filePath) return { ok: false, error: 'filePath required' };
+  try {
+    const { extractFromPath } = require('./lib/source-extractor');
+    const result = await extractFromPath(filePath);
+    return {
+      ok: true,
+      filePath,
+      fileName: result.fileName,
+      ext: result.ext,
+      pageCount: result.pageCount,
+      chapterCount: result.chapters.length,
+      text: result.text,
+      chapters: result.chapters,
+    };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
 // vault:import-scan — quick scan to preview file count + format detection.
 // Returns { files, detected, mdCount, htmlCount, total } or { error }.
 ipcMain.handle('vault:import-scan', async (_e, sourcePath) => {
@@ -911,21 +953,67 @@ function _hyphaAppendEvent(op, payload) {
   catch (_) {}
 }
 
+// v0.4.4 — slugs the user has cancelled mid-creation. The curriculum:create
+// handler checks this set after each await; if present, it bails, deletes the
+// partial slug, and returns { ok: false, cancelled: true }.
+const _curriculumCancelled = new Set();
+function _hyphaCancelCheck(slug) {
+  if (_curriculumCancelled.has(slug)) {
+    _curriculumCancelled.delete(slug);
+    const err = new Error('cancelled');
+    err.code = 'CURRICULUM_CANCELLED';
+    throw err;
+  }
+}
+
+ipcMain.handle('curriculum:cancel', async (_e, { topic } = {}) => {
+  const slug = _topicSlug(topic || '');
+  if (!slug) return { ok: false, error: 'no topic' };
+  _curriculumCancelled.add(slug);
+  // Best-effort: delete any partial slug dir written before the cancel check fires.
+  try { vault.del(slug); } catch (_) {}
+  try { _hyphaAppendEvent('curriculum_cancelled', { topic: slug }); } catch (_) {}
+  return { ok: true };
+});
+
 // curriculum:create — full topic→curriculum flow.
 //   1. agent.harvest(topic) → sources[]
 //   2. agent.designSequence(topic, sources, level) → lessons[]
 //   3. write <slug>/sources.json + <slug>/state.json + <slug>/lesson-NN.md (one per lesson)
 //   4. emit progress events to renderer for status display
-ipcMain.handle('curriculum:create', async (event, { topic, level, goal, timeCommit, clarifications } = {}) => {
+ipcMain.handle('curriculum:create', async (event, { topic, level, goal, timeCommit, customLessons, clarifications, uploadedSource } = {}) => {
   const slug = _topicSlug(topic);
   const settings = _hyphaSettings();
   const emit = (stage, extra = {}) => {
     try { event.sender.send('curriculum:progress', { topic: slug, stage, ...extra }); } catch (_) {}
   };
-  _hyphaAppendEvent('curriculum_start', { topic: slug, level, goal, timeCommit, clarifCount: (clarifications || []).length });
+  _hyphaAppendEvent('curriculum_start', { topic: slug, level, goal, timeCommit, customLessons, clarifCount: (clarifications || []).length, sourceMode: uploadedSource ? 'upload' : 'web' });
+  // v0.4.4 — clear any stale cancel flag from a previous attempt with the same slug.
+  _curriculumCancelled.delete(slug);
   try {
-    emit('harvesting');
-    const sources = await _hyphaAgent.harvest(topic, settings);
+    let sources;
+    if (uploadedSource && Array.isArray(uploadedSource.chapters) && uploadedSource.chapters.length > 0) {
+      // v0.5.0 — user provided a source document. Skip web harvest; build the
+      // sources.json from the file's chapters. Each chapter becomes one row
+      // BM25 can rank against per-lesson via rankSourcesBM25.
+      emit('reading-source', { fileName: uploadedSource.fileName });
+      sources = uploadedSource.chapters.map((ch, i) => ({
+        title: ch.title || `Section ${i + 1}`,
+        url: `local://${uploadedSource.fileName}#chapter-${i}`,
+        excerpt: String(ch.text || '').slice(0, 400),
+        sourceType: 'user-upload',
+        fileName: uploadedSource.fileName,
+        chapterIdx: i,
+        chapterStart: ch.startCharIdx || 0,
+      }));
+      // Persist the full text under the slug dir so proposeNextLesson can
+      // re-read fresh per-lesson without keeping it all in memory.
+      try { vault.write(`${slug}/source-document.txt`, uploadedSource.text || ''); } catch (_) {}
+    } else {
+      emit('harvesting');
+      sources = await _hyphaAgent.harvest(topic, settings);
+    }
+    _hyphaCancelCheck(slug);
     vault.writeJSON(`${slug}/sources.json`, sources);
 
     emit('designing', { sourceCount: sources.length });
@@ -942,11 +1030,13 @@ ipcMain.handle('curriculum:create', async (event, { topic, level, goal, timeComm
       // Step A: classify archetype (1 small LLM call, ~2s). Used to pick the
       // phase template + tone for designSeed.
       archetype = await _hyphaAgent.classifyArchetype(topic, goal, settings);
+      _hyphaCancelCheck(slug);
       // Step B: source digest (1 small LLM call, ~3s). Compresses 25 raw
       // sources to a ~500-token digest so designSeed isn't drowning in raw lines.
       let sourceDigest = '';
       try { sourceDigest = await _hyphaAgent.summarizeSources(topic, sources, settings); }
       catch (_) { sourceDigest = sources.slice(0, 10).map(s => `- ${s.title}`).join('\n'); }
+      _hyphaCancelCheck(slug);
       // Step C: designSeed (1 small LLM call, ~5-8s). Returns phases (from
       // template, no LLM cost), firstLesson, trajectory, and a flat lessonPlan
       // with one slot per phase × phaseLessonCount. Slot 0 has firstLesson;
@@ -954,12 +1044,18 @@ ipcMain.handle('curriculum:create', async (event, { topic, level, goal, timeComm
       seedResult = await _hyphaAgent.designSeed({
         topic, goal: goal || '', archetype,
         timeCommit: timeCommit || 'month',
+        customLessons: customLessons,
         clarifications: clarifications || [],
         sourceDigest,
       }, settings);
+      _hyphaCancelCheck(slug);
     } catch (err) {
       clearInterval(heartbeatId);
       try { vault.del(slug); } catch (_) {}
+      if (err && err.code === 'CURRICULUM_CANCELLED') {
+        try { _hyphaAppendEvent('curriculum_cancelled', { topic: slug, stage: 'seed' }); } catch (_) {}
+        return { ok: false, cancelled: true };
+      }
       try { _hyphaAppendEvent('curriculum_failed', { topic: slug, error: err.message, stage: 'seed' }); } catch (_) {}
       if (err && err.code === 'LLM_TIMEOUT') {
         emit('error', { error: 'curriculum seeding took too long; check your network and retry.' });
@@ -1010,6 +1106,9 @@ ipcMain.handle('curriculum:create', async (event, { topic, level, goal, timeComm
       preferences: { level: level || 'intermediate' },
       goal: goal || '',
       timeCommit: timeCommit || 'month',
+      customLessons: (typeof customLessons === 'number') ? customLessons : null,
+      sourceMode: uploadedSource ? 'upload' : 'web',
+      uploadedFileName: uploadedSource ? uploadedSource.fileName : null,
       clarifications: clarifications || [],
       archetype,
       phases: seedResult.phases,

@@ -2,10 +2,10 @@
   "archetype": "DECL-MASS",
   "description": "Declarative / mass-fact fields (anatomy, history-of-WWII, organic chemistry nomenclature, taxonomy). Recall + spaced repetition > derivation.",
   "phases": [
-    { "id": "scaffold",    "label": "Scaffold",       "lessonCount": [2, 3, 5], "tone": "the high-level chunking system; how the field organizes its facts" },
-    { "id": "anchors",     "label": "Anchor cases",   "lessonCount": [2, 4, 7], "tone": "the canonical exemplars every practitioner knows by name" },
-    { "id": "patterns",    "label": "Patterns",       "lessonCount": [2, 3, 5], "tone": "regularities + named exceptions across the body of facts" },
-    { "id": "frontier",    "label": "Recent finds",   "lessonCount": [1, 2, 3], "tone": "discoveries / revisions in 2025-2026 that shifted the canon" },
-    { "id": "synthesis",   "label": "Synthesis",      "lessonCount": [1, 2, 3], "tone": "the learner explains the system to a colleague using only mental model, no notes" }
+    { "id": "scaffold",    "label": "Scaffold",       "weight": 0.20, "tone": "the high-level chunking system; how the field organizes its facts" },
+    { "id": "anchors",     "label": "Anchor cases",   "weight": 0.32, "tone": "the canonical exemplars every practitioner knows by name" },
+    { "id": "patterns",    "label": "Patterns",       "weight": 0.20, "tone": "regularities + named exceptions across the body of facts" },
+    { "id": "frontier",    "label": "Recent finds",   "weight": 0.14, "tone": "discoveries / revisions in 2025-2026 that shifted the canon" },
+    { "id": "synthesis",   "label": "Synthesis",      "weight": 0.14, "tone": "the learner explains the system to a colleague using only mental model, no notes" }
   ]
 }
