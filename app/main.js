@@ -2956,22 +2956,47 @@ function _mapWeeksToTimeCommit(weeks) {
   return 'open';
 }
 
-// v0.6.7 — proportional per-link lesson count. _mapWeeksToTimeCommit alone
-// produced 6-lesson curricula for every chain link <2 weeks (which is most
-// chains). Compute lessons directly from duration + dailyHours so a 1.5-week
-// heroic link gets ~16 lessons, not 6. Used by chain:start + chain:advance.
+// v0.6.9 — role-aware proportional lesson count. Earlier prerequisite links
+// stay lean; core links go deeper; ultimate (the user's actual goal) goes
+// deepest. User 2026-05-02 reported uniform sizing as wrong: "越后面节数要
+// 越多啊". Multipliers: prereq 1.0, core 1.5, ultimate 2.5 (over the
+// duration-derived baseline). Floor lifted from 6 → 25 since chain links
+// are substantive, not 6-lesson micro courses. Ceiling 200 (single-curric cap).
 //
-// Formula: round(duration_weeks × 7 × dailyHours / hours_per_lesson × tier_mult)
-//   default hours_per_lesson = 1.5 (45min chat + 45min reflection per lesson)
-//   tier_mult: gentle 0.6, moderate 1.0, heroic 1.6
-// Floor: 6 lessons (matches week base). Ceiling: 200 (single-curriculum cap).
-function _perLinkLessonCount(durationWeeks, dailyHours, tier) {
+// Formula: round(duration_weeks × 7 × dailyHours / hours_per_lesson × tier_mult × role_mult)
+function _perLinkLessonCount(durationWeeks, dailyHours, tier, role) {
   const w = Number(durationWeeks) || 1;
   const hd = Number(dailyHours) || 2;
-  const hpl = 1.5;  // hours per lesson (rough — 1 chat + 0.5 reflection)
+  const hpl = 1.5;
   const mult = tier === 'gentle' ? 0.6 : tier === 'heroic' ? 1.6 : 1.0;
-  const raw = Math.round(w * 7 * hd / hpl * mult);
-  return Math.max(6, Math.min(200, raw));
+  const r = String(role || 'core').toLowerCase();
+  const roleMult = r === 'prerequisite' ? 1.0
+    : r === 'ultimate' ? 2.5
+    : 1.5;  // core (or unknown)
+  const raw = Math.round(w * 7 * hd / hpl * mult * roleMult);
+  return Math.max(25, Math.min(200, raw));
+}
+
+// v0.6.9 — pick lessons_count for a chain link. Prefer LLM's explicit value
+// (clamped to a sane band per role) over the duration-derived fallback. This
+// lets planChain do the smart escalation work; we only fix it if it under-
+// or over-shot. Role-aware bands match the planChain prompt rules.
+function _resolveLessonsForLink(link, dailyHours, tier) {
+  const role = String(link.role || 'core').toLowerCase();
+  const tierMult = tier === 'gentle' ? 0.6 : tier === 'heroic' ? 1.6 : 1.0;
+  const bands = {
+    prerequisite: { min: Math.round(25 * tierMult), max: Math.round(50 * tierMult) },
+    core:         { min: Math.round(50 * tierMult), max: Math.round(100 * tierMult) },
+    ultimate:     { min: Math.round(80 * tierMult), max: Math.round(150 * tierMult) },
+  };
+  const band = bands[role] || bands.core;
+  const fromLLM = Number(link.lessons_count);
+  if (Number.isFinite(fromLLM) && fromLLM >= 20) {
+    // Trust but clamp.
+    return Math.max(band.min, Math.min(200, Math.round(fromLLM)));
+  }
+  // Fallback: derive from duration + role.
+  return Math.max(band.min, Math.min(200, _perLinkLessonCount(link.duration_weeks, dailyHours, tier, role)));
 }
 
 // v0.6.5 — chain:accept now LAZY-COMMITS (no generation). User flow per
@@ -3014,6 +3039,7 @@ ipcMain.handle('chain:accept', async (event, { slug, covenantSnapshot } = {}) =>
       topic: link.topic || '',
       goal: link.exit_criterion || '',
       duration_weeks: link.duration_weeks || null,
+      lessons_count: (Number.isFinite(Number(link.lessons_count)) && Number(link.lessons_count) >= 20) ? Number(link.lessons_count) : null,
       role: link.role || null,
     }));
     vault.writeJSON(`${slug}/links-state.json`, { links: linksState, updatedAt: new Date().toISOString() });
@@ -3028,11 +3054,20 @@ ipcMain.handle('chain:accept', async (event, { slug, covenantSnapshot } = {}) =>
     // ghost-stub primitive. chain:advance cleans + regenerates per-link.
     const dailyHoursForStubs = (chain.inputs && chain.inputs.dailyHours) || 2;
     const archetypeForStubs = chain.archetype || 'TECH-CONCEPT';
+    // v0.6.9 — pull each link's lessons_count from the LLM-planned chain.json
+    // so stub counts match what chain:advance will actually generate. Falls
+    // back to role-aware _perLinkLessonCount if LLM didn't provide.
+    const planLinks = (chain.chain && Array.isArray(chain.chain.links)) ? chain.chain.links : [];
     for (let i = 1; i < linksState.length; i++) {
       const lk = linksState[i];
       try {
         if (!vault.exists || vault.exists(`${lk.slug}/state.json`)) continue;
-        const expectedLessons = _perLinkLessonCount(lk.duration_weeks, dailyHoursForStubs, chain.tier || 'moderate');
+        const planLink = planLinks[i] || {};
+        const expectedLessons = _resolveLessonsForLink({
+          role: lk.role || planLink.role,
+          lessons_count: planLink.lessons_count,
+          duration_weeks: lk.duration_weeks,
+        }, dailyHoursForStubs, chain.tier || 'moderate');
         const today = new Date().toISOString().slice(0, 10);
         const lessonRels = [];
         // Pre-create N ghost-stub lesson files so the folder count matches
@@ -3223,10 +3258,10 @@ ipcMain.handle('chain:start', async (event, { chainSlug } = {}) => {
     if (!firstLink) return { ok: false, error: 'chain has no first link' };
     const firstTopic = firstLink.topic || (chain.ultimate_goal || chainSlug);
     const firstGoal = firstLink.exit_criterion || '';
-    // v0.6.7 — proportional lesson count + forward uploadedSource so chain
-    // links honor the user's tier choice + reuse the uploaded PDF corpus.
+    // v0.6.7+v0.6.9 — proportional + role-aware lesson count + forward
+    // uploadedSource so chain links honor user's tier + reuse uploaded PDF.
     const dailyHours = (chain.inputs && chain.inputs.dailyHours) || 2;
-    const customLessonsForLink = _perLinkLessonCount(firstLink.duration_weeks, dailyHours, chain.tier || 'moderate');
+    const customLessonsForLink = _resolveLessonsForLink(firstLink, dailyHours, chain.tier || 'moderate');
     const r = await _runCurriculumCreate(event, {
       topic: firstTopic,
       level: 'intermediate',
@@ -3287,10 +3322,11 @@ ipcMain.handle('chain:advance', async (event, { chainSlug } = {}) => {
     if (!nextLink) return { ok: false, error: `chain.json missing link at idx ${nextIdx}` };
     // Mark current done provisionally; restore on _runCurriculumCreate failure.
     links[activeIdx].status = 'done';
-    // v0.6.7 — proportional lesson count + forward uploadedSource (matches
-    // chain:start fix; previously chain:advance produced same 6-lesson stubs).
+    // v0.6.7+v0.6.9 — proportional + role-aware lesson count + forward
+    // uploadedSource (matches chain:start). _resolveLessonsForLink uses the
+    // LLM's lessons_count if present, falls back to role-aware multiplier.
     const advDailyHours = (chain.inputs && chain.inputs.dailyHours) || 2;
-    const advCustomLessons = _perLinkLessonCount(Number(nextLink.duration_weeks) || 4, advDailyHours, chain.tier || 'moderate');
+    const advCustomLessons = _resolveLessonsForLink(nextLink, advDailyHours, chain.tier || 'moderate');
     // v0.6.8 — clean up the v0.6.8 pre-created `-pending.md` ghost stubs in
     // this link's folder so _runCurriculumCreate can write fresh lesson files
     // without filename collisions. Also clear stale state.json so designSeed

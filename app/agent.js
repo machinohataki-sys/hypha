@@ -1586,7 +1586,28 @@ async function planChain(goal, ctx, settings) {
     ? '- exit_criterion: 1 sentence testable claim — for ' + archetype + ' archetype, a behavior the learner can EXECUTE ("ship a working X app" / "sustain 5-min Y dialogue"). Procedural skill outcome.'
     : '- exit_criterion: 1 sentence testable claim — an EXPLANATION/DERIVATION/ARGUMENT the learner can PRODUCE ("explain X from atoms naming Y theorems" / "argue for/against Z citing N primary sources"). Knowledge outcome, not behavior. Avoid "establish habit", "set up tool", "track progress" — these are infrastructure not knowledge.';
 
-  const sys = `${HYPHA_FULL}${profileBlock}You design a LEARNING CHAIN of 3-8 topics that bridges the student from their current state to an ambitious learning goal. Use the STUDENT PROFILE block above (if present) to set the chain's starting point — if the student already has experience the chain would normally start from, COMPRESS or DROP those prerequisite links. Output JSON: { "links": [{ "topic": string, "duration_weeks": float, "role": "prerequisite"|"core"|"ultimate", "rationale": string, "exit_criterion": string }], "warning": string|null, "alternatives": { "extend_time_to_weeks": int|null, "lower_target_to": string|null } }.
+  // v0.6.9 — per-link lesson budget per role with explicit escalation. User
+  // 2026-05-02: prereq < core < ultimate; uniform sizing was wrong. tier_mult
+  // applies across the board.
+  const tierMult = pTier === 'gentle' ? 0.6 : pTier === 'heroic' ? 1.6 : 1.0;
+  const lessonRangeByRole = {
+    prerequisite: { min: Math.round(25 * tierMult), max: Math.round(50 * tierMult) },
+    core:         { min: Math.round(50 * tierMult), max: Math.round(100 * tierMult) },
+    ultimate:     { min: Math.round(80 * tierMult), max: Math.round(150 * tierMult) },
+  };
+  const lessonsCountGuide = `\n═══ PER-LINK LESSON COUNT (binding — escalation is mandatory) ═══
+Each link gets an explicit "lessons_count" field. Role-based ranges (already adjusted for pacing tier "${pTier}"):
+- prerequisite: ${lessonRangeByRole.prerequisite.min}-${lessonRangeByRole.prerequisite.max} lessons
+- core:        ${lessonRangeByRole.core.min}-${lessonRangeByRole.core.max} lessons
+- ultimate:    ${lessonRangeByRole.ultimate.min}-${lessonRangeByRole.ultimate.max} lessons (DEEPEST — this is where the user's actual goal lives)
+
+Hard rule: the chain ESCALATES. Each later prereq has more lessons than the previous prereq. Each core has more than the deepest prereq. Ultimate has more than any core. This reflects depth of mastery — by the time the student reaches the ultimate goal they're swimming in real material, not glancing at a survey.
+
+duration_weeks should track lessons_count proportionally: ~7 lessons/week at moderate pacing assuming 2hr/day. So a 50-lesson core link is ~7 weeks; a 130-lesson ultimate link is ~18 weeks. Sum across all links gives the chain's true horizon — it WILL exceed the user's stated timeWeeks if the goal is ambitious. That's the honest signal.
+═══════════════════════════════════════════════════════════
+`;
+
+  const sys = `${HYPHA_FULL}${profileBlock}You design a LEARNING CHAIN of 3-8 topics that bridges the student from their current state to an ambitious learning goal. Use the STUDENT PROFILE block above (if present) to set the chain's starting point — if the student already has experience the chain would normally start from, COMPRESS or DROP those prerequisite links. Output JSON: { "links": [{ "topic": string, "duration_weeks": float, "lessons_count": int, "role": "prerequisite"|"core"|"ultimate", "rationale": string, "exit_criterion": string }], "warning": string|null, "alternatives": { "extend_time_to_weeks": int|null, "lower_target_to": string|null } }.${lessonsCountGuide}
 
 ${langInstruction}
 
@@ -1640,7 +1661,7 @@ BAD (NEVER produce):
 ${chainShapeBlock}
 
 Hard rules:
-- Sum of duration_weeks across all links = ${timeWeeks} (HARD constraint).${tierGuide}
+- duration_weeks per link is your honest estimate of how long that link takes (~7 lessons/wk at moderate). The TOTAL chain horizon is the sum and WILL exceed user's stated timeWeeks (${timeWeeks}) for ambitious goals — that's correct, the chain represents a long-term commitment per link, not a fixed-time spread. ${timeWeeks}-week target is a HINT not a cap.${tierGuide}
 - Last link.role = "ultimate" with topic ≈ the user's goal verbatim (preserve user's wording).
 - Earlier links bridge the gap from current state to the goal — use the missing_prerequisites list as priority order.
 - topic: 4-12 words, CONCRETE + SPECIFIC. Forbidden generics: "math basics" / "fundamentals" / "introduction to X" alone. Forbidden operational: anything from the FORBIDDEN list above. Required: name a specific knowledge domain, theorem-set, author's corpus, or technique with literature.
