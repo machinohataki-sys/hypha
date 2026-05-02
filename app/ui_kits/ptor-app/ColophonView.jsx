@@ -19,6 +19,141 @@
 //   - window.ptor.hypha.profileGet()   → { name, about }
 //   - window.ptor.hypha.providers()    → [{id,label,models:[{id,label,sub}], via, ...}]
 
+// HyphaCloudAuth — sign-in surface for the managed-LLM proxy.
+// 3 visual states (千金 register, italic Garamond, brass + teal accents):
+//   loading   — italic "checking…" while we hit /v1/me
+//   signed-in — "you are signed in as <em>{email}</em>. {N} free turns today,
+//                $X.XX prepaid credit. [buy credit] [sign out]"
+//   signed-out — "you are not signed in. [sign in via browser] / [paste code]"
+//
+// Sign-in flow: click "sign in" → opens hypha.studio/login in default browser
+// → user does magic link → on dashboard clicks "Connect Hypha desktop" →
+// copies long-lived token → returns here → clicks "paste code" → pastes →
+// settings.hyphaToken saved → /v1/me re-queried → "signed-in" state.
+function HyphaCloudAuth({ settings, saveSettings }) {
+  const [status, setStatus] = React.useState('loading');   // loading | signed-in | signed-out | error
+  const [me, setMe] = React.useState(null);                // {email, credit_cents, free_today_used, free_quota}
+  const [pasting, setPasting] = React.useState(false);
+  const [draft, setDraft] = React.useState('');
+
+  const refresh = React.useCallback(async () => {
+    if (!settings.hyphaToken) { setStatus('signed-out'); return; }
+    if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.hyphaCloudMe) {
+      setStatus('error'); return;
+    }
+    setStatus('loading');
+    try {
+      const r = await window.ptor.hypha.hyphaCloudMe();
+      if (r && r.ok) { setMe(r); setStatus('signed-in'); }
+      else if (r && r.code === 'HYPHA_BAD_TOKEN') {
+        // Token expired or revoked — clear locally + drop to signed-out.
+        await saveSettings({ hyphaToken: '' });
+        setStatus('signed-out');
+      } else {
+        setStatus('error');
+      }
+    } catch (_) { setStatus('error'); }
+  }, [settings.hyphaToken, saveSettings]);
+
+  React.useEffect(() => { refresh(); }, [refresh]);
+
+  const openLogin = async () => {
+    const baseURL = (settings.hyphaBaseURL || 'https://hypha.studio').replace(/\/$/, '');
+    if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.authOpenLogin) return;
+    await window.ptor.hypha.authOpenLogin(`${baseURL}/login`);
+    setPasting(true);    // pre-emptively show paste field; user will return with token
+  };
+
+  const signOut = async () => {
+    await saveSettings({ hyphaToken: '' });
+    setMe(null);
+    setStatus('signed-out');
+    setPasting(false);
+    setDraft('');
+  };
+
+  const commitToken = async () => {
+    const v = draft.trim();
+    if (!v || v.length < 20) return;
+    await saveSettings({ hyphaToken: v });
+    setPasting(false); setDraft('');
+    // refresh fires via settings.hyphaToken effect
+  };
+
+  const buyCredit = () => {
+    const baseURL = (settings.hyphaBaseURL || 'https://hypha.studio').replace(/\/$/, '');
+    if (window.ptor && window.ptor.hypha && window.ptor.hypha.authOpenLogin) {
+      window.ptor.hypha.authOpenLogin(`${baseURL}/dashboard#topup`);
+    }
+  };
+
+  const baseStyle = { margin: '0 0 24px', fontSize: 15, color: 'var(--ink-muted)' };
+  const linkBtn = {
+    background: 'transparent', border: 'none', padding: 0, font: 'inherit',
+    fontStyle: 'italic', color: 'var(--brass-bright)', cursor: 'pointer',
+    borderBottom: '1px solid transparent', transition: 'border-color 200ms',
+  };
+  const linkHover = (e, on) => { e.currentTarget.style.borderBottomColor = on ? 'var(--brass-bright)' : 'transparent'; };
+
+  if (status === 'loading') {
+    return <p style={{ ...baseStyle, fontStyle: 'italic' }}>checking your Hypha Cloud session…</p>;
+  }
+
+  if (status === 'error') {
+    return (
+      <p style={baseStyle}>
+        could not reach Hypha Cloud (no network or server down).{' '}
+        <button onClick={refresh} onMouseEnter={e=>linkHover(e,true)} onMouseLeave={e=>linkHover(e,false)} style={linkBtn}>retry</button>
+      </p>
+    );
+  }
+
+  if (status === 'signed-in' && me) {
+    const balance = (me.credit_cents / 100).toFixed(2);
+    return (
+      <p style={baseStyle}>
+        Signed in as <em style={{ color: 'var(--brass-bright)', fontStyle: 'italic' }}>{me.email}</em>.{' '}
+        <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--ink-title)' }}>{me.free_today_used}/{me.free_quota}</span> free turns today,{' '}
+        <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--ink-title)' }}>${balance}</span> prepaid credit.{' '}
+        <button onClick={buyCredit} onMouseEnter={e=>linkHover(e,true)} onMouseLeave={e=>linkHover(e,false)} style={linkBtn}>buy credit</button>
+        {' · '}
+        <button onClick={signOut} onMouseEnter={e=>linkHover(e,true)} onMouseLeave={e=>linkHover(e,false)} style={{ ...linkBtn, color: 'var(--ink-faint)' }}>sign out</button>
+      </p>
+    );
+  }
+
+  // signed-out
+  return (
+    <p style={baseStyle}>
+      Hypha Cloud — no key needed.{' '}
+      <button onClick={openLogin} onMouseEnter={e=>linkHover(e,true)} onMouseLeave={e=>linkHover(e,false)} style={linkBtn}>
+        {pasting ? 'sign in again' : 'sign in via browser'}
+      </button>
+      {pasting && (
+        <>
+          {' · '}
+          <input
+            autoFocus
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') commitToken(); if (e.key === 'Escape') { setPasting(false); setDraft(''); } }}
+            placeholder="paste your desktop code"
+            style={{
+              background: 'transparent', border: 'none',
+              borderBottom: '1px solid color-mix(in srgb, var(--brass-mid) 32%, transparent)',
+              fontFamily: '"JetBrains Mono", monospace', fontSize: 12,
+              color: 'var(--ink-title)', outline: 'none',
+              minWidth: '24ch', padding: '2px 4px',
+            }}
+          />
+          {' '}
+          <button onClick={commitToken} onMouseEnter={e=>linkHover(e,true)} onMouseLeave={e=>linkHover(e,false)} style={linkBtn} disabled={draft.trim().length < 20}>save</button>
+        </>
+      )}
+    </p>
+  );
+}
+
 // Token — one editable italic word/phrase in the colophon prose. Default state
 // is brass-italic-text-as-button; hover reveals a 1px brass hairline beneath
 // (affordance signal). Click → inline editor (kind=text/pill/textarea/secret).
@@ -406,7 +541,18 @@ function ColophonView() {
           />
         </p>
 
-        {providerObj.via !== 'cli' && (
+        {providerObj.via === 'hypha-server' && (
+          <HyphaCloudAuth
+            settings={settings}
+            saveSettings={saveSettings}
+          />
+        )}
+        {providerObj.via === 'cli' && (
+          <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--ink-faint)', fontStyle: 'italic' }}>
+            {providerObj.keyHint || 'using a logged-in vendor session — no key needed.'}
+          </p>
+        )}
+        {providerObj.via !== 'cli' && providerObj.via !== 'hypha-server' && (
           <p style={{ margin: '0 0 24px', fontSize: 15, color: 'var(--ink-muted)' }}>
             Authentication: <Token
               value={settings.apiKey ? '••••••••' : ''}
@@ -415,11 +561,6 @@ function ColophonView() {
               placeholder={(providerObj.keyHint) || 'paste key here'}
               dim={!settings.apiKey}
             />
-          </p>
-        )}
-        {providerObj.via === 'cli' && (
-          <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--ink-faint)', fontStyle: 'italic' }}>
-            {providerObj.keyHint || 'using a logged-in vendor session — no key needed.'}
           </p>
         )}
 

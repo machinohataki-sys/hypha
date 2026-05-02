@@ -183,6 +183,12 @@ contextBridge.exposeInMainWorld('ptor', {
     adaptationsList: () => ipcRenderer.invoke('lesson-adaptations:list'),
     adaptationsRevert: (slug, affectedIdx) => ipcRenderer.invoke('lesson-adaptations:revert', { slug, affectedIdx }),
     adaptationsWeeklySummary: (slug) => ipcRenderer.invoke('lesson-adaptations:weekly-summary', { slug }),
+    // Hypha Cloud — managed-LLM proxy. authOpenLogin opens hypha.studio/login
+    // in the user's default browser; user gets a desktop token from the
+    // dashboard and pastes it into the colophon. hyphaCloudMe queries the
+    // server for current balance + free-quota status.
+    authOpenLogin: (url) => ipcRenderer.invoke('auth:open-login', { url }),
+    hyphaCloudMe: () => ipcRenderer.invoke('hypha-cloud:me'),
     onCurriculumProgress: (cb) => {
       const handler = (_e, payload) => cb(payload);
       ipcRenderer.on('curriculum:progress', handler);
