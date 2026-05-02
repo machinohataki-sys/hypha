@@ -834,6 +834,25 @@ function PTorApp() {
     return () => window.removeEventListener('hypha:pick-lesson', onPick);
   }, []);
 
+  // 2026-05-01: ChainPlannerView mounts at App root (escapes VaultTree's
+  // stacking trap that cramped the modal into a 250px column). Welcome
+  // form's "plan a chain →" link dispatches `hypha:open-chain-planner`
+  // with detail = { topic, goal, timeCommit, clarifications }. Chain
+  // planner is now a pure result view — it auto-loads from this context,
+  // no separate form to fill (per user 2026-05-01: "chain 不是一个过程
+  // 而是结果，是分析原过程将这些作为参数然后生成的推荐结果").
+  const [chainContext, setChainContext] = React.useState(null);
+  React.useEffect(() => {
+    const onOpenChain = (e) => {
+      const detail = (e && e.detail) || {};
+      // Require at least topic or goal so the planner has something to chain.
+      if (!detail.topic && !detail.goal) return;
+      setChainContext(detail);
+    };
+    window.addEventListener('hypha:open-chain-planner', onOpenChain);
+    return () => window.removeEventListener('hypha:open-chain-planner', onOpenChain);
+  }, []);
+
   // RECALL chromatic ground — flip data-theme to atlas-day while RECALL is
   // active (warm dust-stone palace background, NOT note-day ivory). Per port
   // plan 2026-05-01: "功能原封不动 + 背景=ATLAS界面的背景". Mirror of
@@ -1145,6 +1164,17 @@ function PTorApp() {
       </div>
       <LesezimmerWhisper />
       </div>
+      {/* ChainPlannerView at App root — outside the PTorWindow flex tree so
+          its position:fixed modal isn't clipped by sidebar containers.
+          Triggered by `hypha:open-chain-planner` events with welcome-form
+          context as detail. */}
+      {window.ChainPlannerView && (
+        <window.ChainPlannerView
+          open={!!chainContext}
+          onClose={() => setChainContext(null)}
+          context={chainContext}
+        />
+      )}
     </PTorWindow>
   );
 }

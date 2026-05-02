@@ -5,29 +5,26 @@
 // Input language auto-routes output (CN goal → CN chain). Per CLAUDE.md
 // 千金 register: italic Garamond, brass palette, no jargon, no model internals.
 
-function ChainPlannerView({ open, onClose }) {
-  const [stage, setStage] = React.useState('form');
+// Per user feedback 2026-05-01: chain is NOT a process to fill out; it's a
+// RESULT computed from welcome-form data already collected (topic + goal +
+// timeCommit + clarifications, all in <slug>/state.json or pre-create form
+// state). The 7-field form was redundant. The view now accepts `context`
+// from the caller and immediately enters loading → result.
+function ChainPlannerView({ open, onClose, context }) {
+  const [stage, setStage] = React.useState('loading');   // 'loading' | 'result' | 'error'
   const [progressStage, setProgressStage] = React.useState(null);
-  const [goal, setGoal] = React.useState('');
-  const [weeks, setWeeks] = React.useState(12);
-  const [daily, setDaily] = React.useState(2);
-  const [consistency, setConsistency] = React.useState(3);
-  const [failed, setFailed] = React.useState(0);
-  const [background, setBackground] = React.useState('');
   const [result, setResult] = React.useState(null);
   const [error, setError] = React.useState(null);
 
+  // Reset on close.
   React.useEffect(() => {
     if (!open) {
-      setStage('form'); setProgressStage(null); setGoal(''); setWeeks(12);
-      setDaily(2); setConsistency(3); setFailed(0); setBackground('');
-      setResult(null); setError(null);
+      setStage('loading'); setProgressStage(null); setResult(null); setError(null);
     }
   }, [open]);
 
-  if (!open) return null;
-
-  const isCN = /[一-龥]/.test(goal);
+  // Detect language from welcome-form goal so output matches input register.
+  const isCN = !!(context && /[一-龥]/.test(String(context.goal || '') + String(context.topic || '')));
   const t = (zh, en) => isCN ? zh : en;
 
   // Lacquer Loop W7 v1.1 — feed RuntimeSubstrate so VinylSpinner / future motion
@@ -40,9 +37,28 @@ function ChainPlannerView({ open, onClose }) {
     'error': 0,
   };
 
-  const submit = async () => {
-    if (!goal.trim()) return;
+  // Map welcome form's timeCommit to chain weeks. Defaults err on the
+  // generous side so feasibility verdicts aren't unfairly tight.
+  const timeCommitToWeeks = (tc) => {
+    switch (tc) {
+      case 'a-week':     return 1;
+      case 'a-month':    return 4;
+      case 'week':       return 1;        // legacy
+      case 'month':      return 4;        // legacy
+      case '3-months':   return 12;
+      case 'open-ended': return 24;
+      default:           return 12;
+    }
+  };
+
+  const submitWithContext = React.useCallback(async (ctx) => {
+    if (!ctx) return;
+    const goalStr = (ctx.goal || ctx.topic || '').trim();
+    if (!goalStr) {
+      setError('no goal provided'); setStage('error'); return;
+    }
     setStage('loading');
+    setProgressStage(null);
     setError(null);
     let unsub = null;
     try {
@@ -56,19 +72,40 @@ function ChainPlannerView({ open, onClose }) {
           }
         });
       }
+      // Derive params from welcome-form context. dailyHours / consistency /
+      // failedAttempts get sensible defaults — the welcome form did not ask
+      // for them, and asking again here is exactly what the user rejected.
+      const answers = [];
+      if (Array.isArray(ctx.clarifications) && ctx.clarifications.length) {
+        for (const cl of ctx.clarifications) {
+          if (cl && cl.question && cl.answer) {
+            answers.push({ question: cl.question, answer: cl.answer });
+          }
+        }
+      }
       const r = await window.ptor.hypha.chainCreate({
-        goal: goal.trim(),
-        timeWeeks: Number(weeks),
-        dailyHours: Number(daily),
-        priorConsistency: Number(consistency),
-        failedAttempts: Number(failed),
-        answers: background.trim() ? [{ question: '现状背景 / Background', answer: background.trim() }] : [],
+        goal: goalStr,
+        timeWeeks: timeCommitToWeeks(ctx.timeCommit),
+        dailyHours: 2,
+        priorConsistency: 3,
+        failedAttempts: 0,
+        answers,
       });
       if (unsub) unsub();
       if (r && r.ok) { setResult(r.data); setStage('result'); }
       else { setError((r && r.error) || 'unknown error'); setStage('error'); }
-    } catch (e) { if (unsub) unsub(); setError(e.message); setStage('error'); }
-  };
+    } catch (e) {
+      if (unsub) unsub();
+      setError(e.message); setStage('error');
+    }
+  }, []);
+
+  // Auto-fire on open with context.
+  React.useEffect(() => {
+    if (open && context) submitWithContext(context);
+  }, [open, context, submitWithContext]);
+
+  if (!open) return null;
 
   // ─── Layout ───────────────────────────────────────────────────────────────
 
@@ -106,94 +143,8 @@ function ChainPlannerView({ open, onClose }) {
     </div>
   );
 
-  // ─── Form ────────────────────────────────────────────────────────────────
-  if (stage === 'form') {
-    const labelStyle = { display: 'block', fontStyle: 'italic', fontSize: 13.5, color: 'var(--ink-faint)', marginBottom: 4, marginTop: 14 };
-    const inputStyle = {
-      width: '100%', background: 'transparent',
-      color: 'var(--ink-title)',
-      border: 'none',
-      borderBottom: '1px solid color-mix(in srgb, var(--brass-mid) 32%, transparent)',
-      fontFamily: '"EB Garamond", "Noto Serif SC", serif',
-      fontStyle: 'italic', fontSize: 17,
-      padding: '4px 0', outline: 'none',
-    };
-    const numStyle = { ...inputStyle, fontSize: 15, width: 80, textAlign: 'center' };
-    const row = { display: 'flex', gap: 28, marginTop: 10 };
-    return (
-      <div style={backdrop} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <div style={panel}>
-          {header}
-          <p style={{ fontStyle: 'italic', fontSize: 13.5, color: 'var(--ink-faint)', margin: '0 0 10px', lineHeight: 1.6 }}>
-            {t(
-              '把一个野心目标拆成可执行的前置链条。先填目标，再答几个问题，看看时间够不够。',
-              'turn an ambitious goal into a sequence of bridging steps. answer a few questions, see if time fits.'
-            )}
-          </p>
-
-          <label style={labelStyle}>{t('终极目标', 'ultimate goal')}</label>
-          {/* intentional-placeholder: HTML input hint-text attribute, not a lazy stub */}
-          <input autoFocus value={goal} onChange={e => setGoal(e.target.value)}
-            placeholder={t('例：拥有YC训练营中的独角兽思想和创意', 'e.g. master transformer architecture from atoms')}
-            style={inputStyle} />
-
-          <div style={row}>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>{t('时间预算（周）', 'time budget (weeks)')}</label>
-              <select value={weeks} onChange={e => setWeeks(Number(e.target.value))} style={numStyle}>
-                {[2, 4, 8, 12, 16, 26, 39, 52].map(w => <option key={w} value={w}>{w}</option>)}
-              </select>
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>{t('每日投入（小时；Newport 上限 4）', 'daily hours (Newport ceiling 4)')}</label>
-              <select value={daily} onChange={e => setDaily(Number(e.target.value))} style={numStyle}>
-                {[0.5, 1, 1.5, 2, 3, 4, 6, 8].map(h => <option key={h} value={h}>{h}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div style={row}>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>{t('过去 60 天每周真正学 >2h 的天数', 'days/week studied >2h (last 60 days)')}</label>
-              <select value={consistency} onChange={e => setConsistency(Number(e.target.value))} style={numStyle}>
-                {[0, 1, 2, 3, 4, 5, 6, 7].map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>{t('过去对此目标的失败次数', 'prior failed attempts')}</label>
-              <select value={failed} onChange={e => setFailed(Number(e.target.value))} style={numStyle}>
-                {[0, 1, 2, 3].map(n => <option key={n} value={n}>{n}{n === 3 ? '+' : ''}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <label style={labelStyle}>{t('现状背景（可选；越具体函数越准）', 'starting background (optional; more specific = better)')}</label>
-          {/* intentional-placeholder: HTML textarea hint-text attribute, not a lazy stub */}
-          <textarea value={background} onChange={e => setBackground(e.target.value)}
-            rows={3}
-            placeholder={t('例：CS本科毕业，做过2年前端，没碰过 ML 论文，能读英文', 'e.g. CS undergrad, 2y frontend dev, never read ML papers, can read English')}
-            style={{ ...inputStyle, fontSize: 14, resize: 'vertical', minHeight: 60, lineHeight: 1.5, fontStyle: 'normal' }} />
-
-          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 16 }}>
-            <button onClick={onClose} style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              color: 'var(--ink-faint)', fontStyle: 'italic', fontSize: 14,
-              fontFamily: '"EB Garamond", serif', padding: '8px 12px',
-            }}>{t('取消', 'cancel')}</button>
-            <button onClick={submit} disabled={!goal.trim()} style={{
-              background: goal.trim() ? 'color-mix(in srgb, var(--brass-mid) 22%, transparent)' : 'transparent',
-              border: '1px solid color-mix(in srgb, var(--brass-mid) 38%, transparent)',
-              borderRadius: 2, cursor: goal.trim() ? 'pointer' : 'not-allowed',
-              color: 'var(--ink-title)', fontStyle: 'italic', fontSize: 15,
-              fontFamily: '"EB Garamond", serif', padding: '8px 22px',
-              opacity: goal.trim() ? 1 : 0.5,
-              transition: 'background 220ms, opacity 220ms',
-            }}>{t('开始 →', 'plan →')}</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Form stage was deleted 2026-05-01: chain is a result computed from
+  // welcome-form data already collected, not a separate questionnaire.
 
   // ─── Loading ──────────────────────────────────────────────────────────────
   if (stage === 'loading') {
@@ -229,11 +180,11 @@ function ChainPlannerView({ open, onClose }) {
           <div style={{ padding: 20, color: 'var(--verdict-flag, #c44)', fontStyle: 'italic' }}>
             {t('生成失败：', 'generation failed: ')}{error || 'unknown'}
           </div>
-          <button onClick={() => setStage('form')} style={{
+          <button onClick={() => { if (context) submitWithContext(context); else onClose(); }} style={{
             background: 'transparent', border: '1px solid color-mix(in srgb, var(--brass-mid) 38%, transparent)',
             color: 'var(--ink-title)', cursor: 'pointer', padding: '6px 16px',
             fontFamily: '"EB Garamond", serif', fontStyle: 'italic', fontSize: 14, borderRadius: 2,
-          }}>{t('返回', 'back')}</button>
+          }}>{t('重试', 'retry')}</button>
         </div>
       </div>
     );

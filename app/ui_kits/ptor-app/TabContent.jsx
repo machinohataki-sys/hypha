@@ -947,10 +947,13 @@ function HyphaEvolutionWelcome({ onPick }) {
               }}
             />
 
-            {/* In-flow chain planner link — only path to ChainPlannerView,
-                belongs INSIDE the welcome flow per user feedback (plan-a-chain
-                is a step of course creation, not a sibling of it). VaultTree
-                listens for `hypha:open-chain-planner` and opens the modal. */}
+            {/* In-flow chain planner link. Per user 2026-05-01: chain is a
+                RESULT computed from welcome-form data, not a separate
+                questionnaire. We dispatch the form context (topic + goal +
+                timeCommit) so ChainPlannerView opens straight into loading
+                with no fields to fill. App.jsx mounts the modal at root to
+                escape any stacking trap. Button disabled until at least
+                topic OR goal has a value (otherwise nothing to chain). */}
             <div style={{
               marginBottom: 24,
               fontFamily: 'inherit', fontStyle: 'italic', fontSize: 13,
@@ -959,17 +962,33 @@ function HyphaEvolutionWelcome({ onPick }) {
               the goal feels bigger than one curriculum?{' '}
               <button
                 type="button"
-                onClick={() => { try { window.dispatchEvent(new CustomEvent('hypha:open-chain-planner')); } catch (_) {} }}
+                disabled={!topic.trim() && !goal.trim()}
+                onClick={() => {
+                  try {
+                    window.dispatchEvent(new CustomEvent('hypha:open-chain-planner', {
+                      detail: {
+                        topic: (topic || '').trim(),
+                        goal: (goal || '').trim(),
+                        timeCommit: timeCommit || 'month',
+                        clarifications: [],     // welcome form's clarifications come AFTER first submit; skip
+                      },
+                    }));
+                  } catch (_) {}
+                }}
                 style={{
                   background: 'transparent', border: 'none', padding: 0,
                   font: 'inherit', fontStyle: 'italic',
-                  color: 'var(--brass-bright)', cursor: 'pointer',
+                  color: (!topic.trim() && !goal.trim()) ? 'var(--ink-faint)' : 'var(--brass-bright)',
+                  cursor: (!topic.trim() && !goal.trim()) ? 'not-allowed' : 'pointer',
                   borderBottom: '1px solid transparent',
-                  transition: 'border-color 200ms',
+                  opacity: (!topic.trim() && !goal.trim()) ? 0.5 : 1,
+                  transition: 'border-color 200ms, color 200ms, opacity 200ms',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
+                onMouseEnter={e => { if (topic.trim() || goal.trim()) e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderBottomColor = 'transparent'; }}
-                title="break it into a chain of prerequisites first — Hypha plans a sequence of courses from your starting point to the goal"
+                title={(!topic.trim() && !goal.trim())
+                  ? 'fill in topic or goal first'
+                  : 'break it into a chain of prerequisites first — Hypha plans a sequence of courses from your starting point to the goal'}
               >plan a chain →</button>
             </div>
 

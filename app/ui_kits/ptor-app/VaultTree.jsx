@@ -31,7 +31,7 @@ function VaultTree({ active, onSelect, viewMode }) {
   const [loaded, setLoaded] = React.useState(false);
   const [open, setOpen] = React.useState({});
   const [importOpen, setImportOpen] = React.useState(false);
-  const [chainOpen, setChainOpen] = React.useState(false);  // Lacquer Loop W7 chain planner modal
+  // chainOpen state retired 2026-05-01 — ChainPlannerView now mounts at App.jsx
   const [vaultName, setVaultName] = React.useState('');     // last segment of vault root, e.g. "beiking"
   // Recall-mode "+" popover. evolution/settings: + jumps straight to Learn.
   // Recall: + opens this 3-item menu (Compose / Bring in / New shelf) — note
@@ -137,15 +137,9 @@ function VaultTree({ active, onSelect, viewMode }) {
     return () => window.removeEventListener('hypha:open-tutor-customize', onCustomize);
   }, []);
 
-  // 2026-05-01: ChainPlanner is mounted here (chainOpen state below) but the
-  // welcome screen in TabContent.jsx triggers it via custom event so the
-  // chain link can live INSIDE the topic→goal→time form rather than as a
-  // sibling of it (per user feedback "plan a chain 包含在完整流程中").
-  React.useEffect(() => {
-    const onOpenChain = () => setChainOpen(true);
-    window.addEventListener('hypha:open-chain-planner', onOpenChain);
-    return () => window.removeEventListener('hypha:open-chain-planner', onOpenChain);
-  }, []);
+  // ChainPlanner event listener moved to App.jsx 2026-05-01 (where the
+  // mount lives, escaping VaultTree's stacking trap). VaultTree no longer
+  // owns chain state.
 
   // Click outside / Esc closes the recall "+" menu + ctxMenu.
   React.useEffect(() => {
@@ -351,12 +345,11 @@ function VaultTree({ active, onSelect, viewMode }) {
           onComplete={() => { setImportOpen(false); refresh(); }}
         />
       )}
-      {window.ChainPlannerView && (
-        <window.ChainPlannerView
-          open={chainOpen}
-          onClose={() => setChainOpen(false)}
-        />
-      )}
+      {/* ChainPlannerView mounting moved to App.jsx 2026-05-01 — VaultTree
+          sits inside a constrained flex column whose ancestors create a
+          stacking/transform context that traps `position: fixed` modals
+          inside the sidebar's narrow width (user screenshot showed cramped
+          ~250px column). Mounting at App root escapes the trap. */}
 
       {/* New-shelf inline input — shown right under header.
           Italic Garamond, no chrome — same register as folder labels. */}
