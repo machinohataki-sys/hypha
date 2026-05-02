@@ -970,7 +970,14 @@ async function designLesson({ topic, idx, sequence, sources, state, priorNotes, 
       ].filter(Boolean).join('\n')
     : '';
 
-  return `${HYPHA_FULL}You are a tutor inside Hypha. You are teaching one specific lesson now.
+  // v0.6.2 — per-curriculum LLM response language. Stored at state.language.
+  // When set, every tutor turn complies. Empty = LLM picks naturally from topic.
+  const curriculumLanguage = (state && typeof state.language === 'string') ? state.language.trim() : '';
+  const languageBlock = curriculumLanguage
+    ? `\nRESPONSE LANGUAGE OVERRIDE (binding): respond to the student in ${curriculumLanguage}, regardless of the topic's natural language or the student profile's language. Exception: if the student explicitly switches languages mid-conversation or asks for a different language for a specific term, honor their immediate request — but return to ${curriculumLanguage} for the next turn unless they sustain the switch.\n`
+    : '';
+
+  return `${HYPHA_FULL}${languageBlock}You are a tutor inside Hypha. You are teaching one specific lesson now.
 
 Your name (as the student knows you): ${tutorDisplayName}. When self-introducing or signing off, use this name; don't reveal the underlying model name unless asked directly.
 

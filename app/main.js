@@ -2485,6 +2485,30 @@ ipcMain.handle('agent:set', (_e, { slug, profile } = {}) => {
   return { ok: true, profile: next };
 });
 
+// v0.6.2 — curriculum:get-language / curriculum:set-language. Per-curriculum
+// LLM response language. Stored on `<slug>/state.json.language`. agent.js
+// reads it via settings.curriculumLanguage (set by the IPC caller) or via
+// a state.json read at prompt-build time. Empty / unset = LLM defaults to
+// the topic's natural language.
+ipcMain.handle('curriculum:get-language', (_e, { slug } = {}) => {
+  if (!slug) return { ok: false, error: 'slug required' };
+  try {
+    const state = vault.readJSON(`${slug}/state.json`, null) || {};
+    return { ok: true, language: state.language || '' };
+  } catch (err) { return { ok: false, error: err.message || String(err) }; }
+});
+ipcMain.handle('curriculum:set-language', (_e, { slug, language } = {}) => {
+  if (!slug) return { ok: false, error: 'slug required' };
+  try {
+    const state = vault.readJSON(`${slug}/state.json`, null);
+    if (!state) return { ok: false, error: 'state.json missing — not a curriculum slug?' };
+    state.language = String(language || '').trim();  // empty string = clear override
+    vault.writeJSON(`${slug}/state.json`, state);
+    _hyphaAppendEvent('curriculum_language_set', { slug, language: state.language });
+    return { ok: true, language: state.language };
+  } catch (err) { return { ok: false, error: err.message || String(err) }; }
+});
+
 // profile:get / profile:set — user identity (name + self-introduction +
 // tutor display name) for addressing the user by name, tailoring tutor
 // output to their background, and letting the tutor self-introduce by a

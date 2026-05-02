@@ -56,6 +56,9 @@ function VaultTree({ active, onSelect, viewMode }) {
   // Customize Tutor — null | { slug, profile, personas } when editing a folder's tutor profile.
   const [tutorEdit, setTutorEdit] = React.useState(null);
   const [tutorSaved, setTutorSaved] = React.useState(false);
+  // v0.6.2 — per-curriculum language. null | { slug, language } when picker open.
+  const [languageEdit, setLanguageEdit] = React.useState(null);
+  const [languageSaved, setLanguageSaved] = React.useState(false);
   // Hypha — current settings used by the ambient model chip in the bottom-left
   // footer. null until first settingsGet() resolves; thereafter mirrors
   // data/settings.json. Re-fetched on `hypha:settings-updated` (dispatched by
@@ -719,7 +722,147 @@ function VaultTree({ active, onSelect, viewMode }) {
               setTutorSaved(false);
             } catch (_) {}
           } : null}
+          onSetLanguage={ctxMenu.kind === 'folder' ? async () => {
+            const slug = ctxMenu.id;
+            setCtxMenu(null);
+            if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.curriculumGetLanguage) return;
+            try {
+              const r = await window.ptor.hypha.curriculumGetLanguage(slug);
+              const current = (r && r.ok) ? (r.language || '') : '';
+              setLanguageEdit({ slug, language: current });
+            } catch (_) {}
+          } : null}
         />
+      )}
+
+      {/* v0.6.2 — Language picker modal. Per-curriculum LLM response language.
+          Empty string = clear override (LLM picks naturally from topic). */}
+      {languageEdit !== null && ReactDOM.createPortal(
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setLanguageEdit(null); }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 320,
+            background: 'var(--bg-modal-backdrop)',
+            backdropFilter: 'blur(6px) saturate(130%)',
+            WebkitBackdropFilter: 'blur(6px) saturate(130%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <div style={{
+            background: 'var(--bg-modal-card)',
+            borderRadius: '32px 22px 32px 22px',
+            boxShadow:
+              'inset 0 1px 0 color-mix(in srgb, var(--brass-bright) 22%, transparent), ' +
+              'inset 0 0 0 1px color-mix(in srgb, var(--brass-mid) 18%, transparent), ' +
+              '0 40px 96px -20px rgba(0,0,0,0.55), ' +
+              '0 14px 36px -8px rgba(0,0,0,0.32)',
+            padding: '36px 40px 28px',
+            minWidth: 460, maxWidth: 580,
+            display: 'flex', flexDirection: 'column',
+            fontFamily: '"EB Garamond", "Noto Serif SC", Georgia, serif',
+            color: 'var(--ink-primary)',
+          }}>
+            <h3 style={{
+              fontStyle: 'normal', fontWeight: 400, fontSize: 28, lineHeight: 1.05,
+              color: 'var(--ink-title)', margin: '0 0 6px',
+              letterSpacing: '-0.012em',
+            }}>response language for this curriculum</h3>
+            <p style={{
+              fontStyle: 'italic', fontWeight: 400, fontSize: 14.5, lineHeight: 1.45,
+              color: 'var(--ink-muted)', margin: '0 0 20px',
+            }}>
+              <em style={{ color: 'var(--brass-bright)', fontStyle: 'italic' }}>{languageEdit.slug}</em> — the tutor will respond in this language unless you explicitly switch mid-conversation. Leave blank to let the LLM pick from the topic.
+            </p>
+            {(() => {
+              const presets = ['English', 'Chinese', '中文', '日本語', 'Français', 'Español', 'Deutsch'];
+              return (
+                <>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                    {presets.map(p => {
+                      const on = languageEdit.language === p;
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => setLanguageEdit({ ...languageEdit, language: p })}
+                          style={{
+                            background: on ? 'color-mix(in srgb, var(--brass-bright) 18%, transparent)' : 'transparent',
+                            border: 'none',
+                            borderRadius: '12px 8px 12px 8px',
+                            boxShadow: on
+                              ? 'inset 0 0 0 1.5px var(--brass-bright)'
+                              : 'inset 0 0 0 1px color-mix(in srgb, var(--brass-mid) 30%, transparent)',
+                            color: on ? 'var(--ink-title)' : 'var(--ink-muted)',
+                            fontFamily: 'inherit', fontStyle: 'italic',
+                            fontSize: 14.5, padding: '7px 14px',
+                            cursor: 'pointer',
+                            transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+                          }}
+                        >{p}</button>
+                      );
+                    })}
+                  </div>
+                  <input
+                    type="text"
+                    value={languageEdit.language}
+                    onChange={(e) => setLanguageEdit({ ...languageEdit, language: e.target.value })}
+                    placeholder="or type a custom language…"
+                    style={{
+                      width: '100%', padding: '10px 14px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: '1px solid color-mix(in srgb, var(--brass-mid) 32%, transparent)',
+                      borderRadius: 0,
+                      color: 'var(--ink-title)',
+                      fontFamily: 'inherit', fontStyle: 'italic', fontSize: 16,
+                      outline: 'none', marginBottom: 24,
+                      transition: 'border-color 220ms',
+                    }}
+                    onFocus={e => { e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
+                    onBlur={e => { e.currentTarget.style.borderBottomColor = 'color-mix(in srgb, var(--brass-mid) 32%, transparent)'; }}
+                  />
+                </>
+              );
+            })()}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14 }}>
+              <button
+                onClick={() => setLanguageEdit(null)}
+                style={{
+                  background: 'transparent', border: 'none', padding: '6px 4px',
+                  font: 'inherit', fontStyle: 'italic', fontSize: 13.5,
+                  color: 'var(--ink-faint)', cursor: 'pointer',
+                }}
+              >cancel</button>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                {languageSaved && (
+                  <span style={{ fontStyle: 'italic', fontSize: 13, color: 'var(--ink-faint)' }}>saved</span>
+                )}
+                <button
+                  onClick={async () => {
+                    if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.curriculumSetLanguage) return;
+                    try {
+                      await window.ptor.hypha.curriculumSetLanguage(languageEdit.slug, languageEdit.language || '');
+                      setLanguageSaved(true);
+                      setTimeout(() => { setLanguageSaved(false); setLanguageEdit(null); }, 600);
+                    } catch (_) {}
+                  }}
+                  style={{
+                    background: 'color-mix(in srgb, var(--brass-bright) 22%, transparent)',
+                    border: '1px solid var(--brass-bright)',
+                    borderRadius: '14px 10px 14px 10px',
+                    color: 'var(--ink-title)',
+                    fontFamily: 'inherit', fontStyle: 'normal',
+                    fontSize: 14.5, fontWeight: 500, padding: '8px 22px',
+                    cursor: 'pointer',
+                    transition: 'background 220ms',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--brass-bright) 32%, transparent)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--brass-bright) 22%, transparent)'; }}
+                >save</button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Hypha — Customize Tutor modal. Portal'd to body. Persona pills (bell
@@ -1034,16 +1177,17 @@ function ShelfInput({ initial, onCommit, onCancel }) {
 
 // ContextPopover: minimal right-click menu. Position via portal to body
 // (fixed). Same chrome as the "+" popover for visual consistency.
-function ContextPopover({ x, y, deleteArmed, onClose, onRename, onDelete, onNewNote, onCustomizeTutor }) {
+function ContextPopover({ x, y, deleteArmed, onClose, onRename, onDelete, onNewNote, onCustomizeTutor, onSetLanguage }) {
   // Clamp to viewport so the menu doesn't clip off screen edges.
   const W = 200;
-  const extras = (onNewNote ? 1 : 0) + (onCustomizeTutor ? 1 : 0);
+  const extras = (onNewNote ? 1 : 0) + (onCustomizeTutor ? 1 : 0) + (onSetLanguage ? 1 : 0);
   const H = 78 + extras * 36;
   const px = Math.min(x, window.innerWidth - W - 8);
   const py = Math.min(y, window.innerHeight - H - 8);
   const items = [];
   if (onNewNote) items.push({ label: 'New note here', onClick: onNewNote });
   if (onCustomizeTutor) items.push({ label: 'Customize Tutor', sub: 'persona for this curriculum', onClick: onCustomizeTutor });
+  if (onSetLanguage) items.push({ label: 'Language', sub: 'tutor responds in (override)', onClick: onSetLanguage });
   items.push({ label: 'Rename', onClick: onRename });
   items.push({
     // Armed-to-confirm signaled by italic word change ("really?"), NOT by

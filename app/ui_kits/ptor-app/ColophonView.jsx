@@ -461,28 +461,19 @@ function ColophonView() {
   const modelObj = (providerObj.models || []).find(m => m.id === settings.model)
     || (providerObj.models || [])[0] || {};
   const modelLabel = modelObj.label || settings.model || 'default';
-  const fontSize = app.fontSize || 'default';
-  const fontFamily = app.fontFamily || 'editorial';
-  const themeAuto = app.themeAuto !== false;       // default ON
+  // v0.6.2 — fontSize / fontFamily / themeAuto pickers removed.
+  // fontSize only affected chat-bubble CSS vars (not whole UI), and theme
+  // is single-mode (day) since 2026-04-30 night mode removal. Pickers were
+  // visibly broken to users; settings persist in case future UI re-introduces.
   const autoBegin = app.autoBeginLesson !== false; // default ON
   const defaultView = app.defaultView || 'evolution';
 
   // Token option lists (resolved at render — providers/models depend on choices).
   const providerOptions = providers.map(p => ({ id: p.id, label: p.label }));
   const modelOptions = (providerObj.models || []).map(m => ({ id: m.id, label: m.label }));
-  const fontSizeOptions = [
-    { id: 'small',   label: 'small' },
-    { id: 'default', label: 'default' },
-    { id: 'large',   label: 'large' },
-  ];
-  const fontFamilyOptions = [
-    { id: 'editorial', label: 'editorial' },
-    { id: 'system',    label: 'system' },
-  ];
-  const themeOptions = [
-    { id: 'auto',   label: 'follows the clock' },
-    { id: 'manual', label: 'stays where I leave it' },
-  ];
+  // v0.6.2 — fontSizeOptions / fontFamilyOptions / themeOptions removed
+  // alongside their pickers (above). See comment near fontSize/themeAuto
+  // const removal for rationale.
   const autoBeginOptions = [
     { id: 'auto',   label: 'speaks first' },
     { id: 'manual', label: 'waits for me' },
@@ -533,18 +524,6 @@ function ColophonView() {
             value={modelLabel} kind="pill"
             options={modelOptions} selectedId={settings.model}
             onChange={id => saveSettings({ model: id })}
-          />. You read at <Token
-            value={fontSize} kind="pill"
-            options={fontSizeOptions} selectedId={fontSize}
-            onChange={id => saveSettings({ app: { fontSize: id } })}
-          /> size in the <Token
-            value={fontFamily} kind="pill"
-            options={fontFamilyOptions} selectedId={fontFamily}
-            onChange={id => saveSettings({ app: { fontFamily: id } })}
-          /> typeface. The theme <Token
-            value={themeAuto ? 'follows the clock' : 'stays where I leave it'} kind="pill"
-            options={themeOptions} selectedId={themeAuto ? 'auto' : 'manual'}
-            onChange={id => saveSettings({ app: { themeAuto: id === 'auto' } })}
           />. The tutor <Token
             value={autoBegin ? 'speaks first' : 'waits for me'} kind="pill"
             options={autoBeginOptions} selectedId={autoBegin ? 'auto' : 'manual'}

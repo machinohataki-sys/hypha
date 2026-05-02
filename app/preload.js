@@ -160,6 +160,9 @@ contextBridge.exposeInMainWorld('ptor', {
     // chainRefuse({ slug, reason?, checklistFlags? }) → { ok, mode:'reason-recorded'|'cancelled', newPlan? }
     chainAccept: (args) => ipcRenderer.invoke('chain:accept', args || {}),
     chainRefuse: (args) => ipcRenderer.invoke('chain:refuse', args || {}),
+    // v0.6.2 — per-curriculum LLM response language override.
+    curriculumGetLanguage: (slug) => ipcRenderer.invoke('curriculum:get-language', { slug }),
+    curriculumSetLanguage: (slug, language) => ipcRenderer.invoke('curriculum:set-language', { slug, language }),
     // v0.6.1 — chain link transition. Called by NoteView's "advance →" button
     // when the user finishes the last lesson of the current chain link.
     chainAdvance: (args) => ipcRenderer.invoke('chain:advance', args || {}),
