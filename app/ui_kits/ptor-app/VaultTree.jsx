@@ -59,6 +59,11 @@ function VaultTree({ active, onSelect, viewMode }) {
   // v0.6.2 — per-curriculum language. null | { slug, language } when picker open.
   const [languageEdit, setLanguageEdit] = React.useState(null);
   const [languageSaved, setLanguageSaved] = React.useState(false);
+  // v0.6.3 — custom tutor persona authoring (inline panel inside tutor modal).
+  const [personaCreateOpen, setPersonaCreateOpen] = React.useState(false);
+  const [personaDraft, setPersonaDraft] = React.useState({ label: '', short: '', prompt: '' });
+  const [personaCreateError, setPersonaCreateError] = React.useState(null);
+  const [personaDeleteArmId, setPersonaDeleteArmId] = React.useState(null);
   // Hypha — current settings used by the ambient model chip in the bottom-left
   // footer. null until first settingsGet() resolves; thereafter mirrors
   // data/settings.json. Re-fetched on `hypha:settings-updated` (dispatched by
@@ -941,16 +946,21 @@ function VaultTree({ active, onSelect, viewMode }) {
                 );
               })()}
 
-              {/* Persona pills, grouped by domain */}
+              {/* Persona pills, grouped by domain. v0.6.3 — `custom` group
+                  includes user-authored personas (with delete affordance) +
+                  a "create your own" CTA at the end of the row. */}
               {(() => {
                 const grouped = {};
                 (tutorEdit.personas || []).forEach(p => {
-                  const d = p.domain || 'other';
+                  const d = p.custom ? 'custom' : (p.domain || 'other');
                   if (!grouped[d]) grouped[d] = [];
                   grouped[d].push(p);
                 });
-                const order = ['generic', 'cs', 'writing', 'bio', 'design', 'philosophy', 'math', 'physics', 'finance', 'other'];
-                const labels = { generic: 'general', cs: 'computer science', writing: 'writing', bio: 'biology · cognition', design: 'design philosophy', philosophy: 'philosophy · ethics', math: 'mathematics', physics: 'physics', finance: 'finance', other: 'other' };
+                // Always show the custom group last (even if empty) so the
+                // "create your own" CTA always has a home.
+                if (!grouped.custom) grouped.custom = [];
+                const order = ['generic', 'cs', 'writing', 'bio', 'design', 'philosophy', 'math', 'physics', 'finance', 'other', 'custom'];
+                const labels = { generic: 'general', cs: 'computer science', writing: 'writing', bio: 'biology · cognition', design: 'design philosophy', philosophy: 'philosophy · ethics', math: 'mathematics', physics: 'physics', finance: 'finance', other: 'other', custom: 'your tutors' };
                 return order.filter(d => grouped[d]).map(d => (
                   <div key={d} style={{ marginBottom: 22 }}>
                     <label style={{
@@ -962,38 +972,205 @@ function VaultTree({ active, onSelect, viewMode }) {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {grouped[d].map(p => {
                         const on = tutorEdit.profile.persona === p.id;
+                        const isCustom = !!p.custom;
                         return (
-                          <button
-                            key={p.id}
-                            onClick={() => setTutorEdit({ ...tutorEdit, profile: { ...tutorEdit.profile, persona: p.id } })}
-                            className={'hypha-bubble' + (on ? ' hypha-bubble--on' : '')}
-                            title={p.short || ''}
-                            style={{
-                              position: 'relative',
-                              background: on ? 'color-mix(in srgb, var(--brass-bright) 22%, transparent)' : 'transparent',
-                              border: 'none',
-                              borderRadius: '14px 10px 14px 10px',
-                              boxShadow: on
-                                ? 'inset 0 0 0 1.5px var(--brass-bright), inset 0 1px 0 color-mix(in srgb, var(--brass-bright) 36%, transparent)'
-                                : 'inset 0 0 0 1px color-mix(in srgb, var(--brass-mid) 32%, transparent)',
-                              color: on ? 'var(--ink-title)' : 'var(--ink-muted)',
-                              fontFamily: 'inherit', fontStyle: 'normal',
-                              fontWeight: 500, fontSize: 14, padding: '7px 14px',
-                              cursor: 'pointer',
-                              transition:
-                                'background 280ms cubic-bezier(0.4, 0, 0.15, 1), ' +
-                                'color 240ms cubic-bezier(0.3, 0.7, 0.2, 1) 60ms, ' +
-                                'box-shadow 200ms cubic-bezier(0.2, 0.7, 0.2, 1) 200ms',
-                            }}
-                            onMouseEnter={e => { if (!on) e.currentTarget.style.color = 'var(--ink-title)'; }}
-                            onMouseLeave={e => { if (!on) e.currentTarget.style.color = 'var(--ink-muted)'; }}
-                          >{p.label}</button>
+                          <span key={p.id} style={{ position: 'relative', display: 'inline-block' }}>
+                            <button
+                              onClick={() => setTutorEdit({ ...tutorEdit, profile: { ...tutorEdit.profile, persona: p.id } })}
+                              className={'hypha-bubble' + (on ? ' hypha-bubble--on' : '')}
+                              title={p.short || ''}
+                              style={{
+                                position: 'relative',
+                                background: on ? 'color-mix(in srgb, var(--brass-bright) 22%, transparent)' : 'transparent',
+                                border: 'none',
+                                borderRadius: '14px 10px 14px 10px',
+                                boxShadow: on
+                                  ? 'inset 0 0 0 1.5px var(--brass-bright), inset 0 1px 0 color-mix(in srgb, var(--brass-bright) 36%, transparent)'
+                                  : 'inset 0 0 0 1px color-mix(in srgb, var(--brass-mid) 32%, transparent)',
+                                color: on ? 'var(--ink-title)' : 'var(--ink-muted)',
+                                fontFamily: 'inherit', fontStyle: 'normal',
+                                fontWeight: 500, fontSize: 14, padding: '7px 14px',
+                                paddingRight: isCustom ? 26 : 14,
+                                cursor: 'pointer',
+                                transition:
+                                  'background 280ms cubic-bezier(0.4, 0, 0.15, 1), ' +
+                                  'color 240ms cubic-bezier(0.3, 0.7, 0.2, 1) 60ms, ' +
+                                  'box-shadow 200ms cubic-bezier(0.2, 0.7, 0.2, 1) 200ms',
+                              }}
+                              onMouseEnter={e => { if (!on) e.currentTarget.style.color = 'var(--ink-title)'; }}
+                              onMouseLeave={e => { if (!on) e.currentTarget.style.color = 'var(--ink-muted)'; }}
+                            >{p.label}</button>
+                            {isCustom && (
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.personaDeleteCustom) return;
+                                  // 2-strike confirm: first click sets armed; second deletes.
+                                  if (personaDeleteArmId !== p.id) {
+                                    setPersonaDeleteArmId(p.id);
+                                    setTimeout(() => setPersonaDeleteArmId(prev => prev === p.id ? null : prev), 2000);
+                                    return;
+                                  }
+                                  setPersonaDeleteArmId(null);
+                                  try {
+                                    await window.ptor.hypha.personaDeleteCustom(p.id);
+                                    const fresh = await window.ptor.hypha.personas();
+                                    const next = { ...tutorEdit, personas: Array.isArray(fresh) ? fresh : tutorEdit.personas };
+                                    if (next.profile.persona === p.id) next.profile = { ...next.profile, persona: 'socratic' };
+                                    setTutorEdit(next);
+                                  } catch (_) {}
+                                }}
+                                title={personaDeleteArmId === p.id ? 'click again to confirm' : 'delete this custom persona'}
+                                style={{
+                                  position: 'absolute', top: 2, right: 4,
+                                  background: 'transparent', border: 'none', padding: '0 4px',
+                                  font: 'inherit', fontSize: 13, fontStyle: personaDeleteArmId === p.id ? 'italic' : 'normal',
+                                  color: personaDeleteArmId === p.id ? 'var(--verdict-flag)' : 'var(--ink-faint)',
+                                  cursor: 'pointer', lineHeight: 1.2,
+                                  opacity: personaDeleteArmId === p.id ? 1 : 0.55,
+                                  transition: 'opacity 180ms, color 180ms',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
+                                onMouseLeave={e => { if (personaDeleteArmId !== p.id) e.currentTarget.style.opacity = '0.55'; }}
+                              >×</button>
+                            )}
+                          </span>
                         );
                       })}
+                      {d === 'custom' && (
+                        <button
+                          onClick={() => setPersonaCreateOpen(true)}
+                          style={{
+                            background: 'transparent', border: 'none',
+                            borderRadius: '14px 10px 14px 10px',
+                            boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brass-bright) 50%, transparent)',
+                            color: 'var(--brass-bright)',
+                            fontFamily: 'inherit', fontStyle: 'italic',
+                            fontWeight: 500, fontSize: 14, padding: '7px 14px',
+                            cursor: 'pointer',
+                            transition: 'background 220ms, color 200ms',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--brass-bright) 12%, transparent)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                          title="author your own teaching register"
+                        >+ create your own</button>
+                      )}
                     </div>
                   </div>
                 ));
               })()}
+
+              {/* v0.6.3 — Custom persona create panel. Inline (not a sub-modal) so
+                  the user can see their existing pills while authoring. */}
+              {personaCreateOpen && (
+                <div style={{
+                  marginBottom: 22,
+                  padding: '18px 20px',
+                  background: 'color-mix(in srgb, var(--brass-bright) 6%, transparent)',
+                  borderRadius: '18px 14px 18px 14px',
+                  boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brass-bright) 28%, transparent)',
+                }}>
+                  <div style={{
+                    fontFamily: '"Cormorant Garamond", Georgia, serif',
+                    fontWeight: 500, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase',
+                    color: 'var(--ink-faint)', marginBottom: 10,
+                  }}>create your tutor</div>
+                  <input
+                    type="text"
+                    value={personaDraft.label}
+                    onChange={e => setPersonaDraft({ ...personaDraft, label: e.target.value })}
+                    placeholder="name (e.g., 罗翔 · 法理与修辞)"
+                    style={{
+                      width: '100%', padding: '6px 0', marginBottom: 10,
+                      background: 'transparent', border: 'none',
+                      borderBottom: '1px solid color-mix(in srgb, var(--brass-mid) 32%, transparent)',
+                      borderRadius: 0,
+                      color: 'var(--ink-title)',
+                      fontFamily: 'inherit', fontStyle: 'normal', fontSize: 16,
+                      outline: 'none',
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={personaDraft.short}
+                    onChange={e => setPersonaDraft({ ...personaDraft, short: e.target.value })}
+                    placeholder="one-line tagline (optional)"
+                    style={{
+                      width: '100%', padding: '6px 0', marginBottom: 12,
+                      background: 'transparent', border: 'none',
+                      borderBottom: '1px solid color-mix(in srgb, var(--brass-mid) 22%, transparent)',
+                      borderRadius: 0,
+                      color: 'var(--ink-muted)',
+                      fontFamily: 'inherit', fontStyle: 'italic', fontSize: 14,
+                      outline: 'none',
+                    }}
+                  />
+                  <textarea
+                    value={personaDraft.prompt}
+                    onChange={e => setPersonaDraft({ ...personaDraft, prompt: e.target.value })}
+                    placeholder="teaching directive — describe the register, vocabulary, structure, voice. e.g. 'Teach like X teaches Y: ...' (~80-200 words)"
+                    rows={6}
+                    style={{
+                      width: '100%', padding: '10px 12px', marginBottom: 12,
+                      background: 'color-mix(in srgb, var(--brass-mid) 7%, transparent)',
+                      border: 'none',
+                      borderRadius: '12px 16px 12px 16px',
+                      boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brass-mid) 16%, transparent)',
+                      color: 'var(--ink-title)',
+                      fontFamily: 'inherit', fontStyle: 'italic', fontSize: 14.5,
+                      lineHeight: 1.5, outline: 'none', resize: 'vertical',
+                    }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, alignItems: 'center' }}>
+                    {personaCreateError && (
+                      <span style={{ fontStyle: 'italic', fontSize: 13, color: 'var(--verdict-flag)', marginRight: 'auto' }}>{personaCreateError}</span>
+                    )}
+                    <button
+                      onClick={() => { setPersonaCreateOpen(false); setPersonaDraft({ label: '', short: '', prompt: '' }); setPersonaCreateError(null); }}
+                      style={{
+                        background: 'transparent', border: 'none', padding: '6px 4px',
+                        font: 'inherit', fontStyle: 'italic', fontSize: 13.5,
+                        color: 'var(--ink-faint)', cursor: 'pointer',
+                      }}
+                    >cancel</button>
+                    <button
+                      onClick={async () => {
+                        if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.personaSaveCustom) return;
+                        setPersonaCreateError(null);
+                        try {
+                          const r = await window.ptor.hypha.personaSaveCustom(personaDraft);
+                          if (r && r.ok && r.persona) {
+                            const fresh = await window.ptor.hypha.personas();
+                            setTutorEdit({
+                              ...tutorEdit,
+                              personas: Array.isArray(fresh) ? fresh : tutorEdit.personas,
+                              profile: { ...tutorEdit.profile, persona: r.persona.id },
+                            });
+                            setPersonaCreateOpen(false);
+                            setPersonaDraft({ label: '', short: '', prompt: '' });
+                          } else {
+                            setPersonaCreateError((r && r.error) || 'save failed');
+                          }
+                        } catch (err) {
+                          setPersonaCreateError((err && err.message) || String(err));
+                        }
+                      }}
+                      style={{
+                        background: 'color-mix(in srgb, var(--brass-bright) 22%, transparent)',
+                        border: '1px solid var(--brass-bright)',
+                        borderRadius: '14px 10px 14px 10px',
+                        color: 'var(--ink-title)',
+                        fontFamily: 'inherit', fontStyle: 'normal',
+                        fontSize: 14.5, fontWeight: 500, padding: '8px 22px',
+                        cursor: 'pointer',
+                        transition: 'background 220ms',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--brass-bright) 32%, transparent)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--brass-bright) 22%, transparent)'; }}
+                    >save tutor</button>
+                  </div>
+                </div>
+              )}
 
               {/* Selected persona's full description preview */}
               {(() => {

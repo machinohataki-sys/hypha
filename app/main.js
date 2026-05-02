@@ -2453,9 +2453,99 @@ ipcMain.handle('hypha-cloud:me', async () => {
 });
 
 // personas:list — expose tutor persona registry for the Customize Tutor modal.
+// v0.6.3 — merges built-in personas with user-authored custom personas saved
+// at <vault>/data/custom-personas.json. Custom personas carry `custom: true`
+// so the renderer can show a delete button on them; built-ins cannot be deleted.
 ipcMain.handle('personas:list', () => {
   const personas = require('./lib/personas');
-  return personas.PERSONAS;
+  const builtIn = (personas.PERSONAS || []).map(p => ({ ...p, custom: false }));
+  let custom = [];
+  try {
+    if (vault.exists && vault.exists('data/custom-personas.json')) {
+      const list = vault.readJSON('data/custom-personas.json', []);
+      if (Array.isArray(list)) {
+        custom = list.filter(p => p && p.id && p.label && p.prompt).map(p => ({
+          id: String(p.id),
+          label: String(p.label),
+          short: String(p.short || ''),
+          domain: String(p.domain || 'custom'),
+          prompt: String(p.prompt),
+          custom: true,
+          createdAt: p.createdAt || null,
+        }));
+      }
+    }
+  } catch (_) {}
+  return [...builtIn, ...custom];
+});
+
+// v0.6.3 — personas:save-custom. Append-or-update a user's own tutor persona.
+// id is auto-derived from label (slugified) on create; updates by id.
+// Built-in persona ids are reserved — saving with a built-in id is rejected.
+ipcMain.handle('personas:save-custom', (_e, { id, label, short, prompt } = {}) => {
+  const personas = require('./lib/personas');
+  const trimmedLabel = String(label || '').trim();
+  const trimmedPrompt = String(prompt || '').trim();
+  if (!trimmedLabel) return { ok: false, error: 'label required' };
+  if (!trimmedPrompt) return { ok: false, error: 'prompt required (the teaching directive)' };
+  // Derive id from label if not provided. Slugify: lowercase, kebab-case.
+  let personaId = String(id || '').trim() || trimmedLabel.toLowerCase().replace(/[^a-z0-9一-龥]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || `custom-${Date.now()}`;
+  // Reserve built-in ids — refuse to overwrite.
+  const builtInIds = new Set((personas.PERSONAS || []).map(p => p.id));
+  if (builtInIds.has(personaId)) {
+    return { ok: false, error: `id "${personaId}" is reserved by a built-in persona — pick a different label` };
+  }
+  let list = [];
+  try {
+    if (vault.exists && vault.exists('data/custom-personas.json')) {
+      list = vault.readJSON('data/custom-personas.json', []) || [];
+      if (!Array.isArray(list)) list = [];
+    }
+  } catch (_) {}
+  // Update if id exists, else append.
+  const existing = list.findIndex(p => p && p.id === personaId);
+  const nowIso = new Date().toISOString();
+  const row = {
+    id: personaId,
+    label: trimmedLabel,
+    short: String(short || '').trim(),
+    domain: 'custom',
+    prompt: trimmedPrompt,
+    createdAt: existing >= 0 ? (list[existing].createdAt || nowIso) : nowIso,
+    updatedAt: nowIso,
+  };
+  if (existing >= 0) list[existing] = row;
+  else list.push(row);
+  vault.writeJSON('data/custom-personas.json', list);
+  _hyphaAppendEvent('persona_custom_saved', { id: personaId, label: trimmedLabel });
+  return { ok: true, persona: { ...row, custom: true } };
+});
+
+// v0.6.3 — personas:delete-custom. Removes a custom persona by id. Built-ins
+// rejected. If a curriculum's agent.json references the deleted id, that
+// curriculum's tutor falls back to 'socratic' on next lesson (per existing
+// fallback in agent.js:designLesson).
+ipcMain.handle('personas:delete-custom', (_e, { id } = {}) => {
+  const personas = require('./lib/personas');
+  const personaId = String(id || '').trim();
+  if (!personaId) return { ok: false, error: 'id required' };
+  const builtInIds = new Set((personas.PERSONAS || []).map(p => p.id));
+  if (builtInIds.has(personaId)) {
+    return { ok: false, error: 'cannot delete built-in persona' };
+  }
+  let list = [];
+  try {
+    if (vault.exists && vault.exists('data/custom-personas.json')) {
+      list = vault.readJSON('data/custom-personas.json', []) || [];
+      if (!Array.isArray(list)) list = [];
+    }
+  } catch (_) {}
+  const before = list.length;
+  list = list.filter(p => p && p.id !== personaId);
+  if (list.length === before) return { ok: false, error: `no custom persona with id "${personaId}"` };
+  vault.writeJSON('data/custom-personas.json', list);
+  _hyphaAppendEvent('persona_custom_deleted', { id: personaId });
+  return { ok: true };
 });
 
 // agent:get — read a curriculum's tutor profile from <topic>/agent.json.

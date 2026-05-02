@@ -192,6 +192,9 @@ contextBridge.exposeInMainWorld('ptor', {
     settingsTest: () => ipcRenderer.invoke('settings:test'),
     providers: () => ipcRenderer.invoke('providers:list'),
     personas: () => ipcRenderer.invoke('personas:list'),
+    // v0.6.3 — user-authored custom tutor personas. Built-ins remain immutable.
+    personaSaveCustom: (args) => ipcRenderer.invoke('personas:save-custom', args || {}),
+    personaDeleteCustom: (id) => ipcRenderer.invoke('personas:delete-custom', { id }),
     agentGet: (slug) => ipcRenderer.invoke('agent:get', { slug }),
     agentSet: (slug, profile) => ipcRenderer.invoke('agent:set', { slug, profile }),
     // User identity — name + avatar (data-URL). Stored at vault/data/profile.json.
