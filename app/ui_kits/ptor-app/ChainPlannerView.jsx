@@ -660,61 +660,130 @@ function ChainPlannerView({ open, onClose, context }) {
               );
             }
 
-            // Default — Accept / Refuse row.
+            // v0.6.4 — Lung+Muse redesign. Original cramped one-line strip
+            // (file-path metadata + Refuse + chrome-rectangle Accept) clashed
+            // with the manuscript register. Reframed as: COMMITMENT MOMENT.
+            //
+            // Lung's frame: this is closer to a quotation closing in a manuscript
+            // (hairline separator → signature) than to a SaaS form footer. Vertical
+            // stack with negative space, hairline divider, asymmetric brass pill.
+            //
+            // Muse's strikes:
+            //   - "已存：" file-path metadata fighting Accept for the same row =
+            //     blurred semantics. Demoted to a tooltip on a tiny mark.
+            //   - 18px gap was too tight: Refuse and Accept read as siblings of
+            //     equal weight, but the path is asymmetric. 36px gap + visual-
+            //     weight asymmetry (text-link vs filled pill).
+            //   - borderRadius: 2 = SaaS rectangle. Replaced with the project's
+            //     千金 asymmetric pill radius 14px 10px 14px 10px.
             return (
-              <div style={{
-                marginTop: 22, display: 'flex',
-                justifyContent: 'space-between', alignItems: 'center', gap: 14,
-              }}>
-                <span style={{
-                  fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic',
-                  flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>
-                  {t('已存：', 'saved: ')}{result.slug}/chain.json
-                </span>
+              <div style={{ marginTop: 28 }}>
+                {/* Hairline divider — manuscript-style ceremonial pause. */}
+                <div aria-hidden="true" style={{
+                  height: 1, marginBottom: 22,
+                  background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--brass-mid) 40%, transparent) 12%, color-mix(in srgb, var(--brass-mid) 40%, transparent) 88%, transparent)',
+                }} />
 
-                {/* Accept-flow inline state. */}
                 {acceptStage === 'loading' ? (
-                  <span style={{
-                    fontStyle: 'italic', fontSize: 14, color: 'var(--ink-muted)',
-                  }}>{t('正在准备第一节…', 'preparing your first course…')}</span>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12,
+                    fontStyle: 'italic', fontSize: 15, color: 'var(--ink-muted)',
+                    fontFamily: '"EB Garamond", "Cormorant Garamond", serif',
+                  }}>
+                    <span style={{
+                      display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
+                      background: 'var(--brass-bright)',
+                      animation: 'hypha-breath 1400ms ease-in-out infinite',
+                    }} />
+                    {t('正在准备第一节课程…', 'preparing your first course…')}
+                  </div>
                 ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-                    {/* Refuse — italic ink-faint, no fill, underline on hover. */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 36 }}>
+                    {/* Refuse — text-link weight. Italic ink-muted at rest, hairline
+                        appears on hover (NOT text-decoration which reads web-form). */}
                     <button
                       onClick={handleRefuseClick}
                       disabled={replanStage === 'loading'}
-                      onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
-                      style={{
-                        background: 'transparent', border: 'none', padding: '4px 2px',
-                        cursor: replanStage === 'loading' ? 'default' : 'pointer',
-                        color: 'var(--ink-faint)',
-                        fontFamily: '"EB Garamond", "Cormorant Garamond", serif',
-                        fontStyle: 'italic', fontSize: 14,
-                        textDecorationColor: 'color-mix(in srgb, var(--ink-faint) 60%, transparent)',
-                        opacity: replanStage === 'loading' ? 0.5 : 1,
+                      onMouseEnter={(e) => {
+                        if (replanStage !== 'loading') {
+                          e.currentTarget.style.color = 'var(--ink-title)';
+                          e.currentTarget.style.borderBottomColor = 'color-mix(in srgb, var(--brass-mid) 50%, transparent)';
+                        }
                       }}
-                    >{t('拒绝', 'Refuse')}</button>
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--ink-muted)';
+                        e.currentTarget.style.borderBottomColor = 'transparent';
+                      }}
+                      style={{
+                        background: 'transparent', border: 'none',
+                        borderBottom: '1px solid transparent',
+                        padding: '4px 2px',
+                        cursor: replanStage === 'loading' ? 'default' : 'pointer',
+                        color: 'var(--ink-muted)',
+                        fontFamily: '"EB Garamond", "Cormorant Garamond", serif',
+                        fontStyle: 'italic', fontSize: 15, letterSpacing: '0.04em',
+                        opacity: replanStage === 'loading' ? 0.5 : 1,
+                        transition: 'color 220ms, border-color 220ms',
+                      }}
+                    >{t('拒绝', 'refuse')}</button>
 
-                    {/* Accept — filled brass-bright, italic Garamond. */}
+                    {/* Accept — manuscript brass pill. Asymmetric radius (14/10),
+                        italic Garamond, lift-on-hover, drop shadow, inner highlight.
+                        The visual gravity that the previous chrome rectangle was
+                        trying to claim, in a register that fits the rest of the modal. */}
                     <button
                       onClick={handleAccept}
                       disabled={acceptStage === 'loading'}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow =
+                          'inset 0 1px 0 color-mix(in srgb, #fff 28%, transparent), ' +
+                          '0 6px 16px -4px color-mix(in srgb, var(--brass-bright) 60%, transparent), ' +
+                          '0 2px 4px rgba(0,0,0,0.18)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow =
+                          'inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent), ' +
+                          '0 3px 10px -3px color-mix(in srgb, var(--brass-bright) 50%, transparent), ' +
+                          '0 1px 2px rgba(0,0,0,0.12)';
+                      }}
                       style={{
                         background: 'var(--brass-bright)',
-                        border: '1px solid color-mix(in srgb, var(--brass-bright) 75%, var(--ink-title))',
-                        borderRadius: 2,
+                        border: 'none',
+                        borderRadius: '14px 10px 14px 10px',
                         cursor: 'pointer',
                         color: 'var(--bg-base)',
-                        fontFamily: '"EB Garamond", "Cormorant Garamond", serif',
-                        fontStyle: 'italic', fontSize: 15,
-                        padding: '8px 22px',
-                        boxShadow: 'inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent)',
+                        fontFamily: '"EB Garamond", "Cormorant Garamond", "Noto Serif SC", serif',
+                        fontStyle: 'italic', fontSize: 17,
+                        fontWeight: 500,
+                        letterSpacing: '0.04em',
+                        padding: '11px 32px',
+                        boxShadow:
+                          'inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent), ' +
+                          '0 3px 10px -3px color-mix(in srgb, var(--brass-bright) 50%, transparent), ' +
+                          '0 1px 2px rgba(0,0,0,0.12)',
+                        transition: 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms',
                       }}
-                    >{t('接受', 'Accept')}</button>
+                    >{t('接受', 'accept')}</button>
                   </div>
                 )}
+
+                {/* Filename strip — demoted from competing peer to subtle margin
+                    note. Right-aligned italic small caps, 11px, only visible if
+                    the user wants the file path. */}
+                <div style={{
+                  marginTop: 14, textAlign: 'right',
+                  fontFamily: '"EB Garamond", serif',
+                  fontStyle: 'italic', fontSize: 11,
+                  color: 'var(--ink-faint)', opacity: 0.55,
+                  letterSpacing: '0.04em',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}
+                  title={`${result.slug}/chain.json`}
+                >
+                  {t('已存', 'saved')} · {result.slug}/chain.json
+                </div>
               </div>
             );
           })()}

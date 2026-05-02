@@ -1592,36 +1592,60 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
               color: 'var(--ink-faint)',
             }}>
               the goal feels bigger than one curriculum?{' '}
-              <button
-                type="button"
-                disabled={!topic.trim() && !goal.trim()}
-                onClick={() => {
-                  try {
-                    window.dispatchEvent(new CustomEvent('hypha:open-chain-planner', {
-                      detail: {
-                        topic: (topic || '').trim(),
-                        goal: (goal || '').trim(),
-                        timeCommit: timeCommit || 'month',
-                        clarifications: [],     // welcome form's clarifications come AFTER first submit; skip
-                      },
-                    }));
-                  } catch (_) {}
-                }}
-                style={{
-                  background: 'transparent', border: 'none', padding: 0,
-                  font: 'inherit', fontStyle: 'italic',
-                  color: (!topic.trim() && !goal.trim()) ? 'var(--ink-faint)' : 'var(--brass-bright)',
-                  cursor: (!topic.trim() && !goal.trim()) ? 'not-allowed' : 'pointer',
-                  borderBottom: '1px solid transparent',
-                  opacity: (!topic.trim() && !goal.trim()) ? 0.5 : 1,
-                  transition: 'border-color 200ms, color 200ms, opacity 200ms',
-                }}
-                onMouseEnter={e => { if (topic.trim() || goal.trim()) e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderBottomColor = 'transparent'; }}
-                title={(!topic.trim() && !goal.trim())
-                  ? 'fill in topic or goal first'
-                  : 'break it into a chain of prerequisites first — Hypha plans a sequence of courses from your starting point to the goal'}
-              >plan a chain →</button>
+              {(() => {
+                // v0.6.4 — chain-plan gate: require all welcome-form fields filled
+                // before the user can fire planChain. Previously enabled with
+                // topic OR goal; that fired plans against incomplete context
+                // (no time budget → wrong feasibility, wrong link counts).
+                const hasTopic = !!topic.trim();
+                const hasGoal = !!goal.trim();
+                const customValid = timeCommit !== 'custom'
+                  || (Number.isFinite(Number(customLessons)) && Number(customLessons) >= 1 && Number(customLessons) <= 200);
+                const ready = hasTopic && hasGoal && !!timeCommit && customValid;
+                const isZh = /[一-龥]/.test(`${topic} ${goal}`);
+                const missing = [
+                  !hasTopic && (isZh ? '主题' : 'topic'),
+                  !hasGoal && (isZh ? '目标' : 'goal'),
+                  !customValid && (isZh ? '课程数' : 'custom lessons'),
+                ].filter(Boolean).join(', ');
+                return (
+                  <button
+                    type="button"
+                    disabled={!ready}
+                    onClick={() => {
+                      if (!ready) return;
+                      try {
+                        window.dispatchEvent(new CustomEvent('hypha:open-chain-planner', {
+                          detail: {
+                            topic: (topic || '').trim(),
+                            goal: (goal || '').trim(),
+                            timeCommit: timeCommit || 'month',
+                            customLessons: timeCommit === 'custom' ? Number(customLessons) : null,
+                            tier: tier || 'moderate',
+                            clarifications: [],
+                          },
+                        }));
+                      } catch (_) {}
+                    }}
+                    style={{
+                      background: 'transparent', border: 'none', padding: 0,
+                      font: 'inherit', fontStyle: 'italic',
+                      color: ready ? 'var(--brass-bright)' : 'var(--ink-faint)',
+                      cursor: ready ? 'pointer' : 'not-allowed',
+                      borderBottom: '1px solid transparent',
+                      opacity: ready ? 1 : 0.5,
+                      transition: 'border-color 200ms, color 200ms, opacity 200ms',
+                    }}
+                    onMouseEnter={e => { if (ready) e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderBottomColor = 'transparent'; }}
+                    title={ready
+                      ? 'break it into a chain of prerequisites first — Hypha plans a sequence of courses from your starting point to the goal'
+                      : (isZh
+                          ? `请先填写：${missing || '所有字段'}`
+                          : `fill in first: ${missing || 'all fields'}`)}
+                  >plan a chain →</button>
+                );
+              })()}
             </div>
 
             {/* v0.5.0 — source-material upload (optional). When set, the
