@@ -433,68 +433,12 @@ function VaultTree({ active, onSelect, viewMode }) {
         for (const g of chainBySlug.values()) {
           g.folders.sort((a, b) => (a.chainLinkIdx ?? 9999) - (b.chainLinkIdx ?? 9999));
         }
-        const renderItems = [];
-        for (const f of nonChain) renderItems.push({ kind: 'folder', folder: f, isChainLink: false });
-        for (const g of chainBySlug.values()) {
-          renderItems.push({ kind: 'chain-header', group: g });
-          // v0.7.1 — skip nesting the chain's folders when the header is collapsed.
-          // The header itself remains visible (with link count + completed) so the
-          // user knows what's hidden.
-          if (chainCollapse[g.slug]) continue;
-          for (const f of g.folders) renderItems.push({ kind: 'folder', folder: f, isChainLink: true, group: g });
-        }
-        return renderItems.map((entry, entryIdx) => {
-          if (entry.kind === 'chain-header') {
-            const g = entry.group;
-            const isCollapsed = !!chainCollapse[g.slug];
-            const completed = g.folders.filter(f => {
-              // crude: link is "active" if any of its items isn't a placeholder
-              return f.items && f.items.some(it => !it.ghost);
-            }).length;
-            return (
-              <button
-                key={'chain-header-' + g.slug}
-                type="button"
-                onClick={() => toggleChainCollapse(g.slug)}
-                title={isCollapsed
-                  ? `expand · ${g.folders.length} link${g.folders.length === 1 ? '' : 's'} hidden`
-                  : `collapse · ${g.folders.length} link${g.folders.length === 1 ? '' : 's'} in this chain`}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  width: '100%', textAlign: 'left',
-                  padding: '18px 14px 6px',
-                  marginTop: entryIdx > 0 ? 14 : 0,
-                  background: 'transparent',
-                  border: 'none',
-                  borderTop: entryIdx > 0 ? '1px solid color-mix(in srgb, var(--brass-mid) 24%, transparent)' : 'none',
-                  fontFamily: '"Cormorant Garamond", "EB Garamond", "Noto Serif SC", Georgia, serif',
-                  fontStyle: 'italic',
-                  fontSize: 12.5,
-                  letterSpacing: '0.18em',
-                  textTransform: 'uppercase',
-                  color: 'var(--brass-bright)',
-                  cursor: 'pointer',
-                  opacity: isCollapsed ? 0.65 : 0.92,
-                  transition: 'opacity 220ms, color 200ms',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = isCollapsed ? '0.65' : '0.92'; }}
-              >
-                <span aria-hidden="true" style={{
-                  display: 'inline-block',
-                  fontSize: 9, lineHeight: 1, opacity: 0.85,
-                  transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-                  transition: 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)',
-                  width: 10, textAlign: 'center',
-                }}>▼</span>
-                <span>
-                  chain · {g.ultimateGoal.length > 32 ? g.ultimateGoal.slice(0, 32) + '…' : g.ultimateGoal}{g.totalLinks ? ` · ${completed}/${g.totalLinks}` : ''}
-                </span>
-              </button>
-            );
-          }
-          const folder = entry.folder;
-          const isChainLink = entry.isChainLink;
+
+        // v0.7.2 — folder render extracted as helper so chain groups can wrap
+        // it in an animated grid+opacity container (lift the WHOLE group as
+        // one motion unit, not per-row stagger). Same easing function as the
+        // existing sub-folder grid trick — same family, slightly heavier.
+        const renderFolder = (folder, isChainLink) => {
           const chainIndent = isChainLink ? 16 : 0;
           const isOpen = !!open[folder.folder];
           const isFolderCtxTarget = ctxMenu && ctxMenu.kind === 'folder' && ctxMenu.id === folder.folder;
@@ -723,8 +667,97 @@ function VaultTree({ active, onSelect, viewMode }) {
               </div>
             </div>
           </React.Fragment>
-        );
-      });
+          );
+        };
+
+        // v0.7.2 — assemble: non-chain folders flat, then per-chain (header +
+        // animated wrapper containing folders). Wrapper uses the same CSS-grid
+        // trick as the sub-folder open/close (gridTemplateRows 0fr↔1fr) so
+        // motion grammar is unified — but slightly longer (380ms vs 320ms) +
+        // an opacity layer with delayed-entry on expand. The opacity delay is
+        // the chain's signature: content "settles" after the height resolves,
+        // a manuscript-register motif that the sub-folder doesn't have.
+        const elements = [];
+        let entryIdx = 0;
+        for (const f of nonChain) {
+          elements.push(renderFolder(f, false));
+          entryIdx += 1;
+        }
+        for (const g of chainBySlug.values()) {
+          const isCollapsed = !!chainCollapse[g.slug];
+          const completed = g.folders.filter(f => f.items && f.items.some(it => !it.ghost)).length;
+          const headerEntryIdx = entryIdx;
+          elements.push(
+            <button
+              key={'chain-header-' + g.slug}
+              type="button"
+              onClick={() => toggleChainCollapse(g.slug)}
+              title={isCollapsed
+                ? `expand · ${g.folders.length} link${g.folders.length === 1 ? '' : 's'} hidden`
+                : `collapse · ${g.folders.length} link${g.folders.length === 1 ? '' : 's'} in this chain`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                width: '100%', textAlign: 'left',
+                padding: '18px 14px 6px',
+                marginTop: headerEntryIdx > 0 ? 14 : 0,
+                background: 'transparent',
+                border: 'none',
+                borderTop: headerEntryIdx > 0 ? '1px solid color-mix(in srgb, var(--brass-mid) 24%, transparent)' : 'none',
+                fontFamily: '"Cormorant Garamond", "EB Garamond", "Noto Serif SC", Georgia, serif',
+                fontStyle: 'italic',
+                fontSize: 12.5,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: 'var(--brass-bright)',
+                cursor: 'pointer',
+                opacity: isCollapsed ? 0.65 : 0.92,
+                transition: 'opacity 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
+              onMouseLeave={e => { e.currentTarget.style.opacity = isCollapsed ? '0.65' : '0.92'; }}
+            >
+              <span aria-hidden="true" style={{
+                display: 'inline-block',
+                fontSize: 9, lineHeight: 1, opacity: 0.85,
+                transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                transition: 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
+                width: 10, textAlign: 'center',
+              }}>▼</span>
+              <span>
+                chain · {g.ultimateGoal.length > 32 ? g.ultimateGoal.slice(0, 32) + '…' : g.ultimateGoal}{g.totalLinks ? ` · ${completed}/${g.totalLinks}` : ''}
+              </span>
+            </button>
+          );
+          entryIdx += 1;
+          // Animated chain-group wrapper. Same grid-rows trick as sub-folder
+          // (line ~565 in renderFolder) — same easing function — but +60ms
+          // duration + opacity layer with delayed-entry on expand. The
+          // pointer-events: none under collapse prevents accidental clicks
+          // on the about-to-vanish row during fade.
+          elements.push(
+            <div
+              key={'chain-group-' + g.slug}
+              style={{
+                display: 'grid',
+                gridTemplateRows: isCollapsed ? '0fr' : '1fr',
+                transition: 'grid-template-rows 380ms cubic-bezier(0.22, 1, 0.36, 1)',
+              }}
+            >
+              <div style={{
+                overflow: 'hidden', minHeight: 0,
+                opacity: isCollapsed ? 0 : 1,
+                pointerEvents: isCollapsed ? 'none' : 'auto',
+                transition: isCollapsed
+                  ? 'opacity 200ms cubic-bezier(0.22, 1, 0.36, 1)'
+                  : 'opacity 240ms cubic-bezier(0.22, 1, 0.36, 1) 80ms',
+              }}>
+                {g.folders.map(f => renderFolder(f, true))}
+              </div>
+            </div>
+          );
+          entryIdx += g.folders.length;
+        }
+        return elements;
       })()}
       {/* Hypha — TOKONOMA-DIRECT footer band. Per Lung+Muse council 2026-04-30:
           phase counter removed (PTOR SRS-state irrelevant to curriculum app).
