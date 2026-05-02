@@ -602,14 +602,24 @@ function HyphaEvolutionWelcome({ onPick }) {
     'done': 1.0,
     'error': 0,
   };
+  // 2026-05-01 — designing heartbeat. Server emits 'designing-heartbeat'
+  // every 5s during the LLM call; we surface the elapsed counter in the
+  // status line so user can tell the call is alive even when it's slow.
+  const [elapsedSec, setElapsedSec] = React.useState(0);
   React.useEffect(() => {
     if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.onCurriculumProgress) return;
     const off = window.ptor.hypha.onCurriculumProgress((p) => {
-      if (p && p.stage) {
-        setStatus(p.stage);
-        if (window.RuntimeSubstrate && CURRICULUM_STAGE_CURE[p.stage] !== undefined) {
-          window.RuntimeSubstrate.set({ a1Cure: CURRICULUM_STAGE_CURE[p.stage] });
-        }
+      if (!p || !p.stage) return;
+      // Heartbeat just updates the elapsed counter without flipping `status`.
+      if (p.stage === 'designing-heartbeat') {
+        setElapsedSec(Number(p.elapsed) || 0);
+        return;
+      }
+      // Real stage change. Reset elapsed when leaving 'designing'.
+      setStatus(p.stage);
+      if (p.stage !== 'designing') setElapsedSec(0);
+      if (window.RuntimeSubstrate && CURRICULUM_STAGE_CURE[p.stage] !== undefined) {
+        window.RuntimeSubstrate.set({ a1Cure: CURRICULUM_STAGE_CURE[p.stage] });
       }
     });
     return () => {
@@ -618,11 +628,12 @@ function HyphaEvolutionWelcome({ onPick }) {
     };
   }, []);
 
+  // 2026-05-01 — counts cut ~5× per Leo's waste-tax audit. Sub-text matches.
   const TIME_OPTIONS = [
-    { id: 'week',    label: 'a week',    sub: '~30 lessons · quick dive' },
-    { id: 'month',   label: 'a month',   sub: '~80 lessons · deep dive' },
-    { id: 'quarter', label: '3 months',  sub: '~150 lessons · expert path' },
-    { id: 'open',    label: 'open-ended', sub: 'as long as it takes' },
+    { id: 'week',    label: 'a week',     sub: '~6 lessons · curiosity dive' },
+    { id: 'month',   label: 'a month',    sub: '~16 lessons · working understanding' },
+    { id: 'quarter', label: '3 months',   sub: '~30 lessons · deep traversal' },
+    { id: 'open',    label: 'open-ended', sub: '~24 lessons · no rush' },
   ];
 
   // Stage 1 → 2 transition. Submit form, request clarifying questions.
@@ -824,11 +835,19 @@ function HyphaEvolutionWelcome({ onPick }) {
   const statusLine = (() => {
     switch (status) {
       case 'harvesting': return 'gathering sources from the better parts of the web…';
-      case 'designing': return 'arranging 60-120 lessons in scaffolded order — this takes 1-3 minutes…';
+      case 'designing': {
+        // 2026-05-01 — show live elapsed counter so the wait isn't ambiguous.
+        // Typical: "designing the sequence… 30s elapsed". After 60s, hint at
+        // patience; the hard 180s timeout will surface its own error.
+        const base = 'designing the sequence';
+        if (elapsedSec >= 60) return `${base} — still working at ${elapsedSec}s (will time out at 180s)…`;
+        if (elapsedSec >= 5)  return `${base}… ${elapsedSec}s elapsed`;
+        return `${base}…`;
+      }
       case 'writing-lessons': return 'writing lesson stubs to your vault…';
       case 'error': return createError
         ? `failed — ${createError.slice(0, 200)}`
-        : 'couldn\'t begin — check api key in settings (⌘,) and try again.';
+        : 'couldn\'t begin — check api key in settings and try again.';
       default: return '';
     }
   })();
@@ -840,7 +859,10 @@ function HyphaEvolutionWelcome({ onPick }) {
     if (phase === 'asking')   return { title: 'thinking up the right questions…', sub: 'A few targeted questions, then your course of conversations.' };
     if (phase === 'gate')     return { title: '判定：几乎不可能', sub: 'time and target are mismatched — pick a path before we commit.' };
     if (phase === 'clarify')  return { title: 'a few questions before we begin', sub: 'Your answers shape the curriculum. Pick a bubble or "Decide for me".' };
-    if (phase === 'creating') return { title: topic, sub: statusLine || 'preparing your course of conversations…' };
+    // 2026-05-01 — sub cleared during creating; the spinner-adjacent render
+    // below already shows statusLine. Two simultaneous "arranging…" lines
+    // (one in header, one under spinner) was a real-screenshot bug.
+    if (phase === 'creating') return { title: topic, sub: '' };
     return { title: '', sub: '' };
   })();
 
@@ -1349,11 +1371,16 @@ function HyphaEvolutionWelcome({ onPick }) {
           </div>
         )}
 
+        {/* 2026-05-01 — replaced ugly all-caps mono ⌘-prefix bar with a
+            quiet italic Garamond hint. The keyboard shortcuts still work,
+            they just stop announcing themselves like a SaaS app footer. */}
         <div style={{
-          marginTop: 48, textAlign: 'center', fontStyle: 'normal', fontSize: 12,
-          letterSpacing: '0.14em', textTransform: 'uppercase',
-          color: 'var(--ink-faint)', opacity: 0.6,
-        }}>⌘, settings · ⌘ click italic word above to switch to recall · ⌘ enter to continue</div>
+          marginTop: 48, textAlign: 'center',
+          fontFamily: '"EB Garamond", "Noto Serif SC", Georgia, serif',
+          fontStyle: 'italic', fontSize: 12.5,
+          color: 'var(--ink-faint)', opacity: 0.55,
+          letterSpacing: 0,
+        }}>press enter to continue · esc to cancel</div>
       </div>
     </div>
   );

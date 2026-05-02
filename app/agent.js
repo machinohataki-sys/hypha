@@ -318,18 +318,42 @@ async function llmJSON(messages, settings, opts = {}) {
     // GLM disable-thinking parameter (per Z.AI OpenAI-compat docs).
     body.thinking = { type: 'disabled' };
   }
+  // 2026-05-01 — hard timeout via AbortController. Default 90s, callers can
+  // override (designSequence uses 180s for the trimmed monolith). Without
+  // this the LLM call could hang indefinitely (Yogo: 85% structural-bug
+  // probability behind the 10-min user complaint).
+  const timeoutMs = opts.timeoutMs || 90_000;
+  const ac = new AbortController();
+  const tid = setTimeout(() => ac.abort(), timeoutMs);
   let r;
   try {
-    r = await c.chat.completions.create(body);
+    r = await c.chat.completions.create(body, { signal: ac.signal });
   } catch (err) {
+    if (err && (err.name === 'AbortError' || /aborted/i.test(err.message || ''))) {
+      clearTimeout(tid);
+      const e = new Error(`LLM call timed out after ${Math.round(timeoutMs / 1000)}s`);
+      e.code = 'LLM_TIMEOUT';
+      throw e;
+    }
     // If the disable-thinking param itself is rejected, retry without it.
     if (isGLM && body.thinking && err && /thinking|enable_thinking/i.test(err.message || '')) {
       delete body.thinking;
-      r = await c.chat.completions.create(body);
+      try { r = await c.chat.completions.create(body, { signal: ac.signal }); }
+      catch (err2) {
+        clearTimeout(tid);
+        if (err2 && (err2.name === 'AbortError' || /aborted/i.test(err2.message || ''))) {
+          const e = new Error(`LLM call timed out after ${Math.round(timeoutMs / 1000)}s`);
+          e.code = 'LLM_TIMEOUT';
+          throw e;
+        }
+        throw err2;
+      }
     } else {
+      clearTimeout(tid);
       throw err;
     }
   }
+  clearTimeout(tid);
   const msg = r.choices?.[0]?.message;
   if (!msg) return '';
   // Prefer message.content; fall back to reasoning_content if content is empty
@@ -451,14 +475,44 @@ async function classifyArchetype(topic, goal, settings) {
   } catch (_) { return 'TECH-CONCEPT'; }
 }
 
+// summarizeSources — 1 small LLM call (~500 tok) that compresses 25 raw
+// harvest results into a "shape of the field" digest for designSequence to
+// consume. Per Leo's audit: shipping 25 source lines as raw input was 5×
+// input-token bloat with no downstream use (designLesson only ships the top
+// 10 titles). Output: dense paragraph naming the field's main subareas +
+// 2026-currency papers/repos/debates by name. Falls back gracefully.
+async function summarizeSources(topic, sources, settings) {
+  const lines = sources.slice(0, 25)
+    .map((s, i) => `${i + 1}. [${s.sourceType}] ${s.title} — ${(s.excerpt || '').slice(0, 200)}`)
+    .join('\n');
+  const sys = `Compress a list of harvested sources about a learning topic into a single dense "shape of the field" paragraph (≤450 tokens). Name 4-7 subareas. Cite specific recent papers / repos / debates BY NAME (author/year/title) where the source list contains them. No fluff, no list format, no markdown. This digest will feed a curriculum-design step that needs to see the field's actual structure, not 25 disconnected items.`;
+  const user = `Topic: ${topic}\n\nHarvested sources:\n${lines}\n\nReturn the digest paragraph.`;
+  try {
+    const raw = await llmJSON(
+      [{ role: 'system', content: sys }, { role: 'user', content: user }],
+      settings,
+      { json: false, temperature: 0.3, max_tokens: 600, timeoutMs: 60_000 }
+    );
+    return (raw || '').trim();
+  } catch (_) {
+    // Fallback to raw list — caller has its own try/catch.
+    return lines;
+  }
+}
+
 async function designSequence(topic, sources, level, settings, opts = {}) {
   const goal = (opts.goal || '').trim();
   const timeCommit = opts.timeCommit || 'month';
+  // 2026-05-01 council (Leo's 95% waste-tax audit + Lung's mycelial argument):
+  // upfront generation of 60-100 lessons is wasted — designLesson regenerates
+  // the body per-turn and lessons:adapt-after-finish overwrites future
+  // learn_goals. Cut counts ~5×; rely on Tier 2 emit-as-needed (next ship)
+  // to extend the curriculum lazily as the user advances.
   const TIME_TARGETS = {
-    week:    { count: '25-35',   anchor: '~30 lessons (10-15 min each, finishable in a week)' },
-    month:   { count: '60-100',  anchor: '~80 lessons (build genuine working knowledge over a month)' },
-    quarter: { count: '120-180', anchor: '~150 lessons (expert path; deep coverage + many spaced revisits)' },
-    open:    { count: '80-150',  anchor: '~100+ lessons (no rush, prioritize depth and frontier reach)' },
+    week:    { count: '5-8',   anchor: '5-8 lessons (curiosity dive; finishable in a week)' },
+    month:   { count: '12-20', anchor: '12-20 lessons (build a working understanding over a month)' },
+    quarter: { count: '25-40', anchor: '25-40 lessons (deep traversal; spaced revisits across months)' },
+    open:    { count: '18-30', anchor: '18-30 lessons (no rush, prioritize depth and frontier reach)' },
   };
   const T = TIME_TARGETS[timeCommit] || TIME_TARGETS.month;
 
@@ -479,11 +533,27 @@ async function designSequence(topic, sources, level, settings, opts = {}) {
     const skipList = Object.entries(emph)
       .filter(([_, v]) => v < 0)
       .map(([k]) => `${k} ${PRIMITIVES[k].name}`).join(', ');
-    pedagogyBlock = `\n═══ Hypha Lacquer Loop — domain archetype: ${archetype} ═══\n\nFor this archetype, apply these pedagogical primitives. Each lesson MUST tag which primitives it exercises.\n\n${directiveLines}${skipList ? `\n\nForbidden as primary lesson type for this archetype: ${skipList}` : ''}\n\nPer-lesson schema rules:\n- "methodTags": array of 1-3 primitive IDs (e.g. ["P1","P3"]) the lesson actively exercises. Only HIGH or MED primitives may appear here. Each HIGH primitive MUST appear in methodTags ≥1× per 3 consecutive lessons across the curriculum.\n- "dominantPrimitive": single primitive ID — the lesson's center of gravity (which primitive is the lesson's primary vehicle).\n`;
-    schemaExtra = ', "methodTags": [string], "dominantPrimitive": string';
+    // methodTags / dominantPrimitive removed 2026-05-01 (Leo's waste-tax audit):
+    // designLesson reads EMPHASIS[archetype] directly per-turn (line 549),
+    // never reading the per-lesson upfront tags. They were ~80-150 output
+    // tokens × N lessons of pure overhead. Archetype itself stays at curriculum
+    // level (state.archetype) where it's actually consumed.
+    pedagogyBlock = `\n═══ Hypha Lacquer Loop — domain archetype: ${archetype} ═══\n\nFor this archetype, prioritize these pedagogical primitives across the curriculum (the runtime tutor will apply them per-turn):\n\n${directiveLines}${skipList ? `\n\nForbidden as primary lesson type for this archetype: ${skipList}` : ''}\n`;
+    schemaExtra = '';
   }
 
-  const sourceList = sources.slice(0, 25).map((s, i) => `${i + 1}. [${s.sourceType}] ${s.title} — ${s.excerpt || ''}`).join('\n');
+  // 2026-05-01 — replaced raw 25-source list (~3000 input tokens) with a
+  // ~400-token shape-of-the-field digest. Per Leo's audit, designLesson
+  // downstream only ships the top-10 source titles; the raw 25-source list
+  // shipped to designSequence was 5× input bloat with no downstream use.
+  // Falls back to the raw list if summarization fails (best-effort).
+  let sourceDigest;
+  try {
+    sourceDigest = await summarizeSources(topic, sources, settings);
+  } catch (err) {
+    console.error('[designSequence] source summary failed, falling back to raw list:', err.message);
+    sourceDigest = sources.slice(0, 25).map((s, i) => `${i + 1}. [${s.sourceType}] ${s.title} — ${s.excerpt || ''}`).join('\n');
+  }
   const sys = `${HYPHA_FULL}You design a deep sequential pseudo-curriculum (basic→frontier) in the SAGE register: 循循渐进 — each lesson a small step beyond the previous, never a leap. The student commits to a SUBSTANTIAL course of conversations, not a survey.
 
 Output a JSON object: { "lessons": [ { "title": string, "learnGoal": string, "prereqIds": [int]${schemaExtra} } ] }
@@ -512,15 +582,18 @@ Banned words in title or learnGoal (forge §219 register): AI, LLM, embedding, m
 Level: ${level}
 Time commitment: ${timeCommit} (target ${T.count} lessons)
 ${goal ? `Student's stated goal: ${goal}\n\nCalibrate the curriculum to this goal. The final 5-10 lessons should specifically equip the student to act on it — pull case studies, exercises, and frontier readings that ladder toward the goal, not generic survey content.\n` : ''}${clarifLines ? `\nStudent's specific preferences (from a clarifying questionnaire — TREAT AS HARD CONSTRAINTS, not suggestions):\n${clarifLines}\n\nThe curriculum must reflect every preference above. If user said "Decide for me" on a question, you may use your judgment for that axis only. Other answers are non-negotiable.\n` : ''}
-Top sources:
-${sourceList}
+Shape of the field (digest of harvested sources):
+${sourceDigest}
 
 Return the JSON object now. Aim for the count target above.`;
 
   const raw = await llmJSON(
     [{ role: 'system', content: sys }, { role: 'user', content: user }],
     settings,
-    { json: true, temperature: 0.55, max_tokens: 14000 }
+    // 2026-05-01: max_tokens cut from 14000 → 4000 (per Leo's audit on
+    // expected output size of 12-20 lessons). timeoutMs 180s upper bound;
+    // typical wall time should be 20-60s now.
+    { json: true, temperature: 0.55, max_tokens: 4000, timeoutMs: 180_000 }
   );
   try {
     const parsed = JSON.parse(raw);
@@ -529,15 +602,13 @@ Return the JSON object now. Aim for the count target above.`;
       title: l.title,
       learnGoal: l.learnGoal,
       prereqIds: l.prereqIds || [],
-      methodTags: Array.isArray(l.methodTags) ? l.methodTags : [],
-      dominantPrimitive: l.dominantPrimitive || null,
     }));
     return { archetype, lacquer: !disableLacquer, lessons };
   } catch (_) {
     return {
       archetype,
       lacquer: !disableLacquer,
-      lessons: [{ idx: 0, title: 'Foundations', learnGoal: `Establish what '${topic}' actually means.`, prereqIds: [], methodTags: [], dominantPrimitive: null }],
+      lessons: [{ idx: 0, title: 'Foundations', learnGoal: `Establish what '${topic}' actually means.`, prereqIds: [] }],
     };
   }
 }

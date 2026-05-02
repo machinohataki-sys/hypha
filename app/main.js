@@ -929,11 +929,32 @@ ipcMain.handle('curriculum:create', async (event, { topic, level, goal, timeComm
     vault.writeJSON(`${slug}/sources.json`, sources);
 
     emit('designing', { sourceCount: sources.length });
-    const { archetype, lessons: sequence } = await _hyphaAgent.designSequence(topic, sources, level || 'intermediate', settings, {
-      goal: goal || '',
-      timeCommit: timeCommit || 'month',
-      clarifications: clarifications || [],
-    });
+    // 2026-05-01 — heartbeat events every 5s during designing so the user
+    // sees a live "elapsed" counter instead of a static spinner. Without
+    // this, a 30-90s LLM call is indistinguishable from a hung call.
+    const designStart = Date.now();
+    const heartbeatId = setInterval(() => {
+      const elapsed = Math.round((Date.now() - designStart) / 1000);
+      try { emit('designing-heartbeat', { elapsed }); } catch (_) {}
+    }, 5000);
+    let archetype, sequence;
+    try {
+      const r = await _hyphaAgent.designSequence(topic, sources, level || 'intermediate', settings, {
+        goal: goal || '',
+        timeCommit: timeCommit || 'month',
+        clarifications: clarifications || [],
+      });
+      archetype = r.archetype;
+      sequence = r.lessons;
+    } catch (err) {
+      clearInterval(heartbeatId);
+      if (err && err.code === 'LLM_TIMEOUT') {
+        emit('error', { error: 'curriculum design took too long. try a smaller time commitment, or check your network and retry.' });
+        return { ok: false, error: 'design timeout' };
+      }
+      throw err;
+    }
+    clearInterval(heartbeatId);
 
     emit('writing-lessons', { lessonCount: sequence.length, archetype });
     const lessonRels = [];
