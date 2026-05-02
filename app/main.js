@@ -2851,7 +2851,7 @@ ipcMain.handle('settings:test', async () => {
 // in parallel → clarifyQuestions → classifyPriorKnowledge → planChain) plus
 // the pure-function feasibility classifier. Persists chain.json to vault.
 // Renderer-friendly: emits hypha:chain-progress events at each stage.
-ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, priorConsistency, failedAttempts, answers, tier } = {}) => {
+ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, priorConsistency, failedAttempts, answers, tier, customLessons, uploadedSource } = {}) => {
   if (!goal || !String(goal).trim()) return { ok: false, error: 'goal required' };
   const settings = _hyphaSettings();
   const lang = /[一-龥]/.test(String(goal)) ? 'zh' : 'en';
@@ -2911,12 +2911,20 @@ ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, prio
     const chainData = {
       slug, ultimate_goal: goal, lang, created_at: new Date().toISOString(),
       tier: userPacingTier,
+      // v0.6.7 — persist customLessons + uploadedSource so chain:start/advance
+      // can pass them into _runCurriculumCreate per link. Previously the chain
+      // forgot the user's chosen lesson count + dropped the uploaded PDF.
+      customLessons: (typeof customLessons === 'number' && customLessons >= 1) ? customLessons : null,
+      uploadedSource: (uploadedSource && Array.isArray(uploadedSource.chapters)) ? uploadedSource : null,
       inputs: { timeWeeks: feasibilityInput.timeWeeks, dailyHours: feasibilityInput.dailyHours, priorConsistency: feasibilityInput.priorConsistency, failedAttempts: feasibilityInput.failedAttempts },
       classifications: { difficulty: diff, intrinsic, prior },
       questionnaire: safeAnswers,
       feasibility: verdict,
       plans, chain,
     };
+    // v0.6.7 — flag the chain's vault folder as a meta directory so VaultTree
+    // can hide it (or render specially). Empty 0-node folders confuse users.
+    chainData.is_chain_meta = true;
     vault.writeJSON(`${slug}/chain.json`, chainData);
 
     emit('done', { slug });
@@ -2943,6 +2951,24 @@ function _mapWeeksToTimeCommit(weeks) {
   if (w <= 10) return 'two-month';
   if (w <= 16) return 'quarter';
   return 'open';
+}
+
+// v0.6.7 — proportional per-link lesson count. _mapWeeksToTimeCommit alone
+// produced 6-lesson curricula for every chain link <2 weeks (which is most
+// chains). Compute lessons directly from duration + dailyHours so a 1.5-week
+// heroic link gets ~16 lessons, not 6. Used by chain:start + chain:advance.
+//
+// Formula: round(duration_weeks × 7 × dailyHours / hours_per_lesson × tier_mult)
+//   default hours_per_lesson = 1.5 (45min chat + 45min reflection per lesson)
+//   tier_mult: gentle 0.6, moderate 1.0, heroic 1.6
+// Floor: 6 lessons (matches week base). Ceiling: 200 (single-curriculum cap).
+function _perLinkLessonCount(durationWeeks, dailyHours, tier) {
+  const w = Number(durationWeeks) || 1;
+  const hd = Number(dailyHours) || 2;
+  const hpl = 1.5;  // hours per lesson (rough — 1 chat + 0.5 reflection)
+  const mult = tier === 'gentle' ? 0.6 : tier === 'heroic' ? 1.6 : 1.0;
+  const raw = Math.round(w * 7 * hd / hpl * mult);
+  return Math.max(6, Math.min(200, raw));
 }
 
 // v0.6.5 — chain:accept now LAZY-COMMITS (no generation). User flow per
@@ -2975,8 +3001,12 @@ ipcMain.handle('chain:accept', async (event, { slug, covenantSnapshot } = {}) =>
 
     // 2. Persist links-state with ALL pending. Welcome form's continue
     //    button (or chain:start IPC) activates link 0 when user proceeds.
+    //    v0.6.7 — pre-derive each link's slug here so VaultTree can show
+    //    placeholder ghost folders for ALL links (not just link 0). User sees
+    //    the chain shape immediately instead of "where are my N courses?".
     const linksState = links.map((link, idx) => ({
-      idx, slug: null,
+      idx,
+      slug: _topicSlug(link.topic || `link-${idx + 1}`),
       status: 'pending',
       topic: link.topic || '',
       goal: link.exit_criterion || '',
@@ -2984,6 +3014,53 @@ ipcMain.handle('chain:accept', async (event, { slug, covenantSnapshot } = {}) =>
       role: link.role || null,
     }));
     vault.writeJSON(`${slug}/links-state.json`, { links: linksState, updatedAt: new Date().toISOString() });
+    // v0.6.7 — pre-create the empty stub folder + 1 ghost lesson per chain
+    // link 1..N so the user sees the full chain shape in vault tree.
+    // Link 0's real curriculum overwrites its stub when chain:start runs.
+    // intentional-placeholder: these stub folders ARE the complete v0.6.7
+    // chain-visibility feature — they aren't TODOs. The "placeholder" naming
+    // matches v0.4.0's ghost-stub primitive (frontmatter ghost: true + body
+    // _pending_); they materialize when their chain link activates via
+    // chain:advance. Writing them takes ~milliseconds (no LLM call).
+    for (let i = 1; i < linksState.length; i++) {
+      const lk = linksState[i];
+      try {
+        if (!vault.exists || vault.exists(`${lk.slug}/state.json`)) continue;
+        // Minimal stub state.json so the folder shows + chain banner reads chainSlug.
+        vault.writeJSON(`${lk.slug}/state.json`, {
+          chainSlug: slug,
+          chainLinkIdx: i,
+          chainPlaceholder: true,
+          mastered: [], gaps: [],
+          preferences: { level: 'intermediate' },
+          goal: lk.goal,
+          tier: chain.tier || 'moderate',
+          archetype: 'TECH-CONCEPT',
+          phases: [],
+          lessonRels: [],
+        });
+        // Write a single italic-dim "pending" lesson so the folder isn't empty
+        // (which would have caused vault.list to hide it as chain-meta).
+        const today = new Date().toISOString().slice(0, 10);
+        const fm = [
+          '---',
+          `lesson_idx: 0`,
+          `learn_goal: ${JSON.stringify(`pending — chain link ${i + 1}/${linksState.length}: ${lk.topic}`)}`,
+          `locked: true`,
+          `topic_slug: ${lk.slug}`,
+          `date_created: ${today}`,
+          `date_distilled: null`,
+          `phase_id: pending`,
+          `phase_label: ${JSON.stringify('Pending chain link')}`,
+          `phase_lesson_idx: 0`,
+          `ghost: true`,
+          `chain_placeholder: true`,
+          '---',
+        ].join('\n');
+        const body = `${fm}\n\n# (pending — chain link ${i + 1}/${linksState.length})\n\n_pending_\n\nThis is link ${i + 1} of ${linksState.length} in your chain. It will activate when you finish link ${i}. Topic: ${lk.topic}\n`;
+        vault.write(`${lk.slug}/00-pending.md`, body);
+      } catch (_) { /* placeholder is best-effort; never break commit */ }
+    }
     _hyphaAppendEvent('chain_committed', { chainSlug: slug, linkCount: links.length });
 
     return {
@@ -3112,13 +3189,18 @@ ipcMain.handle('chain:start', async (event, { chainSlug } = {}) => {
     if (!firstLink) return { ok: false, error: 'chain has no first link' };
     const firstTopic = firstLink.topic || (chain.ultimate_goal || chainSlug);
     const firstGoal = firstLink.exit_criterion || '';
-    const timeCommit = _mapWeeksToTimeCommit(firstLink.duration_weeks);
+    // v0.6.7 — proportional lesson count + forward uploadedSource so chain
+    // links honor the user's tier choice + reuse the uploaded PDF corpus.
+    const dailyHours = (chain.inputs && chain.inputs.dailyHours) || 2;
+    const customLessonsForLink = _perLinkLessonCount(firstLink.duration_weeks, dailyHours, chain.tier || 'moderate');
     const r = await _runCurriculumCreate(event, {
       topic: firstTopic,
       level: 'intermediate',
       goal: firstGoal,
-      timeCommit,
+      timeCommit: 'custom',
+      customLessons: customLessonsForLink,
       tier: chain.tier || 'moderate',
+      uploadedSource: chain.uploadedSource || null,
       clarifications: [],
     });
     if (!r || !r.ok) {
@@ -3167,12 +3249,18 @@ ipcMain.handle('chain:advance', async (event, { chainSlug } = {}) => {
     if (!nextLink) return { ok: false, error: `chain.json missing link at idx ${nextIdx}` };
     // Mark current done provisionally; restore on _runCurriculumCreate failure.
     links[activeIdx].status = 'done';
+    // v0.6.7 — proportional lesson count + forward uploadedSource (matches
+    // chain:start fix; previously chain:advance produced same 6-lesson stubs).
+    const advDailyHours = (chain.inputs && chain.inputs.dailyHours) || 2;
+    const advCustomLessons = _perLinkLessonCount(Number(nextLink.duration_weeks) || 4, advDailyHours, chain.tier || 'moderate');
     const r = await _runCurriculumCreate(event, {
       topic: nextLink.topic,
       level: 'intermediate',
       goal: nextLink.exit_criterion || '',
-      timeCommit: _mapWeeksToTimeCommit(Number(nextLink.duration_weeks) || 4),
+      timeCommit: 'custom',
+      customLessons: advCustomLessons,
       tier: chain.tier || 'moderate',
+      uploadedSource: chain.uploadedSource || null,
       clarifications: [],
     });
     if (!r || !r.ok) {

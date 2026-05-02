@@ -100,6 +100,9 @@ function ChainPlannerView({ open, onClose, context }) {
           }
         }
       }
+      // v0.6.7 — forward tier + uploadedSource (lost in v0.6.4-6 chain path).
+      // Welcome form's tier selection was being silently dropped here, causing
+      // chain.tier to fall back to 'moderate' regardless of user choice.
       const r = await window.ptor.hypha.chainCreate({
         goal: goalStr,
         timeWeeks: timeCommitToWeeks(ctx.timeCommit),
@@ -107,6 +110,9 @@ function ChainPlannerView({ open, onClose, context }) {
         priorConsistency: 3,
         failedAttempts: 0,
         answers,
+        tier: ctx.tier || 'moderate',
+        customLessons: ctx.customLessons || null,
+        uploadedSource: ctx.uploadedSource || null,
       });
       if (unsub) unsub();
       if (r && r.ok) { setResult(r.data); setStage('result'); }

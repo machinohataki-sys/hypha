@@ -93,6 +93,22 @@ function list() {
       entries = fs.readdirSync(sub, { withFileTypes: true })
         .filter(e => e.isFile() && e.name.toLowerCase().endsWith('.md'));
     } catch (_) { entries = []; }
+    // v0.6.7 — hide chain meta-folders. A folder containing chain.json + zero
+    // .md files is the meta directory holding chain.json/covenant.json/links-
+    // state.json — not a curriculum. Showing it as an empty 0-node folder
+    // confused users (who expected a course there). Surface the chain via the
+    // first link's curriculum + the chain banner in NoteView instead.
+    if (entries.length === 0) {
+      try {
+        const chainPath = path.join(sub, 'chain.json');
+        if (fs.existsSync(chainPath)) {
+          const chainData = JSON.parse(fs.readFileSync(chainPath, 'utf8'));
+          if (chainData && (chainData.is_chain_meta === true || chainData.chain || chainData.ultimate_goal)) {
+            continue;  // skip rendering this chain-meta folder
+          }
+        }
+      } catch (_) {}
+    }
 
     const items = entries.map(e => {
       const full = path.join(sub, e.name);

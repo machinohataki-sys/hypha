@@ -1685,6 +1685,7 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
                             timeCommit: timeCommit || 'month',
                             customLessons: timeCommit === 'custom' ? Number(customLessons) : null,
                             tier: tier || 'moderate',
+                            uploadedSource: uploadedSource || null,  // v0.6.7 — forward to chain
                             clarifications: [],
                           },
                         }));
