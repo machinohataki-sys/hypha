@@ -819,6 +819,21 @@ function PTorApp() {
     return () => window.removeEventListener('hypha:open-evolution', onOpen);
   }, []);
 
+  // v0.2.1 — Concept Logbook navigation. ConceptLogbookPanel dispatches
+  // 'hypha:pick-lesson' when user clicks a lesson row in a concept's
+  // biography. We open that lesson in evolution mode (same as if the user
+  // had clicked it in vault tree).
+  React.useEffect(() => {
+    const onPick = (e) => {
+      const targetRel = e && e.detail && e.detail.rel;
+      if (!targetRel) return;
+      startViewMode('evolution');
+      setActive(targetRel);
+    };
+    window.addEventListener('hypha:pick-lesson', onPick);
+    return () => window.removeEventListener('hypha:pick-lesson', onPick);
+  }, []);
+
   // RECALL chromatic ground — flip data-theme to atlas-day while RECALL is
   // active (warm dust-stone palace background, NOT note-day ivory). Per port
   // plan 2026-05-01: "功能原封不动 + 背景=ATLAS界面的背景". Mirror of

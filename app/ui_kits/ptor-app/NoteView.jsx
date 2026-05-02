@@ -3523,10 +3523,129 @@ function SessionReadView({ rel, session, onBack, onContinue }) {
 //   settled    → brass-bright italic, slight rim (you used it correctly)
 //   drifted    → ink-faint italic + hairline strikethrough (cooling)
 //   expected   → ink-muted italic + brass dashed underline (tutor should bring it up)
+// ConceptLogbookPanel — v0.2.1 per-concept biography, assembled across ALL
+// lessons in the curriculum via concept-logbook:get IPC. Replaces the atlas
+// chip list temporarily (toggled by double-click on a chip). Cross-session
+// view = the moat surface (Lung's CONCEPT_AS_VESSEL: concept is a ship,
+// lessons are ports). cuflow/OpenMAIC structurally cannot have this — they
+// have no week-over-week substrate.
+function ConceptLogbookPanel({ slug, conceptId, currentRel, onClose, onPickLesson }) {
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  React.useEffect(() => {
+    if (!slug || !conceptId) { setLoading(false); return; }
+    if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.conceptLogbook) {
+      setLoading(false); return;
+    }
+    let alive = true;
+    setLoading(true);
+    window.ptor.hypha.conceptLogbook(slug, conceptId)
+      .then(r => { if (alive) { setData(r); setLoading(false); } })
+      .catch(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [slug, conceptId]);
+  const entries = (data && data.ok && Array.isArray(data.entries)) ? data.entries : [];
+  return (
+    <div style={{
+      flex: 1, minHeight: 0, overflowY: 'auto',
+      padding: '20px 18px 32px',
+      fontFamily: '"EB Garamond", "Noto Serif SC", Georgia, serif',
+    }}>
+      <button
+        onClick={onClose}
+        style={{
+          background: 'transparent', border: 'none', padding: 0, margin: '0 0 14px',
+          fontFamily: 'inherit', fontStyle: 'italic', fontSize: 13,
+          color: 'var(--ink-faint)', cursor: 'pointer',
+          borderBottom: '1px solid transparent', transition: 'border-color 200ms, color 200ms',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.color = 'var(--brass-bright)'; e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
+        onMouseLeave={e => { e.currentTarget.style.color = 'var(--ink-faint)'; e.currentTarget.style.borderBottomColor = 'transparent'; }}
+      >← back to atlas</button>
+
+      <div style={{
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: 10.5, letterSpacing: '0.18em', textTransform: 'uppercase',
+        color: 'var(--ink-faint)', marginBottom: 4,
+      }}>biography</div>
+      <h3 style={{
+        margin: '0 0 16px', fontSize: 22, fontStyle: 'italic',
+        color: 'var(--brass-bright)', fontWeight: 400,
+      }}>{conceptId}</h3>
+
+      {loading && (
+        <p style={{ fontStyle: 'italic', color: 'var(--ink-faint)', fontSize: 13 }}>loading…</p>
+      )}
+      {!loading && entries.length === 0 && (
+        <p style={{ fontStyle: 'italic', color: 'var(--ink-faint)', fontSize: 13 }}>
+          this concept has only been seen in the current lesson — no biography yet.
+        </p>
+      )}
+      {!loading && entries.map((e) => {
+        const isCurrent = e.lessonRel === currentRel;
+        const stateLabel = e.state === 'settled' ? 'settled'
+                         : e.state === 'referenced' ? 'referenced'
+                         : e.state === 'drifted' ? 'drifted'
+                         : 'introduced';
+        const stateColor = e.state === 'settled' ? 'var(--brass-bright)'
+                         : e.state === 'referenced' ? 'var(--brass-mid)'
+                         : e.state === 'drifted' ? 'var(--ink-faint)'
+                         : 'var(--ink-muted)';
+        return (
+          <button
+            key={e.idx}
+            onClick={() => { if (e.lessonRel && typeof onPickLesson === 'function') onPickLesson(e.lessonRel); }}
+            disabled={isCurrent}
+            style={{
+              display: 'block', width: '100%', textAlign: 'left',
+              background: isCurrent ? 'color-mix(in srgb, var(--brass-mid) 8%, transparent)' : 'transparent',
+              border: 'none',
+              borderLeft: isCurrent ? `2px solid ${stateColor}` : '2px solid transparent',
+              padding: '10px 12px',
+              margin: '0 0 8px',
+              fontFamily: 'inherit',
+              cursor: isCurrent ? 'default' : 'pointer',
+              transition: 'background 200ms, border-color 200ms',
+            }}
+            onMouseEnter={ev => { if (!isCurrent) ev.currentTarget.style.background = 'color-mix(in srgb, var(--brass-mid) 6%, transparent)'; }}
+            onMouseLeave={ev => { if (!isCurrent) ev.currentTarget.style.background = 'transparent'; }}
+            title={isCurrent ? 'currently viewing this lesson' : 'open this lesson'}
+          >
+            <div style={{
+              display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4,
+              fontSize: 11.5, color: 'var(--ink-faint)',
+              fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.04em',
+            }}>
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{String(e.idx + 1).padStart(2, '0')}</span>
+              <span style={{ color: stateColor, fontFamily: 'inherit', fontStyle: 'italic', textTransform: 'lowercase', letterSpacing: 0 }}>· {stateLabel}</span>
+              {e.distilled && <span style={{ marginLeft: 'auto' }}>distilled</span>}
+            </div>
+            <div style={{
+              fontStyle: 'italic', fontSize: 14, lineHeight: 1.4,
+              color: isCurrent ? 'var(--ink-title)' : 'var(--ink-primary)',
+            }}>{e.lessonTitle}</div>
+            {e.snippet && (
+              <p style={{
+                margin: '4px 0 0', fontSize: 12.5, lineHeight: 1.45,
+                color: 'var(--ink-muted)', fontStyle: 'normal',
+              }}>"{e.snippet}"</p>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function ConceptAtlas({ rel }) {
   const [atlas, setAtlas] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [editingTerm, setEditingTerm] = React.useState(null);
+  // v0.2.1 — concept biography toggle. When non-null, the right rail swaps
+  // from atlas-chip-list to ConceptLogbookPanel for that concept across the
+  // whole curriculum. Triggered by double-click on a chip (single-click
+  // still cycles state — existing behavior).
+  const [biographyTerm, setBiographyTerm] = React.useState(null);
   // 金句 drag-tear state. dropActive: true while a hypha-quote drag hovers the
   // panel — shows brass dashed affordance ring. expandedQuoteId: which quote's
   // insight editor is open. draftInsight: in-progress textarea content.
@@ -3780,7 +3899,8 @@ function ConceptAtlas({ rel }) {
       <button
         key={c.term}
         onClick={() => cycleState(c.term, c.state)}
-        title={(c.snippet || '') + (c.lastTurn != null ? ` · turn ${c.lastTurn}` : '') + ' · click to cycle state'}
+        onDoubleClick={(e) => { e.preventDefault(); setBiographyTerm(c.term); }}
+        title={(c.snippet || '') + (c.lastTurn != null ? ` · turn ${c.lastTurn}` : '') + ' · click=cycle state · double-click=biography'}
         style={{
           display: 'block',
           background: 'transparent',
@@ -3818,6 +3938,24 @@ function ConceptAtlas({ rel }) {
       </button>
     );
   };
+
+  // v0.2.1 — when biographyTerm set, render LogbookPanel instead of chip list.
+  if (biographyTerm) {
+    const slug = rel ? rel.split(/[\\/]/)[0] : '';
+    return (
+      <ConceptLogbookPanel
+        slug={slug}
+        conceptId={biographyTerm}
+        currentRel={rel}
+        onClose={() => setBiographyTerm(null)}
+        onPickLesson={(targetRel) => {
+          // Dispatch global event — App.jsx listener navigates to that lesson.
+          try { window.dispatchEvent(new CustomEvent('hypha:pick-lesson', { detail: { rel: targetRel } })); } catch (_) {}
+          setBiographyTerm(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div
