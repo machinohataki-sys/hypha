@@ -1071,7 +1071,12 @@ function _hyphaSettings() {
     //   1. claude (sdk-anthropic) — if apiKey already starts with sk-ant
     //   2. hypha-managed — if hyphaToken is set (free 30 turns/day)
     //   3. claude (sdk-anthropic) with empty key — surfaces "configure key" prompt
-    if (cur.provider && TUTOR_INCOMPATIBLE_PROVIDERS.has(cur.provider) && !cur._migratedFrom) {
+    // v0151 — env opt-in: HYPHA_ALLOW_CLI=1 bypasses the auto-migration so
+    // personal CLI access works (set by Hypha-personal.bat in packed builds;
+    // NEVER set in clean distribution Hypha.exe launch). Lets the operator
+    // pick claude-cli / gemini-cli / codex-cli in settings without it being
+    // silently rewritten back to the SDK provider.
+    if (cur.provider && TUTOR_INCOMPATIBLE_PROVIDERS.has(cur.provider) && !cur._migratedFrom && !process.env.HYPHA_ALLOW_CLI) {
       const previous = cur.provider;
       let target = 'claude';
       if (cur.apiKey && /^sk-ant-/.test(cur.apiKey)) target = 'claude';
