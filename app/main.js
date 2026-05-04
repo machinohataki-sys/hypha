@@ -881,6 +881,69 @@ ipcMain.handle('llm:abort', (_e, requestId) => {
   return false;
 });
 
+// llm:deepen-popover — v0150 — provider-aware deepen for the AskCard floating
+// popover (Ctrl+Shift+D). Replaces the old llm:run('deepen', ...) path that
+// hardcoded gemini CLI. Routes through _hyphaAgent.streamTurn so it honors
+// whatever provider (Claude / OpenAI / Gemini API / GLM / CLI variants) the
+// user picked in settings. Pre-fetches vault context via wiki-context for
+// vault-grounded output. SystemPrompt loaded from prompts/deepen-popover.txt.
+// Streams chunks on 'llm:chunk' channel (matches AskCard's existing listener).
+// Aborts via shared _deepenAbort map (existing llm:deepen-abort already handles).
+ipcMain.handle('llm:deepen-popover', async (event, { selection, noteRel, requestId }) => {
+  if (!selection || !requestId) return { ok: false, error: 'selection + requestId required' };
+  const ac = new AbortController();
+  _deepenAbort.set(requestId, ac);
+  try {
+    const settings = _hyphaSettings();
+    let vaultCtx = '';
+    let vaultSource = 'skipped';
+    let vaultArticles = 0;
+    try {
+      const wc = await require('./lib/wiki-context').buildWikiContext({
+        vaultRoot: vault.resolveRoot(),
+        query: selection,
+        currentNoteRel: noteRel || '',
+        kCards: 6,
+        signal: ac.signal,
+      });
+      vaultCtx = wc.formatted || '';
+      vaultSource = wc.source || 'unknown';
+      vaultArticles = (wc.articles || []).length;
+    } catch (e) { console.log('[deepen-popover] vault context failed:', e.message); }
+    console.log(`[deepen-popover] provider=${settings.provider} model=${settings.model} vault-ctx: source=${vaultSource} articles=${vaultArticles} chars=${vaultCtx.length}`);
+
+    const sysPath = path.join(__dirname, 'prompts', 'deepen-popover.txt');
+    let systemPrompt;
+    try { systemPrompt = fs.readFileSync(sysPath, 'utf8').replace('{{CURRENT_DATE}}', new Date().toISOString().slice(0, 10)); }
+    catch (e) { return { ok: false, error: 'deepen-popover.txt not found: ' + e.message }; }
+
+    const userMsg = [
+      '## 选段',
+      selection,
+      noteRel ? `\n（来自笔记：${noteRel}）` : '',
+      vaultCtx ? `\n\n## 你过去相关的笔记 / 思考片段\n${vaultCtx}` : '\n\n（vault 里没找到强相关的延伸）',
+      '\n\n按 system 指令 deepen 这段。直接输出 4 段，不要前言。',
+    ].join('\n');
+
+    let outText = '';
+    try { event.sender.send('llm:chunk', { requestId, text: '' }); } catch (_) {}   // signal start
+    try {
+      await _hyphaAgent.streamTurn(
+        { systemPrompt, history: [], userMsg, settings, signal: ac.signal },
+        (chunk) => {
+          outText += chunk;
+          try { event.sender.send('llm:chunk', { requestId, text: chunk }); } catch (_) {}
+        }
+      );
+      return { ok: true, text: outText };
+    } catch (err) {
+      if (ac.signal.aborted) return { ok: true, text: outText, aborted: true };
+      console.log(`[deepen-popover] streamTurn failed: ${err.message}`);
+      return { ok: false, error: err.message, partial: outText };
+    }
+  } finally { _deepenAbort.delete(requestId); }
+});
+
 // llm:deepen — 7-stage Path B pipeline (per /tr 2026-04-28 council). Streams
 // 'llm:deepen-progress' events { requestId, stage, status, text?, error?, label? }
 // during the run; resolves with { ok, synth, ctx } or { ok:false, error }.

@@ -22,16 +22,28 @@ function AskCard({ template, selection, noteRel, onClose, onPin, onAppend }) {
       if (requestId !== requestIdRef.current) return;
       setText(t => t + chunk);
     });
-    window.ptor.llm
-      .run(template, { SELECTION: selection, NOTE_REL: noteRel || '' }, requestIdRef.current)
+    // v0150 — deepen template routes through provider-aware llm:deepen-popover
+    // (honors user's chosen LLM + injects vault context). Other templates
+    // (legacy) keep using the gemini-only llm:run path.
+    const useDeepenPopover = (template === 'deepen' && typeof window.ptor.llm.deepenPopover === 'function');
+    const callP = useDeepenPopover
+      ? window.ptor.llm.deepenPopover(selection, noteRel || '', requestIdRef.current)
+      : window.ptor.llm.run(template, { SELECTION: selection, NOTE_REL: noteRel || '' }, requestIdRef.current);
+    callP
       .then(res => {
         if (!mounted) return;
         if (res && res.error) setError(res.error);
-        else if (res && !res.ok) setError(`gemini exit ${res.exitCode}: ${res.stderr || ''}`);
+        else if (res && res.ok === false) setError(useDeepenPopover ? 'deepen failed' : `gemini exit ${res.exitCode}: ${res.stderr || ''}`);
         setDone(true);
       })
       .catch(err => { if (mounted) { setError(String(err && err.message || err)); setDone(true); } });
-    return () => { mounted = false; unsub(); window.ptor.llm.abort(requestIdRef.current); };
+    return () => {
+      mounted = false; unsub();
+      // v0150 — deepenPopover shares _deepenAbort map with the 7-stage pipeline,
+      // so abort via deepenAbort. Legacy llm.run path uses the original llm.abort.
+      if (useDeepenPopover) { try { window.ptor.llm.deepenAbort && window.ptor.llm.deepenAbort(requestIdRef.current); } catch (_) {} }
+      else { try { window.ptor.llm.abort(requestIdRef.current); } catch (_) {} }
+    };
   }, [template, selection, noteRel]);
 
   // Esc closes

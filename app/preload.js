@@ -111,6 +111,12 @@ contextBridge.exposeInMainWorld('ptor', {
     // Stream chunks arrive on 'llm:chunk' events; subscribe via onChunk first.
     run: (templateName, vars, requestId) => ipcRenderer.invoke('llm:run', { templateName, vars, requestId }),
     abort: (requestId) => ipcRenderer.invoke('llm:abort', requestId),
+    // v0150 — provider-aware deepen for AskCard floating popover. Honors user
+    // settings (Claude/OpenAI/Gemini/GLM via _hyphaAgent.streamTurn). Pre-injects
+    // wiki-context. Streams chunks on 'llm:chunk' (use onChunk above to subscribe).
+    // Abort via existing deepenAbort(requestId) — shares _deepenAbort map.
+    deepenPopover: (selection, noteRel, requestId) =>
+      ipcRenderer.invoke('llm:deepen-popover', { selection, noteRel, requestId }),
     // onChunk((payload) => void) — payload = { requestId, text }. Returns unsubscribe fn.
     onChunk: (cb) => {
       const handler = (_e, payload) => cb(payload);
