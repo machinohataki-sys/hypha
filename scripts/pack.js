@@ -84,6 +84,7 @@ async function main() {
       /^\/cloude-coke($|\/)/,
       /^\/ptor-design($|\/)/,
       /^\/ptor2-legacy-corpus-bet($|\/)/,
+      /^\/old-src($|\/)/,                 // legacy snapshot — not loaded by app, was dead bloat in v0112 asar
       /^\/.claude($|\/)/,
       /^\/.vscode($|\/)/,
       /^\/.idea($|\/)/,

@@ -505,7 +505,7 @@
   --ease-exit:        cubic-bezier(0.22, 1, 0.36, 1);      /* exit */
   --ease-quiet:       cubic-bezier(0.4, 0, 0.2, 1);        /* tonal/color */
   /* Lacquer Loop motion-as-signal (W7 v1.0). Plan: flickering-tickling-koala.md */
-  --ease-cure:        cubic-bezier(0.65, 0.05, 0.36, 1);   /* A1 cure-clock fill — asymmetric like real lacquer hardening */
+  --ease-cure:        linear(0, 0.42 12%, 0.78 30%, 0.92 55%, 1);  /* A1 cure-clock fill — front-loaded then slow cure (linear() multi-control-point per SCOUT 2026-05-02) */
   --ease-graphite:    cubic-bezier(0.5, 0, 0.5, 1);        /* A2 prediction-error stylus-skip */
   --dur-1:            120ms;   /* hover tone */
   --dur-2:            220ms;   /* small entrance */
@@ -549,10 +549,13 @@
   ::view-transition-old(root),
   ::view-transition-new(root) { animation-duration: 1ms; }
 }
-/* Independent of view-transition: the data-theme bg-color tween for users
-   who toggle in environments where view-transition is unavailable. Matches
-   the 320ms duration so theme + content shift in lockstep. */
-html { transition: background-color 320ms var(--ease-cure); }
+/* v0.8.3 — removed `html { transition: background-color 320ms }` per LUNG H7.
+   That CSS transition runs IN ADDITION TO the view-transition cross-fade,
+   producing a perceived double-fade / color flicker on theme swap. Hypha is
+   Electron 35 only — view-transition is always available — so the fallback
+   path was unused weight competing with the snapshot machinery. The
+   view-transition snapshot now captures the bg-color cleanly without a
+   parallel CSS transition fighting it. */
 
 /* Lacquer Loop — Ink Reservoir nib-breath (W7 v1.2-REDUX, MUSE × LUNG council
    2026-05-01). Sine-eased opacity oscillation 0.22 ↔ 0.42 with micro-blur for
@@ -580,6 +583,14 @@ html { transition: background-color 320ms var(--ease-cure); }
 .hypha-quote-mark:hover {
   text-decoration-color: var(--brass-bright, #c9a86a);
   color: var(--brass-bright, #c9a86a);
+}
+
+/* Send-button meniscus breath — once the well is full (input ≥80 chars),
+   the brass surface convex bulge breathes via slow scale + opacity cycle.
+   Continuous motion past the static-fill cap. 筆洗 register, no spinner. */
+@keyframes hypha-meniscus-breath {
+  0%, 100% { transform: scale(1.00); opacity: 0.55; }
+  50%      { transform: scale(1.08); opacity: 0.85; }
 }
 
 /* Glow recall — fires on the matching quote card in ConceptAtlas when user
@@ -1137,4 +1148,90 @@ hr {
   margin: 0;
 }
 .hypha-num-input { -moz-appearance: textfield; }
+
+/* === HOU-GUANG (waiting light) — v0.8.0 ambient motion grammar ===
+   Substrate tokens + utility classes for the 5 atomic primitives implemented
+   in app/lib/chouguang.js: BREATH (id-hashed sine on opacity), INK-BLEED
+   (halo on state promotion), OPSZ (variable-font reading focus, headings
+   only), HAIRLINE (1px draw L-to-R on first entry), RESERVATION (singleton
+   coordinator). The JS module reads these CSS variables; do not rename them.
+   Reduced-motion + slow-update guards below disable the ambient layer.
+   ============================================================ */
+:root {
+  --breath-amplitude-recent: 0.020;
+  --breath-amplitude-old: 0.005;
+  --breath-period-min-ms: 6400;
+  --breath-period-max-ms: 9200;
+  --ink-bleed-radius-px: 6;
+  --ink-bleed-duration-ms: 1400;
+  --ink-bleed-scale-ambient: 0.5;
+  --ink-bleed-scale-hero: 1.5;
+  --hairline-draw-duration-ms: 520;
+  --opsz-rest: 12;
+  --opsz-focus: 18;
+}
+
+.chouguang-hl {
+  position: relative;
+}
+.chouguang-hl::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--brass-bright);
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path var(--hairline-draw-duration-ms, 520ms) var(--ease-cure, ease);
+  pointer-events: none;
+}
+.chouguang-hl[data-hl-drawn="1"]::after {
+  clip-path: inset(0 0 0 0);
+}
+/* When chouguang-hl is added to a .hypha-quote-mark, the chouguang ::after
+   underline replaces the existing text-decoration underline — otherwise both
+   render and the quote mark gets a double brass line. */
+.chouguang-hl.hypha-quote-mark,
+.chouguang-hl.hypha-quote-mark:hover {
+  text-decoration: none;
+}
+
+.chouguang-bleed {
+  /* v0.8.3 — dropped will-change + color-mix per LUNG H3+H4: ephemeral nodes
+     shouldn't carry layer hints (causes GPU layer churn = flicker), and
+     color-mix recomputes cascade across all sites when --brass-bright changes
+     on theme flip. Solid rgba box-shadow is recompute-stable. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  border-radius: 50%;
+  background: var(--brass-bright, currentColor);
+  box-shadow: 0 0 0 0.5px rgba(184, 153, 104, 0.6);
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 0.42;
+}
+
+[data-chouguang-reserved="1"] .chouguang-breathing {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --breath-amplitude-recent: 0;
+    --breath-amplitude-old: 0;
+  }
+  /* Surgical: only kill HOU-GUANG's own ambient layer. Do NOT use the
+     universal selector here — it would clobber the existing view-transition
+     320ms cross-fade and the html background-color tween. The existing
+     reduced-motion handlers at L548 + L529 already cover those. */
+  .chouguang-breathing,
+  .chouguang-bleed,
+  .chouguang-hl::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 

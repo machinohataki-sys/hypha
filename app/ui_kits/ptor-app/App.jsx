@@ -762,6 +762,23 @@ function PTorApp() {
   // The actual initial value is hydrated from settings.app.defaultView in the
   // mount effect below — initial 'evolution' is just a paint-friendly default.
   const [viewMode, setViewMode] = React.useState('evolution');
+  // v0.11.2 — concept page surface. When user clicks [[concept]] in any note
+  // and wikiResolve returns kind='concept', NoteView dispatches
+  // `hypha:open-concept-page` with { slug, idx, term }. We mount
+  // ConceptLogbookPanel in the right rail (replacing the per-note ConceptAtlas)
+  // until user closes it or navigates to another note. Per /tr 2026-05-02
+  // wiki+gbrain three-piece (B — concept-as-page).
+  const [conceptPage, setConceptPage] = React.useState(null);
+  React.useEffect(() => {
+    const onOpen = (e) => {
+      const detail = e && e.detail;
+      if (!detail || !detail.slug || !detail.term) return;
+      setConceptPage(detail);
+      setViewMode('evolution');
+    };
+    window.addEventListener('hypha:open-concept-page', onOpen);
+    return () => window.removeEventListener('hypha:open-concept-page', onOpen);
+  }, []);
   // viewBeforeColophon — remembers where the user was before opening the
   // colophon, so Esc returns there rather than always to evolution.
   const viewBeforeColophonRef = React.useRef('evolution');
@@ -786,12 +803,33 @@ function PTorApp() {
       setViewMode(next);
       return;
     }
-    document.startViewTransition(() => {
+    // v0.8.3 per /tr council 2026-05-02 (LUNG H2 + LEO Symptom 2): pause
+    // chouguang-breath WAAPI animations during the view-transition snapshot
+    // window so the BEFORE/AFTER snapshots don't capture rows mid-cycle.
+    // Bounded resume on transition.finished — no leak (SCOUT's iterations:
+    // Infinity + pause leak only matters for forgotten pauses; we resume
+    // within ~320ms).
+    const paused = [];
+    if (typeof document.getAnimations === 'function') {
+      document.getAnimations().forEach(a => {
+        if (a && a.id === 'chouguang-breath' && a.playState === 'running') {
+          try { a.pause(); paused.push(a); } catch (_) {}
+        }
+      });
+    }
+    const transition = document.startViewTransition(() => {
       // React 18 batching: state inside the callback is flushed synchronously
       // when the callback returns (or its returned promise resolves), which
       // is when the View Transitions API takes the "after" snapshot.
       setViewMode(next);
     });
+    const resume = () => paused.forEach(a => { try { a.play(); } catch (_) {} });
+    if (transition && transition.finished && typeof transition.finished.finally === 'function') {
+      transition.finished.finally(resume);
+    } else {
+      // Older API or no transition object — resume immediately.
+      resume();
+    }
   }, []);
 
   // Open the colophon view from anywhere via Cmd+, → dispatched event from
@@ -869,15 +907,19 @@ function PTorApp() {
     return () => window.removeEventListener('hypha:open-chain-planner', onOpenChain);
   }, []);
 
-  // RECALL chromatic ground — flip data-theme to atlas-day while RECALL is
-  // active (warm dust-stone palace background, NOT note-day ivory). Per port
-  // plan 2026-05-01: "功能原封不动 + 背景=ATLAS界面的背景". Mirror of
-  // ptor-design AtlasView's mount/unmount theme-flip; simplified because
-  // Hypha killed night mode 2026-04-30 — no atlas-night branching needed.
-  React.useEffect(() => {
-    const root = document.documentElement;
-    root.setAttribute('data-theme', viewMode === 'recall' ? 'atlas-day' : 'day');
-  }, [viewMode]);
+  // v0.8.4 — recall and evolution share 'day' theme. Previous code flipped
+  // between 'day' and 'atlas-day' on view-mode change; day's --bg-base
+  // (#F0D9C8 ivory) and atlas-day's (#C6B29B dust-stone) are visibly different
+  // (~20% luminance drop), and during the view-transition cross-fade EVERY
+  // backdrop-filter element (NavRail / VaultTree / titlebar / glass surfaces)
+  // resampled the new darker backdrop, producing user-reported "白色方块变黑"
+  // chrome darkening + perceived flicker + lag (snapshot rasterizing many
+  // re-blurred regions). Theme.jsx still sets 'day' globally on app mount;
+  // removing this override means BEFORE/AFTER view-transition snapshots have
+  // identical theme tokens, so chrome stays static across the switch — only
+  // the content area crossfades. If recall mode chromatic distinction is
+  // re-desired later, scope it via `body[data-mode="recall"]` selectors on
+  // specific recall components, NOT via global --bg-base token mutation.
 
   // Hypha — apply settings.app to document root + viewMode + listen for live
   // updates. Font CSS vars cascade into ChatBubble (size/line-height/family).
@@ -904,12 +946,31 @@ function PTorApp() {
       root.style.setProperty('--chat-breath-width', '2px');
       root.style.setProperty('--chat-breath-offset', '18px');
     };
+    // v0.8.6 — apply font CSS variables SYNCHRONOUSLY on mount using the
+    // last-known settings cached in localStorage. Without this, ChatBubble's
+    // fontSize falls through to the inline-style fallback (17px) for the
+    // ~50-200ms it takes settingsGet IPC to resolve; if user chose 'large'
+    // (19px) or 'small' (15px), text VISIBLY reflows once the var arrives.
+    // User reported "聊天先生成小版文字过一会突然放大到正常大小" — exactly this.
+    // localStorage is synchronous and in-process so the first paint already
+    // has the user's chosen size. The async settingsGet still runs as before
+    // and updates the cache if it differs (rare; only after edit elsewhere).
+    let cachedApp = {};
+    try {
+      const raw = window.localStorage.getItem('hypha:lastAppSettings');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') cachedApp = parsed;
+      }
+    } catch (_) {}
+    apply(cachedApp);
     let firstLoad = true;
     const reload = () => {
       if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.settingsGet) return;
       window.ptor.hypha.settingsGet().then(s => {
         const app = (s && s.app) || {};
         apply(app);
+        try { window.localStorage.setItem('hypha:lastAppSettings', JSON.stringify(app)); } catch (_) {}
         if (firstLoad) {
           firstLoad = false;
           if (app.defaultView === 'recall' || app.defaultView === 'evolution') {
@@ -1092,24 +1153,25 @@ function PTorApp() {
       onToggleView={toggleView}
     >
       <div key="note" className="ptor-view-shell">
-      {/* LEFT — vault rail */}
+      {/* 长卷 v0.11.3 — Handscroll redesign. Tree-of-folders sidebar replaced
+          by a 32px vertical brass-stroke ChainStrokeRail (one stroke per
+          chain) on the left + a bottom-of-screen HandscrollFooter strip
+          showing the active chain's full lesson sequence as dots with a
+          brass seal at the current position. Killed: chain expand/collapse
+          machinery, ResizeObserver height measurement, multi-level grid-rows
+          transitions, the IIFE Map-grouping render that compounded bugs at
+          1000+ rows. VaultTree still mounts invisibly off-screen so its
+          settings/tutor/customize modals (triggered by global events
+          + Cmd+, etc.) keep working — only its tree render is gone. */}
       <div style={{
-        width: vaultRetracted ? 0 : vaultWidth,
-        height: '100%',
-        flexShrink: 0,
-        overflow: 'hidden',
-        transition: paneTransition,
-        borderRight: vaultRetracted ? 'none' : '1px solid var(--border-soft)',
+        position: 'absolute', visibility: 'hidden', pointerEvents: 'none',
+        width: 1, height: 1, overflow: 'hidden', left: -9999, top: -9999,
       }}>
         <VaultTree active={active} onSelect={setActive} viewMode={viewMode} />
       </div>
-      <ResizeHandle
-        side="left"
-        onDrag={onVaultDrag}
-        onCommit={onVaultCommit}
-        onDoubleClick={() => setVaultRetracted(r => !r)}
-        hint={hintLeft}
-      />
+
+      {/* LEFT — chain stroke rail (32px, no resize, no collapse) */}
+      <HandscrollNav.ChainStrokeRail activeRel={active} onSelect={setActive} />
 
       {/* CENTER — when immersed, prose centers in a 820px lane (roughly
           65-75ch at 17px Garamond). The empty side-margin is kept *empty*
@@ -1147,6 +1209,10 @@ function PTorApp() {
             />
           )}
         </div>
+        {/* BOTTOM — handscroll strip (always visible in evolution mode). */}
+        {viewMode === 'evolution' && (
+          <HandscrollNav.HandscrollFooter activeRel={active} onSelect={setActive} />
+        )}
       </div>
 
       {/* RIGHT — terminal rail */}
@@ -1175,10 +1241,24 @@ function PTorApp() {
         {/* Right rail = navigation for the active note (TOC + see-also).
             LiveTerminal removed v0.1.6 — terminal didn't fit the editorial
             register and Cmd+K already covers the AI surface. vc-core code
-            stays in lib/ for future Labs drawer. */}
-        {active && viewMode === 'evolution' && window.ConceptAtlas
-          ? <ConceptAtlas rel={active} />
-          : <NavRail rel={active} onPick={setActive} />}
+            stays in lib/ for future Labs drawer.
+            v0.11.2 — concept page (from wikilink → atlas resolution) takes
+            precedence over per-note ConceptAtlas. Closes back to active
+            note's atlas on user dismiss. */}
+        {conceptPage && window.ConceptLogbookPanel
+          ? <window.ConceptLogbookPanel
+              slug={conceptPage.slug}
+              conceptId={conceptPage.term}
+              currentRel={active}
+              onClose={() => setConceptPage(null)}
+              onPickLesson={(targetRel) => {
+                setConceptPage(null);
+                if (targetRel) setActive(targetRel);
+              }}
+            />
+          : active && viewMode === 'evolution' && window.ConceptAtlas
+            ? <ConceptAtlas rel={active} />
+            : <NavRail rel={active} onPick={setActive} />}
       </div>
       <LesezimmerWhisper />
       </div>

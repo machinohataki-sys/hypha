@@ -6,6 +6,56 @@ const OpenAI = require('openai');
 // inherits the product's manuscript-register / pedagogical-philosophy soul,
 // not just generic LLM defaults. Edit `lib/hypha-constitution.js` to evolve.
 const { FULL: HYPHA_FULL, SHORT: HYPHA_SHORT, userProfileBlock } = require('./lib/hypha-constitution');
+// 2026-05-02 — direct Anthropic Messages API adapter. Replaces dead `claude`
+// provider that pointed OpenAI SDK at Anthropic's incompatible Messages
+// endpoint. Dispatched when provider has `via: 'sdk-anthropic'`. Sends
+// system prompt via wire-level system parameter so Hypha's tutor instructions
+// outrank any Claude Code persona present in the calling environment.
+const anthropicAdapter = require('./lib/anthropic-adapter');
+
+// 2026-05-02 / 2026-05-03 — persona-leak detection. Scan tutor output for
+// Claude Code agent-council names (Lung / Leo / Yogo / Muse / MEOW / Wolf /
+// Nancy / Ghost / TATA / SONCAR / QAQ) that bleed in via claude-cli persona
+// overlay. "Victor" was historically also a leak signal but conflicts with
+// users who set tutorName=Victor in their profile. NAMES THE USER PUT IN
+// THEIR OWN PROFILE (settings.userProfile.name + .tutorName) are NEVER
+// flagged — those are intentional address. Hits write to events.jsonl.
+const PERSONA_LEAK_AGENT_NAMES = ['Lung', 'Leo', 'Yogo', 'Muse', 'MEOW', 'Wolf', 'Nancy', 'Ghost', 'TATA', 'SONCAR', 'QAQ'];
+function _buildPersonaLeakRE(settings) {
+  const profile = settings && settings.userProfile;
+  const userName = profile && profile.name && String(profile.name).trim();
+  const tutorName = profile && profile.tutorName && String(profile.tutorName).trim();
+  const userOwned = new Set();
+  if (userName) userOwned.add(userName.toLowerCase());
+  if (tutorName) userOwned.add(tutorName.toLowerCase());
+  // Filter agent crew + add Victor only if user didn't claim it as their name.
+  const candidates = ['Victor', 'Machino', ...PERSONA_LEAK_AGENT_NAMES]
+    .filter(n => !userOwned.has(n.toLowerCase()));
+  if (candidates.length === 0) return null;
+  return new RegExp('\\b(' + candidates.join('|') + ')\\b|用户(?!灵感)', 'i');
+}
+function _detectAndLogPersonaLeak(text, settings, opts) {
+  if (!text || typeof text !== 'string') return;
+  const re = _buildPersonaLeakRE(settings);
+  if (!re) return;
+  const m = text.match(re);
+  if (!m) return;
+  try {
+    const vault = require('./lib/vault');
+    const idx = text.search(re);
+    const evt = {
+      ts: new Date().toISOString(),
+      op: 'persona_leak',
+      provider: settings && settings.provider,
+      model: settings && settings.model,
+      hit: m[0],
+      snippet: text.slice(Math.max(0, idx - 40), idx + 80),
+      context: (opts && opts.context) || 'tutor_turn',
+    };
+    vault.appendJSONL('events.jsonl', evt);
+    console.warn('[persona_leak]', m[0], 'in', evt.snippet.slice(0, 60));
+  } catch (_) { /* swallow — leak detection must never break the call */ }
+}
 
 const BANNED_DOMAINS = [
   'edu.cn', '.cn/', 'tsinghua.edu', 'pku.edu', 'fudan.edu', 'sjtu.edu', 'zju.edu',
@@ -43,6 +93,34 @@ function _composePromptFromMessages(messages) {
   return out;
 }
 
+// 2026-05-02 — for CLIs that support a `--system-prompt` flag (Anthropic
+// claude CLI does, verified `claude --help`), extract system-role messages
+// and return them separately so they can be sent via the proper API system
+// field instead of being flattened into the user-message blob with a
+// "[SYSTEM]" ASCII tag (where the model treats it as user text + the host
+// CLI's own loaded system prompt — Claude Code's Victor persona — wins).
+//
+// This single change is what closes the persona-pollution bug: with
+// `--system-prompt`, our system text takes the wire-level system field, and
+// per Anthropic's API contract system >> user. Even with Claude Code's
+// CLAUDE.md walkup + agent registrations still loaded in context, the
+// custom system prompt dominates first-recall behavior.
+function _splitSystemFromMessages(messages) {
+  const systemParts = [];
+  const others = [];
+  for (const m of messages || []) {
+    if (m && m.role === 'system' && typeof m.content === 'string' && m.content.trim()) {
+      systemParts.push(m.content);
+    } else {
+      others.push(m);
+    }
+  }
+  return {
+    systemPrompt: systemParts.join('\n\n'),
+    others,
+  };
+}
+
 // Run a CLI binary once (non-streaming). Returns the full reply string.
 //
 // Prompt-passing convention (matches lib/deepen-pipeline.js working pattern):
@@ -54,19 +132,43 @@ function _composePromptFromMessages(messages) {
 //     toggles --print). For CLIs that REQUIRE a value after the flag (gemini's
 //     yargs strict mode), set cfg.promptFlag to null and let the CLI infer
 //     from piped stdin (default behaviour for both gemini and codex).
-async function _runCliOnce(messages, settings) {
+async function _runCliOnce(messages, settings, opts = {}) {
   const cfg = _resolveProviderConfig(settings);
   if (!cfg.binary) throw new Error('cli provider missing binary name');
-  const prompt = _composePromptFromMessages(messages);
+  const timeoutMs = opts.timeoutMs || 90_000;
+  // 2026-05-02 — split system messages out so they can ride the CLI's
+  // --system-prompt flag and reach the API's system field cleanly.
+  let messagesToCompose = messages;
+  let systemPromptForFlag = '';
+  if (cfg.systemPromptFlag) {
+    const split = _splitSystemFromMessages(messages);
+    systemPromptForFlag = split.systemPrompt;
+    messagesToCompose = split.others;
+  }
+  let prompt = _composePromptFromMessages(messagesToCompose);
+  // 2026-05-03 — Windows CMD has ~8192-char arg limit. planChain's system
+  // prompt easily exceeds this. When too long, inline as [SYSTEM] block in
+  // stdin instead of --system-prompt flag. Loses CLI system-field isolation
+  // (claude-cli persona may bleed in for that call) but prevents the hard
+  // "command line is too long" exit.
+  const SYS_FLAG_MAX = 5000;
+  if (systemPromptForFlag && systemPromptForFlag.length > SYS_FLAG_MAX) {
+    prompt = `[SYSTEM]\n${systemPromptForFlag}\n[/SYSTEM]\n\n${prompt}`;
+    systemPromptForFlag = '';
+  }
   const args = [];
   if (Array.isArray(cfg.prefixArgs)) args.push(...cfg.prefixArgs);
   if (cfg.modelFlag && (settings.model || cfg.defaultModel)) {
     args.push(cfg.modelFlag, settings.model || cfg.defaultModel);
   }
+  if (cfg.systemPromptFlag && systemPromptForFlag) {
+    args.push(cfg.systemPromptFlag, systemPromptForFlag);
+  }
   if (cfg.promptFlag) args.push(cfg.promptFlag);
   if (Array.isArray(cfg.suffixArgs)) args.push(...cfg.suffixArgs);
   return new Promise((resolve, reject) => {
     let child;
+    let killed = false;
     try {
       child = _cliSpawn(cfg.binary, args, {
         shell: process.platform === 'win32',
@@ -74,28 +176,64 @@ async function _runCliOnce(messages, settings) {
         env: { ...process.env, GEMINI_CLI_TRUST_WORKSPACE: 'true' },
       });
     } catch (e) { return reject(new Error('spawn failed: ' + e.message)); }
+    // Hard timeout — without this a stalled CLI binary (network hang, persona
+    // overflow, prompt waiting on stdin) blocks chain:create indefinitely.
+    // Mirrors the 90s default that OpenAI-compat + Anthropic SDK branches use.
+    const tid = setTimeout(() => {
+      killed = true;
+      try { child.kill('SIGTERM'); } catch (_) {}
+      const e = new Error(`CLI ${cfg.binary} timed out after ${Math.round(timeoutMs/1000)}s`);
+      e.code = 'CLI_TIMEOUT';
+      reject(e);
+    }, timeoutMs);
     let stdout = '', stderr = '';
     child.stdout.on('data', d => { stdout += d.toString('utf8'); });
     child.stderr.on('data', d => { stderr += d.toString('utf8'); });
-    child.on('error', err => reject(new Error('cli error: ' + err.message)));
+    child.on('error', err => { clearTimeout(tid); if (!killed) reject(new Error('cli error: ' + err.message)); });
     child.on('close', code => {
+      clearTimeout(tid);
+      if (killed) return; // already rejected via timeout
       if (code !== 0) return reject(new Error(`cli exit ${code}: ${stderr.slice(0, 300)}`));
       resolve(stdout.trim());
     });
     try { child.stdin.write(prompt); child.stdin.end(); }
-    catch (e) { reject(new Error('stdin write failed: ' + e.message)); }
+    catch (e) { clearTimeout(tid); reject(new Error('stdin write failed: ' + e.message)); }
   });
 }
 
 // Run a CLI binary in streaming mode. Calls onChunk(text) per content piece.
-async function _runCliStream(messages, settings, onChunk) {
+// opts.signal: optional AbortSignal — when triggered, kills the child via
+// SIGTERM so the stop button in the UI can halt the stream.
+async function _runCliStream(messages, settings, onChunk, opts = {}) {
   const cfg = _resolveProviderConfig(settings);
   if (!cfg.binary) throw new Error('cli provider missing binary name');
-  const prompt = _composePromptFromMessages(messages);
+  // 2026-05-02 — same split as _runCliOnce: system messages ride the
+  // --system-prompt flag, others go via stdin. See _splitSystemFromMessages.
+  let messagesToCompose = messages;
+  let systemPromptForFlag = '';
+  if (cfg.systemPromptFlag) {
+    const split = _splitSystemFromMessages(messages);
+    systemPromptForFlag = split.systemPrompt;
+    messagesToCompose = split.others;
+  }
+  let prompt = _composePromptFromMessages(messagesToCompose);
+  // 2026-05-03 — Windows CMD has ~8192-char arg limit. planChain's system
+  // prompt easily exceeds this. When too long, inline as [SYSTEM] block in
+  // stdin instead of --system-prompt flag. Loses CLI system-field isolation
+  // (claude-cli persona may bleed in for that call) but prevents the hard
+  // "command line is too long" exit.
+  const SYS_FLAG_MAX = 5000;
+  if (systemPromptForFlag && systemPromptForFlag.length > SYS_FLAG_MAX) {
+    prompt = `[SYSTEM]\n${systemPromptForFlag}\n[/SYSTEM]\n\n${prompt}`;
+    systemPromptForFlag = '';
+  }
   const args = [];
   if (Array.isArray(cfg.prefixArgs)) args.push(...cfg.prefixArgs);
   if (cfg.modelFlag && (settings.model || cfg.defaultModel)) {
     args.push(cfg.modelFlag, settings.model || cfg.defaultModel);
+  }
+  if (cfg.systemPromptFlag && systemPromptForFlag) {
+    args.push(cfg.systemPromptFlag, systemPromptForFlag);
   }
   if (cfg.promptFlag) args.push(cfg.promptFlag);
   if (Array.isArray(cfg.streamFlag) && cfg.streamFlag.length) args.push(...cfg.streamFlag);
@@ -103,6 +241,7 @@ async function _runCliStream(messages, settings, onChunk) {
 
   return new Promise((resolve, reject) => {
     let child;
+    let aborted = false;
     try {
       child = _cliSpawn(cfg.binary, args, {
         shell: process.platform === 'win32',
@@ -110,6 +249,22 @@ async function _runCliStream(messages, settings, onChunk) {
         env: { ...process.env, GEMINI_CLI_TRUST_WORKSPACE: 'true' },
       });
     } catch (e) { return reject(new Error('spawn failed: ' + e.message)); }
+    // Wire optional abort signal — UI stop button → main.js IPC abort →
+    // ac.signal aborts → kill the child. Resolves the promise so any
+    // accumulated content already streamed via onChunk is preserved.
+    let onAbort = null;
+    if (opts.signal) {
+      if (opts.signal.aborted) {
+        try { child.kill('SIGTERM'); } catch (_) {}
+        aborted = true;
+      } else {
+        onAbort = () => {
+          aborted = true;
+          try { child.kill('SIGTERM'); } catch (_) {}
+        };
+        opts.signal.addEventListener('abort', onAbort, { once: true });
+      }
+    }
     let stderr = '';
     let buffer = '';
     let isStreamJSON = Array.isArray(cfg.streamFlag) && cfg.streamFlag.includes('stream-json');
@@ -140,8 +295,13 @@ async function _runCliStream(messages, settings, onChunk) {
       }
     });
     child.stderr.on('data', d => { stderr += d.toString('utf8'); });
-    child.on('error', err => reject(new Error('cli stream error: ' + err.message)));
+    child.on('error', err => {
+      if (onAbort && opts.signal) opts.signal.removeEventListener('abort', onAbort);
+      if (!aborted) reject(new Error('cli stream error: ' + err.message));
+    });
     child.on('close', code => {
+      if (onAbort && opts.signal) opts.signal.removeEventListener('abort', onAbort);
+      if (aborted) return resolve(); // halted by stop button — keep partial content
       if (code !== 0) return reject(new Error(`cli exit ${code}: ${stderr.slice(0, 300)}`));
       // flush any remaining buffer line
       if (isStreamJSON && buffer.trim()) {
@@ -866,6 +1026,48 @@ async function harvest(topic, settings, onProgress = null, archetype = '_default
   return out.slice(0, 30);
 }
 
+// 2026-05-03 — JsonSpotter-style balanced-bracket JSON extractor. Replaces
+// the prior greedy regex `/[\{\[][\s\S]*[\}\]]/` which grabbed from FIRST `{`
+// to LAST `}` — broken when the LLM (esp. claude-cli with Victor persona)
+// returns "Here's the schema example {schema}. The actual extraction: {real}"
+// since the regex pulled both blocks together → JSON.parse fails → empty
+// fallback (which is why ConceptAtlas stayed empty across 10 turns despite
+// each extractAtlasDelta call "succeeding"). New approach: walk every `{`
+// or `[` start, count balanced brackets respecting strings/escapes, try
+// JSON.parse on each candidate, return the first valid one.
+function _extractFirstJSON(rawIn) {
+  if (typeof rawIn !== 'string') return rawIn;
+  let raw = rawIn.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+  // Whole-string parse first (the happy path: model gave us pure JSON).
+  try { JSON.parse(raw); return raw; } catch (_) { /* fall through */ }
+  // Walk every `{` or `[` start; per start, count balanced brackets.
+  for (let start = 0; start < raw.length; start++) {
+    const openCh = raw[start];
+    if (openCh !== '{' && openCh !== '[') continue;
+    const closeCh = openCh === '{' ? '}' : ']';
+    let depth = 0;
+    let inStr = false;
+    let escape = false;
+    for (let i = start; i < raw.length; i++) {
+      const c = raw[i];
+      if (escape) { escape = false; continue; }
+      if (c === '\\') { escape = true; continue; }
+      if (c === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (c === openCh) depth++;
+      else if (c === closeCh) {
+        depth--;
+        if (depth === 0) {
+          const candidate = raw.slice(start, i + 1);
+          try { JSON.parse(candidate); return candidate; } catch (_) {}
+          break; // this start didn't yield valid JSON; try the next start
+        }
+      }
+    }
+  }
+  return raw; // no valid JSON found — let downstream JSON.parse throw
+}
+
 async function llmJSON(messages, settings, opts = {}) {
   // Hypha Cloud branch — managed-LLM proxy. Sends to https://APP/v1/llm with
   // the user's long-lived desktop token (hyphaToken in settings). Server
@@ -873,18 +1075,19 @@ async function llmJSON(messages, settings, opts = {}) {
   if (settings.provider === 'hypha-managed') {
     return await _hyphaProxyCall(messages, settings, opts);
   }
+  // 2026-05-02 — Anthropic SDK direct branch. provider `claude` (API) uses
+  // the Messages API with system parameter → no Claude Code persona context
+  // → claude.ai-quality output. Requires sk-ant key.
+  const _cfg = _resolveProviderConfig(settings);
+  if (_cfg && _cfg.via === 'sdk-anthropic') {
+    let raw = await anthropicAdapter.runOnce(messages, settings, opts);
+    if (opts.json) raw = _extractFirstJSON(raw);
+    return raw;
+  }
   // CLI provider branch — shell out to vendor binary (Claude Max / Gemini CLI).
   if (_isCliProvider(settings)) {
-    let raw = await _runCliOnce(messages, settings);
-    // Strip markdown code fences if model wrapped JSON in ```json ... ```
-    if (opts.json) {
-      raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-      // If still not pure JSON, try to extract first {...} block
-      if (!raw.startsWith('{') && !raw.startsWith('[')) {
-        const m = raw.match(/[\{\[][\s\S]*[\}\]]/);
-        if (m) raw = m[0];
-      }
-    }
+    let raw = await _runCliOnce(messages, settings, { timeoutMs: opts.timeoutMs });
+    if (opts.json) raw = _extractFirstJSON(raw);
     return raw;
   }
   const c = client(settings);
@@ -1029,6 +1232,72 @@ const EMPHASIS_LABEL = {
   1: 'MED (MAY appear when natural to the topic)',
   0: 'LOW (only on explicit gap signal in prior lessons)',
 };
+
+// 2026-05-02 — turn-time concrete moves derived from each Layer-1 primitive.
+// designSequence already injects these directives at curriculum-design time;
+// streamTurn (per-turn) needs the BEHAVIORAL form ("when X then do Y") so
+// Opus can pick the right move per conversation state. Built dynamically
+// from EMPHASIS[archetype] so each archetype only sees its enabled primitives.
+const TURN_MOVES = {
+  P1: 'When the student gives an extended answer or claims understanding → ask them to RESTATE the core claim in plain language as if teaching a high-school freshman. Then probe ONE specific ambiguity in their restatement (not abstract praise).',
+  P2: 'Before introducing a new concept/mechanism → STOP. Ask the student to PREDICT what the answer/mechanism might be. Capture verbatim ("you predicted: X"). Reveal canonical only after they commit. Name the delta explicitly.',
+  P3: 'When recalling previously-covered concept → present a blind cue (concept name OR scenario) WITHOUT the answer. Wait for their attempt. Reveal canonical, FLAG specific discrepancies (not just "good job").',
+  P4: 'Before introducing a non-trivial new concept → ask "what would you ASK first to understand X?". Internally rubric-grade their question depth+specificity. Then test pre-knowledge via a P3-style cue. Then deliver instruction. Skip if student has already shown >0.5 mastery on adjacent concepts.',
+  P5: 'When demonstrating a procedure → calibrate by mastery seen in transcript: novice (≤2 attempts) = full worked example; intermediate = partial example with 1-2 steps blanked; expert (>3 successful attempts) = problem only, no example.',
+  F1: 'For conceptually-deep moments → present a hard variant problem FIRST and let student attempt before you reveal the canonical method. The failed attempt activates prior knowledge — productive failure beats direct instruction on transfer.',
+  F3: 'At end of substantive turns → ask "How confident are you that you can [restate the learn goal] right now? 0-100." Note their answer. If next retrieval gap > 30, flag in your final tag as <!--method:F3-gap-->.',
+};
+// F2 (HYBRID INTERLEAVING) is curriculum-level (handled by chain planner), not
+// per-turn — omitted from turn-time block.
+
+// _buildTurnTimeMoves — emit only the primitives the archetype actually
+// emphasizes (>= LOW), tagged with their priority label. Returns a system-
+// prompt block telling Opus "decide silently which move applies, then act"
+// + the invisible <!--method:Px--> tag emission rule.
+function _buildTurnTimeMoves(archetype) {
+  const emph = EMPHASIS[archetype];
+  if (!emph) return '';
+  const lines = [];
+  for (const k of ['P1', 'P2', 'P3', 'P4', 'P5', 'F1', 'F3']) {
+    const v = emph[k];
+    if (v == null || v < 0) continue; // SKIP or undefined → omit
+    const labelShort = (EMPHASIS_LABEL[v] || '').split(' ')[0];
+    lines.push(`[${k} ${PRIMITIVES[k].name} — ${labelShort}] ${TURN_MOVES[k]}`);
+  }
+  if (!lines.length) return '';
+  return `\n═══ TURN-TIME PEDAGOGICAL MOVES (archetype: ${archetype}) ═══
+
+DECIDE silently which move applies to THIS turn based on conversation state, then act. You don't have to use a move every turn — pick when it naturally fits. Prefer HIGH-emphasis moves over MED, MED over LOW.
+
+${lines.join('\n\n')}
+
+End EVERY tutor reply with exactly one invisible HTML comment tag on its own final line: \`<!--method:P0-->\` for generic/parsing turn, or \`<!--method:Px-->\` (Px = the dominant Lacquer primitive you used: P1 / P2 / P3 / P4 / P5 / F1 / F3). The comment is invisible to the student but lets Hypha track which moves you deployed for diagnostics + spaced-revisit scheduling. Strict format, no extra prose around the tag.
+══════════════════════════════════════════════════════════════════════════
+`;
+}
+
+// 2026-05-02 — parse the <!--method:Px--> tag from accumulated tutor reply
+// and log to events.jsonl. Pairs with _detectAndLogPersonaLeak (same call
+// site in streamTurn). Used by future scheduler to know which primitive
+// was deployed per lesson, drives spaced-revisit cadence + per-archetype
+// emphasis tuning.
+const METHOD_TAG_RE = /<!--method:(P0|P[1-5]|F[1-3](?:-gap)?)-->/i;
+function _logMethodTag(text, settings, opts) {
+  if (!text || typeof text !== 'string') return;
+  const m = text.match(METHOD_TAG_RE);
+  if (!m) return;
+  try {
+    const vault = require('./lib/vault');
+    vault.appendJSONL('events.jsonl', {
+      ts: new Date().toISOString(),
+      op: 'method_used',
+      method: m[1],
+      provider: settings && settings.provider,
+      model: settings && settings.model,
+      context: (opts && opts.context) || 'tutor_turn',
+    });
+  } catch (_) {}
+}
 
 // getEmphasis — exposed to main.js so the lesson IPC can detect when a
 // primitive (e.g. P2) is HIGH/MED for the curriculum's archetype, and gate
@@ -1225,6 +1494,22 @@ Return the JSON object now. Aim for the count target above.`;
 }
 
 async function designLesson({ topic, idx, sequence, sources, state, priorNotes, agentProfile, userProfile, archetype }, settings) {
+  // v0.9.0 HERMES-style — inject file-based user profile derived from this
+  // vault's lesson corpus. Per /tr council 2026-05-02: Hypha's vault IS the
+  // personalization corpus; we just need to surface it. Profile lives at
+  // <vault>/.hypha/user-profile.md and contains 4 sections (STYLE /
+  // GRAVITATION / VOICE / PROJECT). If file is absent, block is empty —
+  // tutor falls back to today's behavior. Cold-start derivation triggered
+  // separately via main.js IPC `userProfile:rebuild`.
+  let hyphaUserProfileBlock = '';
+  try {
+    const userProfileLib = require('./lib/userProfile');
+    const vaultLib = require('./lib/vault');
+    const vaultRoot = vaultLib.resolveRoot();
+    const profile = userProfileLib.loadProfile(vaultRoot);
+    hyphaUserProfileBlock = userProfileLib.formatForPrompt(profile);
+  } catch (_) { /* graceful no-op */ }
+
   // Lacquer Loop P2 PRE-READ PREDICTION — when archetype emphasizes P2 (HIGH/MED),
   // the lesson's first turn must be a prediction prompt, not a probe-of-understanding.
   // P2 emphasis values per app/lib/pedagogy.md: HIGH=2, MED=1, LOW=0, SKIP=-1.
@@ -1279,6 +1564,10 @@ async function designLesson({ topic, idx, sequence, sources, state, priorNotes, 
     ? `\nRESPONSE LANGUAGE OVERRIDE (binding): respond to the student in ${curriculumLanguage}, regardless of the topic's natural language or the student profile's language. Exception: if the student explicitly switches languages mid-conversation or asks for a different language for a specific term, honor their immediate request — but return to ${curriculumLanguage} for the next turn unless they sustain the switch.\n`
     : '';
 
+  // 2026-05-02 — Lacquer Loop W2: per-turn pedagogical moves block.
+  // designSequence handles curriculum-level (W1); this is the runtime form.
+  const turnTimeMovesBlock = _buildTurnTimeMoves(archetype);
+
   return `${HYPHA_FULL}${languageBlock}You are a tutor inside Hypha. You are teaching one specific lesson now.
 
 Your name (as the student knows you): ${tutorDisplayName}. When self-introducing or signing off, use this name; don't reveal the underlying model name unless asked directly.
@@ -1287,7 +1576,7 @@ Topic: ${topic}
 This lesson (#${idx + 1}): ${target?.title || 'Untitled'}
 Learn goal: ${target?.learnGoal || ''}
 
-═══ STUDENT (read FIRST — every other instruction below defers to this) ═══${studentBlock || `
+${hyphaUserProfileBlock}═══ STUDENT (read FIRST — every other instruction below defers to this) ═══${studentBlock || `
 (no student profile provided — assume average adult learner, calibrate via first turn)
 `}
 HARD RULE: The persona below is HOW you teach; this student profile is WHO you're teaching. WHO determines the depth ceiling. If the student says they have no foundation / are a beginner / lack prerequisites, you DO NOT introduce gradients, backprop math, matrix calculus, advanced framework APIs, or jargon UNTIL after concept-level intuition lands. The persona's hardcore register MUST be re-interpreted to fit this student. Karpathy-to-a-beginner = explain neurons as "weighted vote" before any sigma notation. Strang-to-a-beginner = picture vectors as arrows before any rank/null-space. If student profile is silent, calibrate from their first answer.
@@ -1306,7 +1595,7 @@ ${priorSummary}
 
 Available sources (cite by name, do not invent):
 ${sources.slice(0, 10).map(s => `- ${s.title} [${s.sourceType}]`).join('\n')}
-
+${turnTimeMovesBlock}
 Universal rules (overlay on top of the persona above):
 ${p2Active ? `1. **P2 PRE-READ PREDICTION** (THIS LESSON'S OPENER MUST BE A PREDICTION PROMPT — archetype ${archetype} emphasizes prediction). Open with ONE prediction prompt — ask the student to FORECAST the lesson's central claim/mechanism BEFORE you reveal anything. Frame it as a guess, not a test ("What do you think happens when X meets Y?" / "Predict the outcome of Z"). Do NOT reveal the canonical answer until they respond. After they respond, capture their prediction verbatim ("You said: X") and EXPLICITLY compare to the canonical (where they landed, where they missed, what surprised). Predict-error magnitude is the high-value learning signal — make the comparison visible to the student.` : `1. Open with ONE question that probes current understanding of the lesson goal AT THE LEVEL THE STUDENT BLOCK INDICATES. No preamble. No "Welcome". If student says "no foundation", first question is concept-level (e.g., "have you ever heard of weights in a neural network?"), NOT formula-level.`}
 2. After student's answer, re-calibrate depth (hit / miss / partial). Adapt — but never assume prerequisites the student profile did not claim.
@@ -1320,19 +1609,47 @@ ${p2Active ? `1. **P2 PRE-READ PREDICTION** (THIS LESSON'S OPENER MUST BE A PRED
 Begin now.`;
 }
 
-async function streamTurn({ systemPrompt, history, userMsg, settings }, onChunk) {
+async function streamTurn({ systemPrompt, history, userMsg, settings, signal }, onChunk) {
   const messages = [{ role: 'system', content: systemPrompt }];
   for (const h of (history || [])) messages.push({ role: h.role, content: h.content });
   if (userMsg && userMsg !== '__begin__') messages.push({ role: 'user', content: userMsg });
   else messages.push({ role: 'user', content: '[Lesson start. Begin with your first question.]' });
 
+  // 2026-05-02 — accumulate the full reply transparently so we can run
+  // persona-leak detection after the stream ends without coupling onChunk's
+  // callers to leak logic. Wrap the user-supplied onChunk.
+  let _accumulated = '';
+  const _wrappedOnChunk = (text) => {
+    _accumulated += text;
+    onChunk(text);
+  };
+
+  // 2026-05-02 — Anthropic SDK direct branch. Cleanest Opus output;
+  // no Claude Code persona context.
+  const _cfg = _resolveProviderConfig(settings);
+  if (_cfg && _cfg.via === 'sdk-anthropic') {
+    try {
+      await anthropicAdapter.runStream(messages, settings, _wrappedOnChunk, { signal });
+    } catch (err) {
+      console.error('[streamTurn] sdk-anthropic stream failed:', err && err.message);
+      throw err;
+    } finally {
+      _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
+      _logMethodTag(_accumulated, settings, { context: 'tutor_turn' });
+    }
+    return;
+  }
+
   // CLI provider branch — Claude Max / Gemini CLI shell-out streaming.
   if (_isCliProvider(settings)) {
     try {
-      await _runCliStream(messages, settings, onChunk);
+      await _runCliStream(messages, settings, _wrappedOnChunk, { signal });
     } catch (err) {
       console.error('[streamTurn] cli stream failed:', err && err.message);
       throw err;
+    } finally {
+      _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
+      _logMethodTag(_accumulated, settings, { context: 'tutor_turn' });
     }
     return;
   }
@@ -1346,7 +1663,7 @@ async function streamTurn({ systemPrompt, history, userMsg, settings }, onChunk)
       stream: true,
       temperature: 0.8,
       max_tokens: 1500,
-    });
+    }, signal ? { signal } : undefined);
   } catch (err) {
     console.error('[streamTurn] create failed:', err && err.message, err && err.status, err && err.error);
     throw new Error('create failed: ' + (err && err.message || err));
@@ -1362,7 +1679,7 @@ async function streamTurn({ systemPrompt, history, userMsg, settings }, onChunk)
       // content. Visible content goes through delta.content. Reasoning is
       // currently dropped (per Day 2 plan) — student sees questions, not CoT.
       if (delta.content) {
-        onChunk(delta.content);
+        _wrappedOnChunk(delta.content);
         chunkCount++;
       }
       // Future: surface reasoning_content into a collapsed pane if user asks.
@@ -1385,14 +1702,18 @@ async function streamTurn({ systemPrompt, history, userMsg, settings }, onChunk)
         max_tokens: 1500,
       });
       const text = r && r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content;
-      if (text) onChunk(text);
+      if (text) _wrappedOnChunk(text);
     } catch (err) {
       console.error('[streamTurn] non-streaming fallback also failed:', err && err.message);
+      _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
+      _logMethodTag(_accumulated, settings, { context: 'tutor_turn' });
       throw err;
     }
   } else if (lastError) {
+    _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
     throw lastError;
   }
+  _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
 }
 
 async function synthesizeNote({ topic, idx, transcript, sources, sequence, mode, priorBody }, settings) {
@@ -1427,13 +1748,18 @@ ${tx}
 
 Write the new 用户灵感 paragraph(s) now.`;
 
-    return await llmJSON([{ role: 'system', content: sys }, { role: 'user', content: user }], settings, { temperature: 0.7, max_tokens: 1000 });
+    return await llmJSON([{ role: 'system', content: sys }, { role: 'user', content: user }], settings, { temperature: 0.7, max_tokens: 1000, timeoutMs: 180_000 });
   }
 
-  // Fresh distill — full dual-layer note.
-  const sys = `${HYPHA_FULL}You write dual-layer study notes from a tutoring dialog. Output ONE markdown document with frontmatter and TWO clear sections.
+  // Fresh distill — Lacquer Loop multi-layer note. 2026-05-03: replaces
+  // 2-section (课程基础 + 用户灵感) with 6 primitive-derived sections per
+  // app/lib/pedagogy.md (5 retained P1-P5 + 3 frontier F1-F3 + A1-A3
+  // substrate). Each section is OPTIONAL — emit only if that primitive
+  // actually fired in the dialog. The note becomes a training log of the
+  // user's specific cognitive trace, not a generic summary.
+  const sys = `${HYPHA_FULL}You write a Lacquer Loop study note from a tutoring dialog. Output ONE markdown document with frontmatter + UP TO 6 sections, each tagged with the pedagogical primitive it embodies.
 
-Strict structure:
+Strict frontmatter:
 ---
 topic: ${topic}
 lesson_idx: ${idx}
@@ -1443,13 +1769,31 @@ date: ${new Date().toISOString().slice(0, 10)}
 
 # ${target?.title || 'Lesson'}
 
-## 课程基础
-[1-3 paragraphs. What was actually taught. The conceptual core. Source-faithful. Plain language. No jargon the student doesn't already use.]
+Then emit ONLY the sections below that genuinely fired in the dialog. Each section header MUST include its <!--method:Pn--> tag so downstream tools can audit primitive coverage.
 
-## 用户灵感
-[1-3 paragraphs in second person ("you"). What THIS specific student noticed, asked, connected to other notes, half-formed insights worth coming back to. Pull verbatim quotes from their messages where useful. This section is half the note's value — do NOT skimp.]
+## 课程基础 <!--method:P1-->
+1-3 plain-language paragraphs. The conceptual core of the lesson, source-faithful. No jargon the student doesn't already use. ALWAYS emit this section (even short).
 
-Forbidden words anywhere in output: AI, LLM, embedding, agent, model, prompt, RAG.`;
+## 你的预测 → 实际 <!--method:P2-->
+ONLY if the dialog contains a prediction prompt + the student's verbatim guess + the actual answer. Format: > 你预测: "..." \\n > 实际: "..." \\n delta: 一句话说为何差距/吻合. SKIP this section if no prediction exchange happened.
+
+## 回想检验 <!--method:P3-->
+ONLY if the tutor asked cue prompts (concept name / scenario / mechanism question) and student tried to recall before being shown the answer. Format: > 提示: ... \\n > 你说: ... \\n > 标准: ... \\n match: 0-1. List 1-3 retrieval attempts. SKIP if dialog was pure exposition with no cue-recall exchange.
+
+## 你提的问题 <!--method:P4-->
+ONLY if the student volunteered a substantive question that the tutor scaffolded. Quote the question verbatim, note depth (surface/structural/frontier), then 1 sentence on how the tutor framed before answering. SKIP for purely tutor-led lessons.
+
+## 失败先行 <!--method:F1-->
+ONLY if the student attempted a hard problem BEFORE seeing the canonical method, and the attempt failed. Format: > 你尝试: ... \\n > 为何不通: ... \\n > 标准方法: 一句话. The failure trace is the value — preserve it. SKIP if no fail-first attempt.
+
+## 用户灵感 <!--method:user-->
+1-3 paragraphs in second person ("你"). What THIS specific student noticed, connected to other notes, half-formed insights worth coming back to. Pull verbatim quotes where the student said something fresh. ALWAYS emit this section — half the note's value lives here.
+
+Rules across all sections:
+- Garamond-cadence prose. Sentences that breathe.
+- No "Here is the note:" / "I will now write..." preamble.
+- Forbidden words anywhere: AI, LLM, embedding, agent, model, prompt, RAG, vector, fine-tune.
+- If a section is optional and didn't fire, OMIT THE HEADER ENTIRELY (don't write "(none)").`;
 
   const user = `Sources used in this lesson:
 ${sourceList}
@@ -1459,7 +1803,44 @@ ${tx}
 
 Write the note now.`;
 
-  return await llmJSON([{ role: 'system', content: sys }, { role: 'user', content: user }], settings, { temperature: 0.6, max_tokens: 2000 });
+  let raw = await llmJSON([{ role: 'system', content: sys }, { role: 'user', content: user }], settings, { temperature: 0.6, max_tokens: 2000, timeoutMs: 180_000 });
+  // 2026-05-03 — strip ONLY claude-cli agent-crew leaks. User-set names
+  // (settings.userProfile.name + .tutorName) are intentional address and
+  // must NEVER be stripped. Earlier version wrongly flagged "Machino" (user's
+  // actual name) as leak.
+  raw = _stripPersonaPreamble(raw, settings);
+  return raw;
+}
+
+// Remove claude-cli agent-crew greetings (e.g. "Lung online.", "Victor here.")
+// that bleed past the --system-prompt flag. Walks from the top, drops up to
+// 8 lines until a markdown heading. NEVER strips lines that mention the
+// user's own name or tutor name from settings.userProfile — those are the
+// intentional address Hypha asked for in the system prompt. Conservative —
+// never strips past the first header so real distill content is preserved.
+function _stripPersonaPreamble(text, settings) {
+  if (!text) return text;
+  const profile = settings && settings.userProfile;
+  const userName = profile && profile.name ? String(profile.name).trim().toLowerCase() : '';
+  const tutorName = profile && profile.tutorName ? String(profile.tutorName).trim().toLowerCase() : '';
+  // Agent crew names that signal Claude Code persona leak. "Victor" included
+  // unless user claimed it. Generic user-name greetings (e.g. "Machino，") are
+  // NOT stripped — that's correct address.
+  const crewNames = ['Lung', 'Leo', 'Yogo', 'Muse', 'MEOW', 'Wolf', 'Nancy', 'Ghost', 'TATA', 'SONCAR', 'QAQ'];
+  if (userName !== 'victor' && tutorName !== 'victor') crewNames.push('Victor');
+  const crewRE = new RegExp('\\b(' + crewNames.join('|') + ')\\b', 'i');
+  const lines = text.split('\n');
+  let cutAt = -1;
+  for (let i = 0; i < Math.min(lines.length, 8); i++) {
+    const ln = lines[i].trim();
+    if (!ln) continue;
+    if (/^#{1,3}\s/.test(ln) || /^---/.test(ln)) break; // hit real content
+    if (crewRE.test(ln)) { cutAt = i; }
+  }
+  if (cutAt < 0) return text;
+  let rest = lines.slice(cutAt + 1);
+  while (rest.length && !rest[0].trim()) rest.shift();
+  return rest.join('\n');
 }
 
 async function updateState({ state, transcript, note, idx, sequence }, settings) {
@@ -1596,20 +1977,28 @@ Rules:
     raw = await llmJSON(messages, settings, { json: true, temperature: 0.2, max_tokens: 800 });
   } catch (err) {
     console.error('[extractAtlasDelta] LLM call failed:', err && err.message);
-    return { introduced: [], referenced: [], settled_by_user: [], expected_uncovered: [] };
+    return { introduced: [], referenced: [], settled_by_user: [], expected_uncovered: [], _debug: 'llm_failed:' + (err && err.message || err) };
   }
   let delta;
   try { delta = JSON.parse(raw); }
-  catch (_) {
+  catch (e) {
     console.error('[extractAtlasDelta] JSON parse failed; raw=' + (raw || '').slice(0, 200));
-    return { introduced: [], referenced: [], settled_by_user: [], expected_uncovered: [] };
+    return { introduced: [], referenced: [], settled_by_user: [], expected_uncovered: [], _debug: 'parse_failed:' + e.message + ':raw=' + (raw || '').slice(0, 300) };
   }
-  return {
+  const out = {
     introduced: Array.isArray(delta.introduced) ? delta.introduced : [],
     referenced: Array.isArray(delta.referenced) ? delta.referenced : [],
     settled_by_user: Array.isArray(delta.settled_by_user) ? delta.settled_by_user : [],
     expected_uncovered: Array.isArray(delta.expected_uncovered) ? delta.expected_uncovered : [],
   };
+  // 2026-05-03 diagnostic: if all 4 arrays empty, attach raw response (truncated)
+  // for the events log to surface. Helps diagnose whether LLM returned empty
+  // shape vs returned something the parser couldn't extract concepts from.
+  const totalConcepts = out.introduced.length + out.referenced.length + out.settled_by_user.length + out.expected_uncovered.length;
+  if (totalConcepts === 0) {
+    out._debug = 'all_empty:raw=' + (raw || '').slice(0, 400);
+  }
+  return out;
 }
 
 // Lacquer Loop W6 — Learning Chain Planner. Three small LLM classifiers + one
@@ -1761,6 +2150,85 @@ Return JSON only.`;
       missing_prerequisites: Array.isArray(p.missing_prerequisites) ? p.missing_prerequisites : [],
     };
   } catch (_) { return { score: 0.2, rationale: 'classify failed', missing_prerequisites: [] }; }
+}
+
+// classifyAll — 2026-05-03 perf optimization. Merges classifyDifficulty +
+// classifyIntrinsicLoad + classifyPriorKnowledge into ONE LLM call. The 3
+// classifiers used to run via Promise.all (3 parallel round-trips, bound by
+// slowest ~10-15s on Opus). One call cuts to ~4-6s. Returns the same shape
+// as the 3 individual classifiers combined so chain:create can swap in
+// without changing downstream consumers.
+async function classifyAll(goal, answers, settings) {
+  const formattedAnswers = (answers || []).map(a =>
+    `Q: ${a.question}\nA: ${Array.isArray(a.answer) ? a.answer.join(', ') : a.answer}`
+  ).join('\n\n');
+  const profile = settings && settings.userProfile;
+  const profileBlock = userProfileBlock(profile);
+  const probe = _findRelevantProbe(profile, goal);
+  const probeClause = (probe && typeof probe.score === 'number') ? `
+
+PROBE RESULTS (calibrated baseline ON THE TOPIC "${probe.topic}" — use as PRIMARY signal over self-introduction when topic matches):
+- Score: ${Math.round(probe.score * 100)}% (${probe.correctCount || 0}/${probe.total || 0})
+- Band: ${probe.band || 'unknown'}
+Map band → prior_score: novice → 0.05-0.20, foundational → 0.20-0.40, intermediate → 0.40-0.65, advanced → 0.65-0.90.
+
+NOTE: probe is on "${probe.topic}" — if current GOAL "${goal}" is unrelated, fall back to prose self-introduction.` : '';
+  const sys = `${HYPHA_SHORT}${profileBlock}${probeClause}Classify the learning task across THREE dimensions in one call. Return JSON only:
+
+{
+  "difficulty_score": float 0..1,
+  "difficulty_rationale": string,
+  "intrinsic_load": "low" | "med" | "high",
+  "intrinsic_rationale": string,
+  "prior_score": float 0..1,
+  "prior_rationale": string,
+  "missing_prerequisites": [string]
+}
+
+DIFFICULTY anchors:
+- 0.0 grade-school basics · 0.3 high-school survival · 0.5 undergrad proficiency · 0.7 grad research · 0.85 doctoral / GPT-tier · 1.0 open frontier
+- "frontier"/"PhD-level" → 0.85+ · "intro"/"basics" → ≤0.3 · "professional"/"production" → 0.5-0.7 · default 0.5
+
+INTRINSIC LOAD (Sweller element interactivity, Likourezos 2024):
+- low (×1.0): isolated facts/vocabulary/recipes (lang vocab, anatomy taxonomy, cooking)
+- med (×1.5): related but separable rules (programming syntax, accounting, organic mechanisms)
+- high (×2.0): heavily interdependent abstract systems (category theory, quantum, transformer arch, distributed systems)
+
+PRIOR KNOWLEDGE: how close student is to goal (0=zero foundation, 1=already there). Use STUDENT PROFILE as PRIMARY signal; answers below are supplementary disambiguators. Output missing_prerequisites = list of named knowledge bodies the student lacks for this goal.
+
+Return JSON only, no prose.`;
+  const user = `Goal: ${goal}\n\nStudent answers:\n${formattedAnswers || '(none)'}`;
+  try {
+    const raw = await llmJSON(
+      [{ role: 'system', content: sys }, { role: 'user', content: user }],
+      settings,
+      { json: true, temperature: 0.2, max_tokens: 600, timeoutMs: 60_000 }
+    );
+    const p = JSON.parse(raw);
+    return {
+      difficulty: {
+        score: Math.max(0, Math.min(1, Number(p.difficulty_score) || 0.5)),
+        rationale: p.difficulty_rationale || '',
+      },
+      intrinsic: {
+        load: ['low', 'med', 'high'].includes(p.intrinsic_load) ? p.intrinsic_load : 'med',
+        rationale: p.intrinsic_rationale || '',
+      },
+      prior: {
+        score: Math.max(0, Math.min(1, Number(p.prior_score) || 0.2)),
+        rationale: p.prior_rationale || '',
+        missing_prerequisites: Array.isArray(p.missing_prerequisites) ? p.missing_prerequisites : [],
+      },
+    };
+  } catch (e) {
+    console.error('[classifyAll] failed:', e.message);
+    // Fallback to safe defaults — chain:create can still proceed.
+    return {
+      difficulty: { score: 0.5, rationale: 'classifyAll failed' },
+      intrinsic: { load: 'med', rationale: 'classifyAll failed' },
+      prior: { score: 0.2, rationale: 'classifyAll failed', missing_prerequisites: [] },
+    };
+  }
 }
 
 // generateProbeMCQ — v0.6.0 Lung's PLACEMENT_PROBE. Issues 5 calibrated
@@ -2029,11 +2497,18 @@ Return JSON now.`;
     const raw = await llmJSON(
       [{ role: 'system', content: sys }, { role: 'user', content: user }],
       settings,
-      { json: true, temperature: 0.4, max_tokens: 3500 }
+      { json: true, temperature: 0.4, max_tokens: 8000, timeoutMs: 180_000 }
     );
-    parsed = JSON.parse(raw);
-  } catch (_) {
-    return { links: [], warning: 'plan failed', alternatives: null };
+    try {
+      parsed = JSON.parse(raw);
+    } catch (parseErr) {
+      console.error('[planChain] JSON parse failed. Raw response (first 500 chars):', String(raw || '').slice(0, 500));
+      console.error('[planChain] parse error:', parseErr.message);
+      return { links: [], warning: `plan failed: invalid JSON from LLM (${parseErr.message})`, alternatives: null };
+    }
+  } catch (llmErr) {
+    console.error('[planChain] LLM call failed:', llmErr.message, llmErr.code || '');
+    return { links: [], warning: `plan failed: ${llmErr.message}`, alternatives: null };
   }
 
   // Audit + regenerate-once if violations.
@@ -2597,6 +3072,7 @@ Write the next lesson now.`;
 }
 
 module.exports = {
+  llmJSON,                      // v0.11.0 — exposed for reflectionLLM (HERMES feedback loop)
   harvest,
   clarifyQuestions,
   classifyArchetype,
@@ -2604,6 +3080,7 @@ module.exports = {
   classifyDifficulty,
   classifyIntrinsicLoad,
   classifyPriorKnowledge,
+  classifyAll,
   planChain,
   designSequence,
   designLesson,

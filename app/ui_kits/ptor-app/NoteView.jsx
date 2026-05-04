@@ -132,6 +132,39 @@ function NoteViewInner({ rel, onBack, viewMode = 'evolution' }) {
   const [finishStatus, setFinishStatus] = React.useState(null); // null|'distilling'|'done'|'error'
   // Reset lesson state when navigating to a different note.
   React.useEffect(() => { setLessonOpen(false); setFinishStatus(null); }, [rel]);
+
+  // v0.8.0 候光 P3 OPSZ — variable-font opsz axis modulates with viewport
+  // zone occupancy on display type ONLY (h1/h2/h3 + .note-title). SCOUT
+  // 2026-05-02 verified: opsz on body paragraphs triggers full relayout —
+  // chouguang.opszAttention enforces a 150-char ceiling and throws otherwise.
+  // P4 HAIRLINE — quote-mark underline draws L-to-R on first viewport entry
+  // (replaces the static at-rest underline that read as "stamped" not "earned").
+  React.useEffect(() => {
+    if (!window.chouguang) return;
+    const stage = stageRef.current;
+    if (!stage) return;
+    const disposers = [];
+    const id = requestAnimationFrame(() => {
+      try {
+        const headings = stage.querySelectorAll('h1.note-title, .note-rendered h1, .note-rendered h2, .note-rendered h3');
+        headings.forEach(h => {
+          try {
+            const dispose = window.chouguang.opszAttention(h, {});
+            if (typeof dispose === 'function') disposers.push(dispose);
+          } catch (_) {}
+        });
+        const quoteMarks = stage.querySelectorAll('.hypha-quote-mark');
+        quoteMarks.forEach(q => {
+          q.classList.add('chouguang-hl');
+          try { window.chouguang.hairline(q, { durationMs: 520, onlyFirstEntry: true }); } catch (_) {}
+        });
+      } catch (_) {}
+    });
+    return () => {
+      cancelAnimationFrame(id);
+      disposers.forEach(d => { try { d(); } catch (_) {} });
+    };
+  }, [rel, html, bodyReady]);
   // Clear sessions on rel change (sessions are scoped to current note view)
   React.useEffect(() => { setDeepenSessions([]); }, [rel]);
 
@@ -373,8 +406,10 @@ function NoteViewInner({ rel, onBack, viewMode = 'evolution' }) {
 
   // Click delegation on .note-rendered: catch .wikilink clicks → dispatch
   // ptor:open-rel event (App.jsx listens, calls setActive(rel)).
-  // Broken wikilinks (data-target instead of data-rel) flash + ignore for v0.1.
-  const handleRenderedClick = React.useCallback((e) => {
+  // v0.11.0 — when basename match fails (data-rel absent), consult
+  // wikiResolve IPC: may resolve to an atlas concept (dispatch
+  // hypha:open-concept-page) or a daily note. Falls back to flash on miss.
+  const handleRenderedClick = React.useCallback(async (e) => {
     const a = e.target.closest && e.target.closest('a.wikilink');
     if (!a) return;
     e.preventDefault();
@@ -382,11 +417,28 @@ function NoteViewInner({ rel, onBack, viewMode = 'evolution' }) {
     const targetRel = a.getAttribute('data-rel');
     if (targetRel) {
       window.dispatchEvent(new CustomEvent('ptor:open-rel', { detail: targetRel }));
-    } else {
-      // broken link — gentle flash, no action (v0.2: prompt to create note)
-      a.classList.add('wikilink-flash');
-      setTimeout(() => a.classList.remove('wikilink-flash'), 600);
+      return;
     }
+    // Broken link path — try wikiResolve before flashing.
+    const target = a.getAttribute('data-target') || (a.textContent || '').trim();
+    if (target && window.ptor && window.ptor.vault && window.ptor.vault.wikiResolve) {
+      try {
+        const r = await window.ptor.vault.wikiResolve(target);
+        if (r && r.exists) {
+          if ((r.kind === 'note' || r.kind === 'daily') && r.rel) {
+            window.dispatchEvent(new CustomEvent('ptor:open-rel', { detail: r.rel }));
+            return;
+          }
+          if (r.kind === 'concept' && r.conceptKey) {
+            window.dispatchEvent(new CustomEvent('hypha:open-concept-page', { detail: r.conceptKey }));
+            return;
+          }
+        }
+      } catch (_) {}
+    }
+    // unknown — gentle flash
+    a.classList.add('wikilink-flash');
+    setTimeout(() => a.classList.remove('wikilink-flash'), 600);
   }, []);
 
   // Backlinks: notes citing this one via [[wikilink]]. Fetched once per rel.
@@ -672,72 +724,50 @@ function NoteViewInner({ rel, onBack, viewMode = 'evolution' }) {
     ta.style.height = ta.scrollHeight + 'px';
   }, [body, mode]);
 
-  // Cmd+K / Ctrl+K on a NoteView selection → spawn an inline DeepenCallout session
-  // INSIDE .note-rendered, right after the selected paragraph (Path B真正的 inline).
-  // Implementation: find the closest block-level ancestor of selection, insert a
-  // <div class="deepen-host"> right after it via DOM manipulation, render the
-  // DeepenCallout via ReactDOM.createPortal into that host. Body re-render would
-  // clobber it, but body doesn't change mid-session (rel change clears sessions).
-  React.useEffect(() => {
-    const BLOCK_TAGS = new Set(['P', 'LI', 'BLOCKQUOTE', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'TABLE']);
-    const onKey = (e) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      // Ctrl+D = deepen (full 7-stage, ~1.5-2 min via wave + flash)
-      // Ctrl+Q = quick (single flash call, ~10s)
-      // Shift modifier on Ctrl+D = plainer style (default = denser)
-      const k = e.key.toLowerCase();
-      let mode;
-      if (k === 'd') mode = 'deepen';
-      else if (k === 'q') mode = 'quick';
-      else return;
+  // 2026-05-03 v0145 — Deepen verb retired. After 8 failed builds (6× Ctrl+D
+  // chord + 2× paragraph hover-strip declared "无实用性"), council Phase 1
+  // (Lung+Leo+Yogo) unanimously chose: kill the dedicated trigger; route
+  // selection through the existing chat composer. The selection-anchored
+  // composer lives in LessonChat (this file ~line 3290+); NoteViewInner
+  // no longer injects strips or listens for deepen-request events.
+  // DeepenCallout component + IPC pipeline are kept as substrate but no
+  // longer auto-mount from this surface.
 
-      const sel = window.getSelection && window.getSelection();
-      if (!sel || sel.isCollapsed) return;
-      const txt = (sel.toString() || '').trim();
-      if (txt.length < 2) return;
-      const noteRendered = document.querySelector('.note-rendered');
-      if (!noteRendered || !noteRendered.contains(sel.anchorNode)) return;
-      e.preventDefault();
-
-      // Find the closest block-level ancestor of the selection's end
-      const range = sel.getRangeAt(0);
-      let anchorNode = range.endContainer;
-      if (anchorNode.nodeType === 3) anchorNode = anchorNode.parentElement;
-      let anchorBlock = anchorNode;
-      while (anchorBlock && anchorBlock !== noteRendered && !BLOCK_TAGS.has(anchorBlock.tagName)) {
-        anchorBlock = anchorBlock.parentElement;
-      }
-      if (!anchorBlock || anchorBlock === noteRendered || !noteRendered.contains(anchorBlock)) {
-        anchorBlock = noteRendered.lastElementChild || noteRendered;
-      }
-
-      // Style only applies to deepen mode. Quick is single-call, no style branching.
-      const style = (mode === 'deepen' && e.shiftKey) ? 'plainer' : 'denser';
-
-      // Lang from selection: ≥20% CJK chars → zh, else en.
-      const cjkCount = (txt.match(/[一-龥぀-ゟ゠-ヿ]/g) || []).length;
-      const lang = (cjkCount / txt.length >= 0.2) ? 'zh' : 'en';
-
-      const idPrefix = mode === 'quick' ? 'qck_' : 'dpn_';
-      const id = idPrefix + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-      const host = document.createElement('div');
-      host.className = 'deepen-host';
-      host.setAttribute('data-session-id', id);
-      anchorBlock.insertAdjacentElement('afterend', host);
-
-      setDeepenSessions(prev => [...prev, { id, mode, selection: txt, noteRel: rel, style, lang, direction: '', host }]);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [rel]);
-
-  // Clean up host divs when rel changes (effect ordering: this runs BEFORE
-  // setDeepenSessions([]) clears state on rel change).
+  // Clean up any stale .deepen-host nodes when rel changes (defensive —
+  // the new flow doesn't create them, but legacy vault content might
+  // contain leftovers from earlier builds).
   React.useEffect(() => {
     return () => {
       // On unmount or rel change, remove all hosts
       document.querySelectorAll('.deepen-host').forEach(h => h.remove());
     };
+  }, [rel]);
+
+  // 2026-05-03 v0149 — Ctrl+Shift+D opens AskCard floating popover (per user
+  // "悬浮卡片" / "最开始那个版本" request — the v0.1 era UI, NOT the inline
+  // DeepenCallout). Single-shot llm.run against prompts/deepen.txt, rendered
+  // by AskCard at NoteView.jsx:2092 (askCard state at line 127, render alive).
+  // Coexists with v0148 inline pill in Recall view: pill = mouse / inline
+  // multi-stage; chord = keyboard / floating single-shot.
+  // VaultTree.jsx:296 owns plain Ctrl+D = daily-note (its `!e.shiftKey` check
+  // excludes this chord — no collision).
+  React.useEffect(() => {
+    const onKey = (e) => {
+      const cmd = e.metaKey || e.ctrlKey;
+      if (!cmd || !e.shiftKey || e.altKey) return;
+      if (e.key !== 'd' && e.key !== 'D') return;
+      const t = e.target;
+      const tag = (t && t.tagName) ? t.tagName.toLowerCase() : '';
+      if (t && (t.isContentEditable || tag === 'input' || tag === 'textarea')) return;
+      const sel = window.getSelection && window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+      const text = sel.toString().trim();
+      if (!text) return;
+      e.preventDefault();
+      setAskCard({ template: 'deepen', selection: text, noteRel: rel });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [rel]);
 
   // Persist a finished deepen callout into the current note as markdown callout block.
@@ -934,6 +964,33 @@ function NoteViewInner({ rel, onBack, viewMode = 'evolution' }) {
               }
             }}
           />
+        )}
+        {/* 2026-05-03 — deepen portals MUST also render inside this evolution-
+            lesson early-return branch. Previously only the markdown-note return
+            (line 1007+) had them; user pressing Ctrl+D in LessonChat / Lesson-
+            HistoryView triggered the keydown handler + inserted host divs +
+            updated deepenSessions state, but the portal-rendering JSX block
+            (~line 2064) was unreachable from this branch → host divs sat
+            empty + user saw nothing. */}
+        {window.DeepenCallout && deepenSessions.map(sess =>
+          sess.host
+            ? ReactDOM.createPortal(
+                <DeepenErrorBoundary>
+                  <window.DeepenCallout
+                    mode={sess.mode || 'deepen'}
+                    selection={sess.selection}
+                    noteRel={sess.noteRel}
+                    style={sess.style}
+                    lang={sess.lang}
+                    onPersist={(text, style) => onPersistDeepen(sess.id, text, style)}
+                    onDiscard={() => onDiscardDeepen(sess.id)}
+                    onContinue={(nextMode, direction, priorSynth) => onContinueDeepen(sess, nextMode, direction, priorSynth)}
+                  />
+                </DeepenErrorBoundary>,
+                sess.host,
+                sess.id
+              )
+            : null
         )}
       </div>
     );
@@ -2244,7 +2301,121 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
   const [messages, setMessages] = React.useState([]);
   const [input, setInput] = React.useState('');
   const [streaming, setStreaming] = React.useState(false);
+  // 2026-05-03 v0145 — selection-anchored composer (replaces deepen verb).
+  // When user has a non-collapsed selection inside .hypha-chat-rich (tutor
+  // bubble) or .note-rendered (rendered note), this state holds the text.
+  // Composer shows a quoted preview + placeholder swap. On send, the user
+  // message is prepended with `> [selection]\n\n[user text]`. No new gesture,
+  // no new component — just routes through the existing chat infrastructure.
+  const [quotedSelection, setQuotedSelection] = React.useState(null);
   const [finishStatus, setFinishStatus] = React.useState(null); // null|'distilling'|'done'|'error'
+  // 2026-05-03 — adapting next lesson banner. true while lessonsAdapt is in
+  // flight (between hypha:lessons-adapt-started + -done events). Removes the
+  // "is anything happening?" anxiety while the deferred 60-90s LLM call runs
+  // in the background after FINISH.
+  const [adaptingNext, setAdaptingNext] = React.useState(false);
+  React.useEffect(() => {
+    const onStart = (e) => { if (!e || !e.detail || e.detail.rel === rel) setAdaptingNext(true); };
+    const onDone  = (e) => { if (!e || !e.detail || e.detail.rel === rel) setAdaptingNext(false); };
+    window.addEventListener('hypha:lessons-adapt-started', onStart);
+    window.addEventListener('hypha:lessons-adapt-done', onDone);
+    return () => {
+      window.removeEventListener('hypha:lessons-adapt-started', onStart);
+      window.removeEventListener('hypha:lessons-adapt-done', onDone);
+    };
+  }, [rel]);
+
+  // 2026-05-03 v0145.1 — selection watcher for the selection-anchored composer.
+  // CRITICAL: commit on mouseup, NOT on selectionchange. selectionchange fires
+  // during the drag, which would render the preview block mid-drag, push the
+  // composer up, reflow the chat area, and shift the prose under the user's
+  // still-pressed mouse — the selection then extends to include preceding
+  // text the user didn't intend (user complaint 2026-05-03: "我选中文字然后
+  // 自动给我把上文我不想要的文字也选取了"). Mouseup-only ensures preview
+  // appears AFTER selection is final, so any subsequent layout shift can't
+  // change what was selected.
+  //
+  // Doesn't auto-clear on collapse — user might click into textarea (which
+  // collapses selection) and we want the quote to persist. Cleared only by ×,
+  // Esc, send, or a new selection in scope.
+  React.useEffect(() => {
+    let pendingTimer = null;
+    const commitSelection = () => {
+      try {
+        const sel = window.getSelection && window.getSelection();
+        if (!sel || sel.isCollapsed) return;
+        const text = (sel.toString() || '').trim();
+        if (text.length < 2) return;
+        let node = sel.anchorNode;
+        if (node && node.nodeType === 3) node = node.parentElement;
+        let inScope = false;
+        while (node && node !== document.body) {
+          if (node.classList && (
+            node.classList.contains('hypha-chat-rich') ||
+            node.classList.contains('note-rendered')
+          )) { inScope = true; break; }
+          node = node.parentElement;
+        }
+        if (inScope) setQuotedSelection({ text });
+      } catch (_) {}
+    };
+    const onMouseUp = () => {
+      // 30ms delay so selection state finalizes after browser's native
+      // mouseup handling. Without this, sel.toString() can return the
+      // pre-mouseup selection on some Chromium versions.
+      if (pendingTimer) clearTimeout(pendingTimer);
+      pendingTimer = setTimeout(commitSelection, 30);
+    };
+    // Keyboard selection (shift+arrow / shift+click): commit on keyup of
+    // shift release. Less common but supported.
+    const onKeyUp = (e) => {
+      if (e.key === 'Shift') {
+        if (pendingTimer) clearTimeout(pendingTimer);
+        pendingTimer = setTimeout(commitSelection, 30);
+      }
+    };
+    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('keyup', onKeyUp);
+    return () => {
+      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('keyup', onKeyUp);
+      if (pendingTimer) clearTimeout(pendingTimer);
+    };
+  }, []);
+
+  // 2026-05-03 v0145+v0147 — Cross-view quote pickup.
+  // RecallNoteView (read-only surface, viewMode='recall') dispatches
+  // hypha:open-chat-with-quote + hypha:open-evolution when user clicks the
+  // `· ask in chat` pill on a selection. Race condition: the live event
+  // fires BEFORE LessonChat is mounted (we're in recall view at dispatch
+  // time, evolution view mounts on the NEXT React cycle). Solution:
+  // RecallNoteView ALSO stashes on window.__hyphaPendingQuote; LessonChat's
+  // mount-time effect (this one) picks it up regardless of timing.
+  React.useEffect(() => {
+    if (window.__hyphaPendingQuote && window.__hyphaPendingQuote.text) {
+      const text = String(window.__hyphaPendingQuote.text || '').trim();
+      if (text.length >= 2) setQuotedSelection({ text });
+      try { window.__hyphaPendingQuote = null; } catch (_) {}
+    }
+    const onOpenWithQuote = (e) => {
+      if (!e || !e.detail) return;
+      const text = String(e.detail.text || '').trim();
+      if (text.length >= 2) setQuotedSelection({ text });
+    };
+    window.addEventListener('hypha:open-chat-with-quote', onOpenWithQuote);
+    return () => window.removeEventListener('hypha:open-chat-with-quote', onOpenWithQuote);
+  }, []);
+
+  // Esc clears the quoted selection (lightweight detach without clicking ×).
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape' && quotedSelection) {
+        setQuotedSelection(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [quotedSelection]);
   // Phase 3.4 — weekly adaptation summary surfaced after lesson:finish + adapt
   // resolves. null = not loaded; {count, tiers, recent} once available.
   // Rendered as a quiet italic Garamond paragraph below the finish button.
@@ -2522,6 +2693,22 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
         });
         // Refocus the input so user can keep typing without click.
         setTimeout(() => { try { inputRef.current && inputRef.current.focus(); } catch (_) {} }, 60);
+      } else if (p.status === 'aborted') {
+        setStreaming(false);
+        // Stop button was clicked. Append a faint italic "(stopped)" suffix
+        // to whatever text already streamed, marking the partial state.
+        setMessages(ms => {
+          const next = ms.slice();
+          const last = next[next.length - 1];
+          if (last && last.role === 'tutor') {
+            const existing = last.text || '';
+            const sep = existing && !existing.endsWith('\n') ? ' ' : '';
+            next[next.length - 1] = { ...last, text: existing + sep + '*(stopped)*' };
+          }
+          return next;
+        });
+        requestIdRef.current = null;
+        setTimeout(() => { try { inputRef.current && inputRef.current.focus(); } catch (_) {} }, 60);
       } else if (p.status === 'error') {
         setStreaming(false);
         // Surface the actual error from main.js so user (and we) see what failed.
@@ -2541,6 +2728,13 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
       }
     });
   }, []);
+
+  function handleStop() {
+    if (!streaming || !requestIdRef.current) return;
+    if (window.ptor && window.ptor.llm && window.ptor.llm.lessonAbort) {
+      window.ptor.llm.lessonAbort(requestIdRef.current).catch(() => {});
+    }
+  }
 
   // Auto-scroll to bottom on every message change.
   React.useEffect(() => {
@@ -2618,8 +2812,21 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
   function handleSend() {
     const t = (input || '').trim();
     if (!t || streaming) return;
+    // 2026-05-03 v0145 — if a selection is anchored to this composer,
+    // prepend it as a markdown blockquote so the tutor receives "user
+    // is asking about THIS specific passage". The selection is part of
+    // the user message (visible in chat history) — no separate channel.
+    let payload = t;
+    if (quotedSelection && quotedSelection.text) {
+      const quoteLines = quotedSelection.text
+        .split('\n')
+        .map(l => '> ' + l)
+        .join('\n');
+      payload = `${quoteLines}\n\n${t}`;
+    }
     setInput('');
-    sendTurn(t);
+    setQuotedSelection(null);
+    sendTurn(payload);
   }
 
   async function handleFinish() {
@@ -2632,27 +2839,50 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
       });
       if (r && r.ok) {
         setFinishStatus('done');
+        // 2026-05-03 — broadcast finish so HandscrollNav rail/footer + RECALL
+        // refresh their vault:list cache. Without this, the next-lesson lock
+        // state stays stale (file is unlocked but rail still shows lock).
+        try { window.dispatchEvent(new CustomEvent('hypha:lesson-finished', { detail: { rel } })); } catch (_) {}
         if (typeof onDistilled === 'function') onDistilled();
         // Phase 3.1 — fire-and-forget settled-signal goal adaptation. Reads
         // this lesson's atlas + rewrites next 1-3 locked lessons' learn_goal.
         // Only fires on fresh mode (continuation = revisit, no DAG impact).
-        if (sessionMode === 'fresh' && window.ptor.hypha.lessonsAdapt) {
-          window.ptor.hypha.lessonsAdapt(rel)
-            .then(res => {
-              if (res && res.ok && res.adaptedCount > 0) {
-                try { window.dispatchEvent(new CustomEvent('hypha:lessons-adapted', { detail: res })); } catch (_) {}
-              }
-              // Phase 3.4 — pull weekly summary AFTER adapt resolves so the
-              // notice reflects the just-fired adapt(s). Silent on failure;
-              // notice simply won't appear.
-              const slug = rel ? rel.split(/[\\/]/)[0] : '';
-              if (slug && window.ptor.hypha.adaptationsWeeklySummary) {
-                window.ptor.hypha.adaptationsWeeklySummary(slug)
-                  .then(s => { if (s && s.ok && s.count > 0) setWeeklySummary(s); })
-                  .catch(() => {});
-              }
-            })
-            .catch(() => {/* silent — adapt is best-effort */});
+        // 2026-05-03 — call lessonsAdapt regardless of sessionMode. Previously
+        // gated to 'fresh' only on the assumption that continuation = pure
+        // revisit. But: when fresh-finish times out partway, NoteView auto-
+        // switches to continuation; subsequent finishes never materialize the
+        // next ghost lesson. Net result: user stuck with N-pending stubs
+        // forever. lessonsAdapt is idempotent (skips non-ghost lessons + skips
+        // unlocked lessons for goal rewrite), so calling on continuation is
+        // safe and recovers from the prior-timeout path.
+        // 2026-05-03 — defer lessonsAdapt by 2s. Without this, the heavy LLM
+        // call (proposeNextLesson + per-lesson reharvest, 30-90s of claude-cli
+        // child-process orchestration) starts immediately after finish IPC
+        // returns, while the rail/RECALL/note are also calling vault.list
+        // concurrently. Result: main process IPC queue saturates, every
+        // subsequent renderer click queues behind = "整体卡顿点击无反应".
+        // 2s gap lets vault refreshes complete + UI settle before background
+        // LLM begins. Also dispatch start/end events so a banner can render.
+        if (window.ptor.hypha.lessonsAdapt) {
+          try { window.dispatchEvent(new CustomEvent('hypha:lessons-adapt-started', { detail: { rel } })); } catch (_) {}
+          setTimeout(() => {
+            window.ptor.hypha.lessonsAdapt(rel)
+              .then(res => {
+                if (res && res.ok && res.adaptedCount > 0) {
+                  try { window.dispatchEvent(new CustomEvent('hypha:lessons-adapted', { detail: res })); } catch (_) {}
+                }
+                const slug = rel ? rel.split(/[\\/]/)[0] : '';
+                if (slug && window.ptor.hypha.adaptationsWeeklySummary) {
+                  window.ptor.hypha.adaptationsWeeklySummary(slug)
+                    .then(s => { if (s && s.ok && s.count > 0) setWeeklySummary(s); })
+                    .catch(() => {});
+                }
+              })
+              .catch(() => {/* silent — adapt is best-effort */})
+              .finally(() => {
+                try { window.dispatchEvent(new CustomEvent('hypha:lessons-adapt-done', { detail: { rel } })); } catch (_) {}
+              });
+          }, 2000);
         }
       } else {
         setFinishStatus('error');
@@ -2674,27 +2904,53 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
         display: 'flex', alignItems: 'flex-start', gap: 16,
       }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {tutorLabel && (
+          {/* 2026-05-02 长卷 redesign — chain-level controls (tutor / language)
+              previously lived behind right-click on sidebar folders. With the
+              tree gone, surface them here as inline buttons in the lesson
+              header. Both dispatch events that VaultTree (mounted offscreen)
+              still listens for and opens the corresponding modal. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 6, flexWrap: 'wrap' }}>
+            {tutorLabel && (
+              <button
+                onClick={() => {
+                  const slug = rel ? rel.split(/[\\/]/)[0] : '';
+                  if (slug) window.dispatchEvent(new CustomEvent('hypha:open-tutor-customize', { detail: { slug } }));
+                }}
+                title="customize this curriculum's tutor"
+                style={{
+                  background: 'transparent', border: 'none', padding: 0,
+                  cursor: 'pointer',
+                  fontStyle: 'italic', fontSize: 11.5,
+                  letterSpacing: '0.16em', textTransform: 'uppercase',
+                  color: 'var(--brass-bright)',
+                  transition: 'color 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+                  display: 'inline-block',
+                  fontFamily: 'inherit',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--ink-title)'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--brass-bright)'; }}
+              >· tutor: {tutorLabel}</button>
+            )}
             <button
               onClick={() => {
                 const slug = rel ? rel.split(/[\\/]/)[0] : '';
-                if (slug) window.dispatchEvent(new CustomEvent('hypha:open-tutor-customize', { detail: { slug } }));
+                if (slug) window.dispatchEvent(new CustomEvent('hypha:open-language', { detail: { slug } }));
               }}
-              title="customize this curriculum's tutor"
+              title="set the language this curriculum's tutor responds in"
               style={{
                 background: 'transparent', border: 'none', padding: 0,
                 cursor: 'pointer',
                 fontStyle: 'italic', fontSize: 11.5,
                 letterSpacing: '0.16em', textTransform: 'uppercase',
-                color: 'var(--brass-bright)', marginBottom: 6,
+                color: 'var(--brass-bright)',
                 transition: 'color 220ms cubic-bezier(0.22, 1, 0.36, 1)',
                 display: 'inline-block',
                 fontFamily: 'inherit',
               }}
               onMouseEnter={e => { e.currentTarget.style.color = 'var(--ink-title)'; }}
               onMouseLeave={e => { e.currentTarget.style.color = 'var(--brass-bright)'; }}
-            >· tutor: {tutorLabel}</button>
-          )}
+            >· language</button>
+          </div>
           <h2 style={{
             fontStyle: 'normal', fontWeight: 400, fontSize: 22, lineHeight: 1.25,
             color: 'var(--ink-title)', margin: '0 0 6px',
@@ -2753,6 +3009,20 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
              finishStatus === 'error' ? 'try again' :
              'finish lesson'}
           </button>
+          {/* 2026-05-03 — "正在生成下一节" indicator. Renders only when the
+              deferred lessonsAdapt LLM call is in flight (60-90s background).
+              Quiet italic Garamond, no spinner — calm-tech. */}
+          {adaptingNext && (
+            <p style={{
+              maxWidth: 280, margin: '4px 0 0',
+              fontFamily: 'inherit', fontStyle: 'italic',
+              fontSize: 12.5, lineHeight: 1.5,
+              color: 'var(--ink-faint)',
+              textAlign: 'right',
+            }}>
+              正在生成下一节…
+            </p>
+          )}
           {/* Phase 3.4 — weekly adaptation notice. Quiet italic Garamond
               paragraph that appears only after finish + adapt resolves with
               count > 0. Phrasing reflects tier mix: "deepened" (DEEP),
@@ -2928,7 +3198,7 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
             </div>
           )}
           {messages.map((m, i) => (
-            <ChatBubble key={i} role={m.role} text={m.text} streaming={streaming && i === messages.length - 1 && m.role === 'tutor'} error={m.error} userProfile={userProfile} tutorProfile={tutorProfile} msgIdx={i} quotedRanges={atlasQuotes.filter(q => q.msg_idx === i)} />
+            <ChatBubble key={i} role={m.role} text={m.text} streaming={streaming && i === messages.length - 1 && m.role === 'tutor'} error={m.error} userProfile={userProfile} tutorProfile={tutorProfile} msgIdx={i} quotedRanges={atlasQuotes.filter(q => q.msg_idx === i)} noteRel={rel} />
           ))}
           <div ref={messagesEndRef} />
         </div>
@@ -2940,11 +3210,50 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
           user types (background-size 0→100% by length/80). Click well = send.
           MUSE invariants enforced: typed glyphs are 100% opacity crisp Garamond,
           no per-keystroke JS animation (CSS-only background-size handles fill),
-          caret zone has no ambient effect, focus ring is explicit. */}
+          caret zone has no ambient effect, focus ring is explicit.
+
+          v0145 — selection-anchored quote preview rendered ABOVE the well
+          when user has selected text in a tutor bubble or rendered note. */}
       <div style={{
         padding: '16px 32px 24px',
         borderTop: '1px solid color-mix(in srgb, var(--brass-mid) 14%, transparent)',
       }}>
+        {quotedSelection && (
+          <div style={{
+            maxWidth: 720, margin: '0 auto 8px',
+            display: 'flex', gap: 10, alignItems: 'flex-start',
+            padding: '8px 14px 8px 14px',
+            borderLeft: '2px solid color-mix(in srgb, var(--brass-mid) 38%, transparent)',
+            background: 'color-mix(in srgb, var(--brass-mid) 4%, transparent)',
+            fontFamily: 'inherit',
+            fontSize: 13,
+            lineHeight: 1.55,
+            color: 'var(--ink-faint)',
+          }}>
+            <span style={{ flex: 1, fontStyle: 'italic' }}>
+              {quotedSelection.text.length > 160
+                ? quotedSelection.text.slice(0, 160) + '…'
+                : quotedSelection.text}
+            </span>
+            <button
+              onClick={() => setQuotedSelection(null)}
+              aria-label="detach quote"
+              title="detach (Esc)"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--ink-faint)',
+                fontFamily: 'inherit',
+                fontSize: 13,
+                fontStyle: 'normal',
+                letterSpacing: '0.04em',
+                cursor: 'pointer',
+                padding: '0 4px',
+                lineHeight: 1.55,
+              }}
+            >×</button>
+          </div>
+        )}
         <div style={{
           maxWidth: 720, margin: '0 auto',
           display: 'flex', gap: 12, alignItems: 'flex-end',
@@ -2964,7 +3273,13 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
             }}
-            placeholder={streaming ? 'tutor is replying…' : 'your answer…'}
+            placeholder={
+              streaming
+                ? 'tutor is replying…'
+                : quotedSelection
+                  ? 'ask about this —'
+                  : 'your answer…'
+            }
             rows={1}
             disabled={streaming}
             style={{
@@ -2980,36 +3295,78 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
               minHeight: 24, maxHeight: 160,
             }}
           />
-          {/* Reservoir well — fills with ink as you type. Click to send. */}
+          {/* Reservoir well — fills with ink as you type. Click to send.
+              When streaming → transforms into stop button (square inset, dim brass).
+              When fill caps at 80 chars → meniscus-breath: brass surface convex
+              bulges + breathes via slow scale cycle (筆洗 register, continuous
+              motion past static cap). */}
           <button
-            onClick={handleSend}
-            disabled={!input.trim() || streaming}
-            aria-label={streaming ? 'tutor is replying' : 'Send (or press Enter)'}
-            title={streaming ? 'tutor is replying' : 'send'}
+            onClick={streaming ? handleStop : handleSend}
+            disabled={!streaming && !input.trim()}
+            aria-label={streaming ? 'stop tutor' : 'Send (or press Enter)'}
+            title={streaming ? 'stop' : 'send'}
             style={{
+              position: 'relative',
               flexShrink: 0,
               width: 28, height: 28,
               borderRadius: '50%',
               border: '1px solid ' + (streaming
-                ? 'color-mix(in srgb, var(--brass-mid) 24%, transparent)'
+                ? 'color-mix(in srgb, var(--brass-mid) 60%, transparent)'
                 : input.trim()
                   ? 'var(--brass-bright)'
                   : 'color-mix(in srgb, var(--brass-mid) 36%, transparent)'),
               padding: 0,
               backgroundColor: 'color-mix(in srgb, var(--brass-mid) 4%, transparent)',
-              backgroundImage: `radial-gradient(circle at center, var(--ink-title) 0%, color-mix(in srgb, var(--ink-title) 88%, var(--brass-bright)) 100%)`,
+              backgroundImage: streaming
+                ? 'none'
+                : `radial-gradient(circle at center, var(--ink-title) 0%, color-mix(in srgb, var(--ink-title) 88%, var(--brass-bright)) 100%)`,
               backgroundRepeat: 'no-repeat',
               backgroundPosition: 'center bottom',
-              backgroundSize: `100% ${Math.min(1, input.length / 80) * 100}%`,
-              boxShadow: input.trim() && !streaming
-                ? 'inset 0 1px 2px color-mix(in srgb, var(--ink-title) 22%, transparent), 0 0 0 2px color-mix(in srgb, var(--brass-bright) 12%, transparent)'
-                : 'inset 0 1px 2px color-mix(in srgb, var(--ink-title) 14%, transparent)',
-              cursor: (!input.trim() || streaming) ? 'not-allowed' : 'pointer',
+              backgroundSize: streaming
+                ? '0% 0%'
+                : `100% ${Math.min(1, input.length / 80) * 100}%`,
+              boxShadow: streaming
+                ? 'inset 0 1px 2px color-mix(in srgb, var(--ink-title) 18%, transparent), 0 0 0 2px color-mix(in srgb, var(--brass-mid) 14%, transparent)'
+                : input.trim()
+                  ? 'inset 0 1px 2px color-mix(in srgb, var(--ink-title) 22%, transparent), 0 0 0 2px color-mix(in srgb, var(--brass-bright) 12%, transparent)'
+                  : 'inset 0 1px 2px color-mix(in srgb, var(--ink-title) 14%, transparent)',
+              cursor: streaming ? 'pointer' : (input.trim() ? 'pointer' : 'not-allowed'),
               transition: 'background-size 180ms ease-out, box-shadow 180ms ease-out, border-color 180ms ease-out',
               alignSelf: 'flex-end',
               marginBottom: 4,
             }}
-          />
+          >
+            {streaming && (
+              /* Stop glyph — small filled square inset, dim brass.
+                 Tap-target = whole 28px button. */
+              <span
+                aria-hidden="true"
+                style={{
+                  position: 'absolute', left: '50%', top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: 9, height: 9, borderRadius: 1,
+                  background: 'color-mix(in srgb, var(--brass-bright) 70%, var(--ink-title))',
+                  boxShadow: '0 0 6px color-mix(in srgb, var(--brass-bright) 25%, transparent)',
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+            {!streaming && input.length >= 80 && (
+              /* Meniscus-breath overlay — brass surface convex bulge +
+                 slow scale cycle once the well is full. Continues motion
+                 past the static-fill cap. */
+              <span
+                aria-hidden="true"
+                style={{
+                  position: 'absolute', inset: 0,
+                  borderRadius: '50%',
+                  background: `radial-gradient(circle at center 75%, color-mix(in srgb, var(--brass-bright) 38%, transparent) 0%, transparent 55%)`,
+                  pointerEvents: 'none',
+                  animation: 'hypha-meniscus-breath 2400ms cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                }}
+              />
+            )}
+          </button>
         </div>
       </div>
     </div>
@@ -3030,7 +3387,7 @@ function LessonChat({ rel, meta, onDistilled, sourceSessionFile }) {
 //
 // Speaker is encoded preattentively (luminance + position-of-spine), so labels
 // disappear at-rest. Tutor name + actions surface only on hover.
-function ChatBubble({ role, text, streaming, error, userProfile, tutorProfile, msgIdx, quotedRanges }) {
+function ChatBubble({ role, text, streaming, error, userProfile, tutorProfile, msgIdx, quotedRanges, noteRel }) {
   const isUser = role === 'user';
   const [hover, setHover] = React.useState(false);
 
@@ -3169,6 +3526,38 @@ function ChatBubble({ role, text, streaming, error, userProfile, tutorProfile, m
           style={{ cursor: 'pointer' }}
           onClick={() => { try { navigator.clipboard.writeText(text); } catch(_){} }}
         >copy</span>
+        {/* v0.8.5 — explicit 金句 → atlas extraction. Picks up the current
+            selection (must be inside this bubble + ≥6 chars) and persists via
+            quoteAdd. Drag-and-drop still works as before; this is a more
+            discoverable affordance for users who don't realize they can drag.
+            Tutor turns only — user turns don't earn 金句. */}
+        {!isUser && !error && (
+          <span
+            style={{ marginLeft: 14, cursor: 'pointer' }}
+            title="select text in this bubble, then click → keep as 金句 in concept atlas"
+            onClick={async () => {
+              if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.quoteAdd) return;
+              let sel = '';
+              try { sel = String(window.getSelection ? window.getSelection().toString() : '').trim(); } catch (_) {}
+              if (!sel || sel.length < 6) {
+                // No selection — fall back to whole bubble text (truncated to 600 chars).
+                sel = (text || '').trim().slice(0, 600);
+              }
+              if (!sel || sel.length < 6) return;
+              if (!noteRel) return;
+              try {
+                const r = await window.ptor.hypha.quoteAdd(noteRel, {
+                  text: sel,
+                  msgIdx: typeof msgIdx === 'number' ? msgIdx : null,
+                  role,
+                });
+                if (r && r.ok) {
+                  try { window.dispatchEvent(new CustomEvent('hypha:atlas-updated', { detail: { rel: noteRel } })); } catch (_) {}
+                }
+              } catch (_) {}
+            }}
+          >→ keep</span>
+        )}
       </div>
 
       {/* Lacquer Loop W7 v1.2 — TutorInkBlot replaces the pre-stream vacuum.
@@ -3514,6 +3903,63 @@ function LessonHistoryView({ rel, meta, onReread }) {
   const [openSession, setOpenSession] = React.useState(null); // null | { file, mode, ... }
   const [continuationSession, setContinuationSession] = React.useState(null); // sessionFile string when continuing
 
+  // 2026-05-03 — 焚信 (Burning Letters) delete ceremony.
+  // pressing: which session file (the row) is currently being long-pressed
+  // dissolving: file → 'dissolving' (visual fade phase, 2.4s) | 'committing' (5s undo window) | 'gone' (collapsed)
+  // Long-press 1.2s → enter 'dissolving' state (CSS filter blur+ash sweep,
+  // mask-image top→bottom). Concurrent 5s undo timer; mouseenter on dissolving
+  // row reverts. Timer expires → 'gone' (height:0 collapse + IPC soft-delete).
+  const [pressingFile, setPressingFile] = React.useState(null);
+  const [dissolving, setDissolving] = React.useState({}); // file → 'dissolving' | 'gone'
+  const pressTimerRef = React.useRef(null);
+  const expireTimersRef = React.useRef({});
+
+  const startPress = React.useCallback((file) => {
+    setPressingFile(file);
+    pressTimerRef.current = setTimeout(() => {
+      pressTimerRef.current = null;
+      setPressingFile(null);
+      setDissolving(d => ({ ...d, [file]: 'dissolving' }));
+      // 5s undo window, then commit
+      expireTimersRef.current[file] = setTimeout(async () => {
+        delete expireTimersRef.current[file];
+        try {
+          if (window.ptor && window.ptor.llm && window.ptor.llm.lessonSessionDelete) {
+            await window.ptor.llm.lessonSessionDelete(rel, file);
+          }
+        } catch (_) {}
+        setDissolving(d => ({ ...d, [file]: 'gone' }));
+        // After collapse animation finishes, remove from sessions
+        setTimeout(() => {
+          setSessions(prev => prev.filter(s => s.file !== file));
+          setDissolving(d => { const n = { ...d }; delete n[file]; return n; });
+        }, 700);
+      }, 5000);
+    }, 1200);
+  }, [rel]);
+
+  const cancelPress = React.useCallback(() => {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+    setPressingFile(null);
+  }, []);
+
+  const undoDissolve = React.useCallback((file) => {
+    if (expireTimersRef.current[file]) {
+      clearTimeout(expireTimersRef.current[file]);
+      delete expireTimersRef.current[file];
+    }
+    setDissolving(d => { const n = { ...d }; delete n[file]; return n; });
+  }, []);
+
+  // Cleanup on unmount
+  React.useEffect(() => () => {
+    if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    Object.values(expireTimersRef.current).forEach(t => clearTimeout(t));
+  }, []);
+
   const lessonTitle = (meta && meta.frontmatter && meta.frontmatter.title)
     || (rel ? rel.split(/[\\/]/).pop().replace(/\.md$/i, '').replace(/^\d+-/, '').replace(/-/g, ' ') : '');
   const learnGoal = (meta && meta.frontmatter && String(meta.frontmatter.learn_goal || '').replace(/^"|"$/g, '')) || '';
@@ -3607,22 +4053,53 @@ function LessonHistoryView({ rel, meta, onReread }) {
           )}
           {!loading && sessions.map((s, i) => {
             const dt = s.startISO ? s.startISO.replace('T', ' · ').slice(0, 16) : s.file;
+            const isPressing = pressingFile === s.file;
+            const phase = dissolving[s.file]; // 'dissolving' | 'gone' | undefined
+            const isDissolving = phase === 'dissolving';
+            const isGone = phase === 'gone';
             return (
               <button
                 key={s.file}
-                onClick={() => setOpenSession(s)}
+                onClick={() => {
+                  // ignore click while pressing/dissolving — defer to press / undo
+                  if (isPressing || isDissolving || isGone) return;
+                  setOpenSession(s);
+                }}
+                onMouseDown={(e) => {
+                  if (e.button !== 0 || isDissolving || isGone) return;
+                  startPress(s.file);
+                }}
+                onMouseUp={() => { if (isPressing) cancelPress(); }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'color-mix(in srgb, var(--brass-mid) 6%, transparent)';
+                  // Hovering a dissolving row = silent undo (5s window)
+                  if (isDissolving) undoDissolve(s.file);
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  if (isPressing) cancelPress();
+                }}
                 style={{
                   display: 'block', width: '100%', textAlign: 'left',
                   background: 'transparent',
                   border: 'none',
-                  borderBottom: '1px solid color-mix(in srgb, var(--brass-mid) 12%, transparent)',
-                  padding: '18px 8px',
-                  cursor: 'pointer',
+                  borderBottom: isGone ? 'none' : '1px solid color-mix(in srgb, var(--brass-mid) 12%, transparent)',
+                  padding: isGone ? '0 8px' : '18px 8px',
+                  height: isGone ? '0' : 'auto',
+                  overflow: 'hidden',
+                  cursor: isDissolving ? 'pointer' : 'pointer',
                   fontFamily: 'inherit',
-                  transition: 'background 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+                  position: 'relative',
+                  transition: isGone
+                    ? 'height 600ms ease, padding 600ms ease, opacity 400ms ease 200ms'
+                    : isDissolving
+                      ? 'filter 2400ms cubic-bezier(0.4, 0, 0.6, 1), opacity 2400ms cubic-bezier(0.4, 0, 0.6, 1), -webkit-mask-image 2400ms cubic-bezier(0.4, 0, 0.6, 1), mask-image 2400ms cubic-bezier(0.4, 0, 0.6, 1)'
+                      : 'background 220ms cubic-bezier(0.22, 1, 0.36, 1), filter 220ms ease, opacity 220ms ease',
+                  filter: isDissolving ? 'blur(4px) saturate(0.4) hue-rotate(335deg) brightness(0.9)' : 'none',
+                  opacity: isGone ? 0 : (isDissolving ? 0.45 : 1),
+                  WebkitMaskImage: isDissolving ? 'linear-gradient(to bottom, transparent 0%, black 35%, black 100%)' : 'none',
+                  maskImage: isDissolving ? 'linear-gradient(to bottom, transparent 0%, black 35%, black 100%)' : 'none',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--brass-mid) 6%, transparent)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
               >
                 <div style={{
                   display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 6,
@@ -3649,6 +4126,19 @@ function LessonHistoryView({ rel, meta, onReread }) {
                 }}>
                   "{s.firstQuestion || '(no opening question recorded)'}"
                 </div>
+                {/* Press progress bar — 1px brass line fills bottom of row
+                    over 1.2s during long-press. Resets if press canceled. */}
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute', left: 0, bottom: 0,
+                    height: 1,
+                    background: 'var(--brass-bright)',
+                    width: isPressing ? '100%' : '0%',
+                    transition: isPressing ? 'width 1200ms linear' : 'width 220ms ease',
+                    pointerEvents: 'none',
+                  }}
+                />
               </button>
             );
           })}
@@ -4349,8 +4839,8 @@ function ConceptAtlas({ rel }) {
         style={{
           padding: '32px 18px',
           fontFamily: '"EB Garamond", "Noto Serif SC", Georgia, serif',
-          fontStyle: 'italic', fontSize: 13, color: 'var(--ink-faint)',
-          opacity: 0.7, lineHeight: 1.55,
+          fontStyle: 'italic', fontSize: 15, color: 'var(--ink-faint)',
+          opacity: 0.75, lineHeight: 1.6,
           minHeight: '60vh',
           border: dropActive
             ? '1px dashed color-mix(in srgb, var(--brass-bright) 60%, transparent)'
@@ -4370,12 +4860,13 @@ function ConceptAtlas({ rel }) {
     );
   }
 
-  // Section heading style — small italic caps editorial register
+  // Section heading style — italic caps editorial register.
+  // v0.8.5 — bumped from 10.5 to 13. User reported "字体太小看不清".
   const headingStyle = {
     fontFamily: '"Cormorant Garamond", "EB Garamond", Georgia, serif',
     fontStyle: 'italic',
-    fontSize: 10.5,
-    letterSpacing: '0.16em',
+    fontSize: 13,
+    letterSpacing: '0.14em',
     textTransform: 'uppercase',
     color: 'var(--ink-faint)',
     margin: '14px 0 6px',
@@ -4403,8 +4894,8 @@ function ConceptAtlas({ rel }) {
           cursor: 'pointer',
           fontFamily: '"EB Garamond", "Noto Serif SC", Georgia, serif',
           fontStyle: 'italic',
-          fontSize: 14,
-          lineHeight: 1.4,
+          fontSize: 16,
+          lineHeight: 1.45,
           color: isSettled ? 'var(--brass-bright)'
             : isReferenced ? 'var(--brass-mid)'
             : isDrifted ? 'var(--ink-faint)'
@@ -4486,7 +4977,7 @@ function ConceptAtlas({ rel }) {
         ...headingStyle,
         margin: '0 0 14px',
         color: 'var(--brass-bright)',
-        fontSize: 11,
+        fontSize: 14,
         display: 'flex', alignItems: 'baseline', gap: 8,
       }}>
         <span>概念地图 · {totalLive} 个{quotes.length > 0 ? ` · 金句 ${quotes.length}` : ''}</span>
@@ -4498,7 +4989,7 @@ function ConceptAtlas({ rel }) {
           style={{
             background: 'transparent', border: 'none', padding: 0,
             fontFamily: '"EB Garamond", "Noto Serif SC", serif',
-            fontStyle: 'italic', fontSize: 12,
+            fontStyle: 'italic', fontSize: 14,
             letterSpacing: 0, textTransform: 'none',
             color: 'var(--brass-mid)', cursor: 'pointer',
             borderBottom: '1px solid transparent',
@@ -4582,7 +5073,7 @@ function ConceptAtlas({ rel }) {
                     background: 'transparent', border: 'none', padding: '4px 0',
                     textAlign: 'left', cursor: 'pointer',
                     fontFamily: 'inherit', fontStyle: 'italic',
-                    fontSize: 13.5, lineHeight: 1.5,
+                    fontSize: 15, lineHeight: 1.55,
                     color: hasInsight ? 'var(--brass-bright)' : 'var(--ink-muted)',
                     transition: 'color 220ms var(--ease-quiet, cubic-bezier(0.4, 0, 0.2, 1))',
                   }}
@@ -4591,7 +5082,7 @@ function ConceptAtlas({ rel }) {
                   onMouseLeave={e => { e.currentTarget.style.color = hasInsight ? 'var(--brass-bright)' : 'var(--ink-muted)'; }}
                 >
                   <span style={{ color: 'var(--brass-mid)', opacity: 0.75 }}>“</span>{q.text}<span style={{ color: 'var(--brass-mid)', opacity: 0.75 }}>”</span>
-                  {hasInsight && <span style={{ marginLeft: 6, fontSize: 10.5, color: 'var(--brass-mid)', opacity: 0.6, letterSpacing: '0.08em' }}>· 见解</span>}
+                  {hasInsight && <span style={{ marginLeft: 6, fontSize: 12, color: 'var(--brass-mid)', opacity: 0.6, letterSpacing: '0.08em' }}>· 见解</span>}
                 </button>
                 {/* 2.5 — linked-concept chips (atlas terms found in quote text). */}
                 {Array.isArray(q.linked_concepts) && q.linked_concepts.length > 0 && (
@@ -4603,12 +5094,12 @@ function ConceptAtlas({ rel }) {
                         style={{
                           fontFamily: '"EB Garamond", "Noto Serif SC", serif',
                           fontStyle: 'italic',
-                          fontSize: 11,
+                          fontSize: 13,
                           color: 'var(--brass-mid)',
                           letterSpacing: '0.02em',
                           padding: '0 1px',
                           borderBottom: '1px dotted color-mix(in srgb, var(--brass-mid) 45%, transparent)',
-                          opacity: 0.78,
+                          opacity: 0.85,
                         }}
                       >· {t}</span>
                     ))}
@@ -4629,7 +5120,7 @@ function ConceptAtlas({ rel }) {
                         onClick={() => setHistoryOpenId(showHistory ? null : q.id)}
                         style={{
                           background: 'transparent', border: 'none', cursor: 'pointer',
-                          fontFamily: 'inherit', fontStyle: 'italic', fontSize: 11.5,
+                          fontFamily: 'inherit', fontStyle: 'italic', fontSize: 13,
                           color: 'var(--ink-faint)', padding: '2px 0', marginBottom: 6,
                           letterSpacing: '0.04em',
                         }}
@@ -4640,10 +5131,10 @@ function ConceptAtlas({ rel }) {
                         marginBottom: 6, padding: '6px 10px',
                         background: 'color-mix(in srgb, var(--brass-mid) 4%, transparent)',
                         borderLeft: '1px solid color-mix(in srgb, var(--brass-mid) 22%, transparent)',
-                        fontSize: 12.5, color: 'var(--ink-muted)',
-                        fontStyle: 'italic', lineHeight: 1.5,
+                        fontSize: 14, color: 'var(--ink-muted)',
+                        fontStyle: 'italic', lineHeight: 1.55,
                       }}>
-                        <div style={{ fontSize: 10, color: 'var(--ink-faint)', letterSpacing: '0.05em', marginBottom: 2 }}>
+                        <div style={{ fontSize: 11.5, color: 'var(--ink-faint)', letterSpacing: '0.05em', marginBottom: 2 }}>
                           v{vi + 1} · {(v.ts || '').slice(0, 10)}
                         </div>
                         {v.text}
@@ -4769,4 +5260,4 @@ function ConceptAtlas({ rel }) {
   );
 }
 
-Object.assign(window, { NoteView, LessonChat, LessonHistoryView, SessionReadView, ConceptAtlas });
+Object.assign(window, { NoteView, LessonChat, LessonHistoryView, SessionReadView, ConceptAtlas, ConceptLogbookPanel });

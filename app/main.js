@@ -411,6 +411,20 @@ ipcMain.handle('vault:list',  async () => {
           break;
         }
       }
+      // 2026-05-02 W3 visibility — log when picker chose a revisit (vs default
+      // forward). Forward picks are noisy (every vault:list emits one) so we
+      // only log the interesting revisit picks. Use this to audit whether
+      // cure-clock is generating actionable revisit signals.
+      if (pick.mode === 'revisit') {
+        try {
+          _hyphaAppendEvent('next_lesson_suggested', {
+            slug: folder.folder,
+            lesson_id: pick.idx,
+            mode: pick.mode,
+            revisit_of: pick.revisitOf,
+          });
+        } catch (_) {}
+      }
     }
 
     console.log(`[vault:list] root=${r.root} folders=${r.folders.length} items=${r.folders.reduce((s, f) => s + f.count, 0)}`);
@@ -592,6 +606,61 @@ ipcMain.handle('corpus:similar', async (_e, rel, k) => {
   } catch (e) {
     console.error('[corpus:similar] failed', e.message);
     return [];
+  }
+});
+
+// v0.10.2 — Daily note. Per /tr council 2026-05-02 wiki+gbrain three-piece:
+// daily note is the lesson-free capture surface. Compounds with existing
+// wikilinks ([[concept]] already renders + tracks backlinks) without needing
+// atlas-concept-as-page integration. File at daily/<YYYY-MM-DD>.md is
+// created if absent with minimal frontmatter; existing daily note is
+// returned as-is so re-opening preserves user content. Returns the rel so
+// renderer can navigate via existing onSelect path.
+ipcMain.handle('vault:open-daily', () => {
+  try {
+    const root = vault.resolveRoot();
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    const rel = `daily/${dateStr}.md`;
+    const dailyDir = require('path').join(root, 'daily');
+    const fs = require('fs');
+    try { fs.mkdirSync(dailyDir, { recursive: true }); } catch (_) {}
+    const abs = require('path').join(root, rel);
+    if (!fs.existsSync(abs)) {
+      const fm = [
+        '---',
+        `date_created: ${dateStr}`,
+        'kind: daily',
+        '---',
+        '',
+        `# ${dateStr}`,
+        '',
+        '_今日随想 — 任何想法可以写在这里. 用 [[concept]] 链接到课程或概念._',
+        '',
+        '',
+      ].join('\n');
+      vault.write(rel, fm);
+    }
+    return { ok: true, rel };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
+// v0.11.0 — wiki:resolve. Resolves [[target]] to vault entity. Order: note
+// basename → daily YYYY-MM-DD → atlas concept (across all <slug>__<idx>.json)
+// → unknown. Returns { kind, rel?, conceptKey?, label, exists }. 30s cache
+// on the atlas walk. Per /tr 2026-05-02 wiki+gbrain three-piece (B).
+ipcMain.handle('wiki:resolve', (_e, target) => {
+  if (!target || typeof target !== 'string') return { kind: 'unknown', exists: false, label: '' };
+  try {
+    const resolver = require('./lib/wikilinkResolver');
+    return resolver.resolve(target.trim(), { vaultRoot: vault.resolveRoot() });
+  } catch (e) {
+    return { kind: 'unknown', exists: false, error: String(e && e.message || e) };
   }
 });
 
@@ -887,6 +956,16 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+  // 2026-05-02 — purge stale trash entries (>7d) from vault/.trash on startup.
+  // Soft-deletes (vault.del) move targets to .trash/<basename>-<unixMs>/; this
+  // hard-purges anything past the recovery window. Idempotent + silent on
+  // missing dir.
+  try {
+    const result = vault.purgeStaleTrash();
+    if (result && result.purged > 0) {
+      console.log(`[startup] purged ${result.purged} stale trash entries (>7d)`);
+    }
+  } catch (_) {}
 });
 
 // ============================================================================
@@ -907,6 +986,13 @@ function _topicSlug(topic) {
     .slice(0, 60) || 'untitled';
 }
 
+// 2026-05-03 — providers deprecated for tutor use due to vendor-CLI persona
+// pollution (Claude Code / gemini-cli load their own ~30k-token persona that
+// cannot be fully overridden — leaks "Machino" / "[YOUR REPLY AS TUTOR]" /
+// meta-confused replies into Hypha tutor turns). On startup, settings using
+// these providers auto-migrate to a working alternative with prior preserved.
+const TUTOR_INCOMPATIBLE_PROVIDERS = new Set(['claude-cli', 'gemini-cli', 'codex-cli']);
+
 function _hyphaSettings() {
   // Settings live in the vault as settings.json so they survive close+reopen.
   // First-run default = GLM 5 + Victor's baked token (env), no key user-side.
@@ -916,6 +1002,37 @@ function _hyphaSettings() {
     // Backfill `app` block on settings.json files written before the general
     // tab existed. Missing keys take APP_DEFAULTS.
     cur.app = { ...APP_DEFAULTS, ...(cur.app || {}) };
+    // Tutor-quality migration: if user is on a vendor-CLI provider that leaks
+    // persona into tutor output, switch to the closest working clean alt.
+    // Migration target priority:
+    //   1. claude (sdk-anthropic) — if apiKey already starts with sk-ant
+    //   2. hypha-managed — if hyphaToken is set (free 30 turns/day)
+    //   3. claude (sdk-anthropic) with empty key — surfaces "configure key" prompt
+    if (cur.provider && TUTOR_INCOMPATIBLE_PROVIDERS.has(cur.provider) && !cur._migratedFrom) {
+      const previous = cur.provider;
+      let target = 'claude';
+      if (cur.apiKey && /^sk-ant-/.test(cur.apiKey)) target = 'claude';
+      else if (cur.hyphaToken) target = 'hypha-managed';
+      cur._migratedFrom = previous;
+      cur._migratedAt = new Date().toISOString();
+      cur._migrationReason = 'cli persona pollution affects tutor quality';
+      cur.provider = target;
+      // Reset baseURL/model to the new provider's defaults
+      try {
+        const providers = require('./lib/providers');
+        const p = providers.getProvider(target);
+        if (p) {
+          cur.baseURL = p.baseURL || '';
+          if (!cur.model || cur.model.includes('claude-')) {
+            // keep existing claude model id if compatible, else use default
+          } else {
+            cur.model = p.defaultModel;
+          }
+        }
+      } catch (_) {}
+      vault.writeJSON('settings.json', cur);
+      try { _hyphaAppendEvent('provider_migrated', { from: previous, to: target, reason: 'tutor_incompatible_cli' }); } catch (_) {}
+    }
   } else {
     cur = _hyphaDefaultSettings();
     vault.writeJSON('settings.json', cur);
@@ -1001,7 +1118,7 @@ ipcMain.handle('curriculum:cancel', async (_e, { topic } = {}) => {
 // IPC handlers (e.g. chain:accept) can drive a curriculum end-to-end without
 // going through ipcRenderer round-trips. `event` may be null when invoked from
 // a non-renderer context — emit() guards against that.
-async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, customLessons, clarifications, uploadedSource, tier } = {}) {
+async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, customLessons, clarifications, uploadedSource, tier, prePrediction } = {}) {
   const slug = _topicSlug(topic);
   const settings = _hyphaSettings();
   const emit = (stage, extra = {}) => {
@@ -1131,6 +1248,12 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
         `phase_lesson_idx: ${slot.phaseLessonIdx}`,
       ];
       if (isGhost) fmLines.push('ghost: true');
+      // v0.10.0 — pre-read prediction from antechamber wait card. Only the
+      // first non-ghost lesson gets it (that's the one the user was looking
+      // at when they predicted). Empty/skipped predictions are not written.
+      if (isFirst && !isGhost && typeof prePrediction === 'string' && prePrediction.trim()) {
+        fmLines.push(`pre_read_prediction: ${JSON.stringify(prePrediction.trim())}`);
+      }
       fmLines.push('---');
       const fm = fmLines.join('\n');
       const body = isGhost
@@ -1342,15 +1465,23 @@ ipcMain.handle('llm:lesson', async (event, { noteRel, userMsg, requestId, sessio
   };
 
   try {
-    await _hyphaAgent.streamTurn({ systemPrompt, history: transcript, userMsg, settings }, onChunk);
+    await _hyphaAgent.streamTurn({ systemPrompt, history: transcript, userMsg, settings, signal: ac.signal }, onChunk);
     vault.appendJSONL(sessionRel, { ts: new Date().toISOString(), idx, role: 'tutor', text: acc });
     _hyphaLessonAbort.delete(requestId);
+    if (ac.signal.aborted) {
+      try { event.sender.send('llm:deepen-progress', { requestId, status: 'aborted', stage: 'lesson', text: acc }); } catch (_) {}
+      return { ok: true, text: acc, sessionFile: sessionRel.split(/[\\/]/).pop(), isNewSession, aborted: true };
+    }
     try { event.sender.send('llm:deepen-progress', { requestId, status: 'done', stage: 'lesson', text: acc }); } catch (_) {}
     // Return sessionFile basename so caller can persist + reuse for next turn.
     const usedFile = sessionRel.split(/[\\/]/).pop();
     return { ok: true, text: acc, sessionFile: usedFile, isNewSession };
   } catch (err) {
     _hyphaLessonAbort.delete(requestId);
+    if (ac.signal.aborted) {
+      try { event.sender.send('llm:deepen-progress', { requestId, status: 'aborted', stage: 'lesson', text: acc }); } catch (_) {}
+      return { ok: true, text: acc, aborted: true, partial: acc };
+    }
     try { event.sender.send('llm:deepen-progress', { requestId, status: 'error', stage: 'lesson', error: err.message }); } catch (_) {}
     return { ok: false, error: err.message, partial: acc };
   }
@@ -1366,6 +1497,26 @@ ipcMain.handle('lesson:sessions', (_e, { rel } = {}) => {
   const idx = parseInt(fm.lesson_idx, 10);
   if (isNaN(idx)) return [];
   return _listSessionsForLesson(slug, idx);
+});
+
+// lesson:session-delete — soft-delete one session jsonl file. 2026-05-03.
+// Reuses vault.del → moves to data/.trash/<basename>-<unixMs>/ with 7d
+// auto-purge. Renderer's "焚信" ceremony dissolves the row + 5s undo,
+// then commits via this IPC. Session file format: <slug>/sessions/<file>.
+ipcMain.handle('lesson:session-delete', (_e, { rel, sessionFile } = {}) => {
+  if (!rel || !sessionFile) return { ok: false, error: 'rel + sessionFile required' };
+  if (!/^L\d+-/.test(sessionFile)) return { ok: false, error: 'invalid session filename' };
+  const note = vault.read(rel);
+  if (!note) return { ok: false, error: 'note not found' };
+  const fm = note.frontmatter || {};
+  const slug = fm.topic_slug || rel.split(/[\\/]/)[0];
+  const sessionRel = `${slug}/sessions/${sessionFile}`;
+  try {
+    const r = vault.del(sessionRel);
+    return r || { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 });
 
 // lesson:transcript — return parsed turns of one specific session.
@@ -1487,6 +1638,171 @@ function _atlasMerge(prevAtlas, delta, role, currentTurn) {
   return next;
 }
 
+// v0.9.0 HERMES-style user profile — file-based, derived from existing vault
+// corpus (用户灵感 sections + atlas frequency + chain goal). Injected into
+// every tutor system prompt as <USER_PROFILE> via designLesson. This handler
+// runs the cold-start derivation; auto-reflection LLM call deferred to v0.9.1.
+ipcMain.handle('userProfile:get', () => {
+  try {
+    const userProfile = require('./lib/userProfile');
+    const root = vault.resolveRoot();
+    const profile = userProfile.loadProfile(root);
+    return { ok: true, profile, exists: !profile.meta?.empty };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
+ipcMain.handle('userProfile:rebuild', async () => {
+  try {
+    const userProfile = require('./lib/userProfile');
+    const root = vault.resolveRoot();
+    const folders = (vault.list() || {}).folders || [];
+    // Gather lesson notes (per-folder, last 6 lessons each, capped total 20)
+    const lessonNotes = [];
+    for (const f of folders) {
+      const items = (f.items || []).filter(it => !it.ghost && it.id && it.id.endsWith('.md'));
+      for (const it of items.slice(-6)) {
+        const note = vault.read(it.id);
+        if (note && note.body) lessonNotes.push({ id: it.id, body: note.body });
+        if (lessonNotes.length >= 20) break;
+      }
+      if (lessonNotes.length >= 20) break;
+    }
+    // Gather atlases (per-folder, all atlas files)
+    const atlases = [];
+    for (const f of folders) {
+      const slug = f.folder;
+      if (!slug) continue;
+      for (let i = 0; i < 50; i++) {
+        const p = _atlasPath(slug, i);
+        const a = vault.readJSON(p, null);
+        if (a) atlases.push(a); else break;
+      }
+    }
+    // Gather chain metadata
+    const chains = [];
+    for (const f of folders) {
+      if (f.chainSlug && f.chainUltimateGoal) {
+        chains.push({ slug: f.chainSlug, ultimateGoal: f.chainUltimateGoal });
+      }
+    }
+    const dedupChains = [];
+    const seenSlugs = new Set();
+    for (const c of chains) {
+      if (seenSlugs.has(c.slug)) continue;
+      seenSlugs.add(c.slug);
+      dedupChains.push(c);
+    }
+    const profile = userProfile.coldStartFromVault(root, {
+      lessonNotes, atlases, chains: dedupChains,
+    });
+    const vaultName = require('path').basename(root);
+    const md = userProfile.writeProfile(root, profile, vaultName);
+    return { ok: true, profile, md, sources: {
+      lessonNotesUsed: lessonNotes.length,
+      atlasesUsed: atlases.length,
+      chainsUsed: dedupChains.length,
+    } };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
+// v0.11.2 — userProfile pending observations + ratify. Reflection LLM logs
+// every diff entry to <vault>/.hypha/reflections.jsonl. Confidence ≥0.7
+// auto-applies; below surfaces here for the user to keep/drop. Per /tr
+// 2026-05-02 v0.9.1 plan: closes the HERMES feedback loop with user agency.
+function _addToDismissed(root, id) {
+  try {
+    const p = require('path');
+    const fs = require('fs');
+    const dir = p.join(root, '.hypha');
+    fs.mkdirSync(dir, { recursive: true });
+    const f = p.join(dir, 'reflections-dismissed.json');
+    let arr = [];
+    try { arr = JSON.parse(fs.readFileSync(f, 'utf8')) || []; if (!Array.isArray(arr)) arr = []; } catch (_) {}
+    if (!arr.includes(id)) arr.push(id);
+    fs.writeFileSync(f, JSON.stringify(arr.slice(-500)));
+  } catch (_) {}
+}
+
+ipcMain.handle('userProfile:pending', (_e, { limit } = {}) => {
+  try {
+    const root = vault.resolveRoot();
+    const p = require('path');
+    const fs = require('fs');
+    const jsonlPath = p.join(root, '.hypha', 'reflections.jsonl');
+    if (!fs.existsSync(jsonlPath)) return { ok: true, pending: [] };
+    const dismissedPath = p.join(root, '.hypha', 'reflections-dismissed.json');
+    let dismissed = new Set();
+    try { const d = JSON.parse(fs.readFileSync(dismissedPath, 'utf8')); if (Array.isArray(d)) dismissed = new Set(d); } catch (_) {}
+    const text = fs.readFileSync(jsonlPath, 'utf8');
+    const lines = text.split('\n').filter(Boolean).slice(-(limit || 50));
+    const collected = [];
+    for (const line of lines) {
+      let rec;
+      try { rec = JSON.parse(line); } catch (_) { continue; }
+      if (!rec || rec.parse_error || !rec.diff) continue;
+      const ts = rec.ts || '';
+      const lessonRel = rec.lessonRel || '';
+      for (const section of ['STYLE', 'GRAVITATION', 'VOICE', 'PROJECT']) {
+        const arr = rec.diff[section];
+        if (!Array.isArray(arr)) continue;
+        for (const entry of arr) {
+          if (!entry || typeof entry !== 'object') continue;
+          const conf = (typeof entry.confidence === 'number') ? entry.confidence : 0;
+          if (conf >= 0.7) continue;  // already auto-applied
+          const t = entry.add || entry.replace || entry.remove || '';
+          if (!t) continue;
+          const id = `${ts}|${section}|${t}`;
+          if (dismissed.has(id)) continue;
+          collected.push({
+            id, section, text: t, confidence: conf, lessonRel, ts,
+            op: entry.add ? 'add' : entry.replace ? 'replace' : 'remove',
+          });
+        }
+      }
+    }
+    // Newest first, dedupe by (section, text)
+    const seen = new Set();
+    const dedup = [];
+    for (const x of collected.reverse()) {
+      const key = `${x.section}|${x.text}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      dedup.push(x);
+    }
+    return { ok: true, pending: dedup };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
+ipcMain.handle('userProfile:ratify', (_e, { action, entry } = {}) => {
+  try {
+    if (!entry || !entry.id || !entry.section) return { ok: false, error: 'entry required' };
+    const root = vault.resolveRoot();
+    if (action === 'accept') {
+      const userProfile = require('./lib/userProfile');
+      const profile = userProfile.loadProfile(root);
+      const op = entry.op || 'add';
+      const diff = { [entry.section]: [{ [op]: entry.text, confidence: 1 }] };
+      const result = userProfile.applyDiff(profile, diff, { minConfidence: 0 });
+      const vaultName = require('path').basename(root);
+      userProfile.writeProfile(root, { sections: result.sections }, vaultName);
+      _addToDismissed(root, entry.id);
+      return { ok: true, accepted: result.accepted };
+    } else if (action === 'dismiss') {
+      _addToDismissed(root, entry.id);
+      return { ok: true };
+    }
+    return { ok: false, error: 'unknown action' };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
 ipcMain.handle('atlas:get', (_e, { rel } = {}) => {
   if (!rel) return null;
   const note = vault.read(rel);
@@ -1538,6 +1854,7 @@ ipcMain.handle('atlas:append-turn', async (_e, { rel, role, text } = {}) => {
     referenced: (delta.referenced || []).length,
     settled: (delta.settled_by_user || []).length,
     expected_added: (delta.expected_uncovered || []).length,
+    ...(delta._debug ? { debug: delta._debug } : {}),
   });
   return { ok: true, atlas: next, delta };
 });
@@ -2258,17 +2575,43 @@ ipcMain.handle('lesson:finish', async (_e, { rel, userInsight, sessionFile, mode
 
   const today = new Date().toISOString().slice(0, 10);
   try {
+    // 2026-05-03 — recovery: if continuation mode but the existing body is
+    // empty (prior fresh-finish wrote empty due to LLM/CLI failure +
+    // date_distilled was still set), force fresh-mode distill so we get a
+    // proper dual-layer note instead of just appending an insight to nothing.
+    const existingBodyContent = note.body.replace(/^---[\s\S]*?---\s*\n?/, '').trim();
+    const existingBodyEmpty = !existingBodyContent;
+    let resolvedMode = effectiveMode;
+    if (effectiveMode === 'continuation' && existingBodyEmpty) {
+      console.warn('[lesson:finish] continuation requested but body empty — forcing fresh mode for recovery');
+      resolvedMode = 'fresh';
+    }
     const lessonTitle = fm.title || note.body.match(/^# (.+)$/m)?.[1] || `Lesson ${idx + 1}`;
     const distilled = await _hyphaAgent.synthesizeNote({
       topic: slug, idx, transcript, sources,
       sequence: (state.lessonRels || []).map((_r, i) => ({ idx: i, title: '', learnGoal: '' })),
       lessonTitle, learnGoal: fm.learn_goal || '',
       userInsight: userInsight || '',
-      mode: effectiveMode,
+      mode: resolvedMode,
       priorBody: note.body,
     }, settings);
 
-    if (effectiveMode === 'continuation') {
+    // 2026-05-03 — validate distilled before overwriting. Previously empty
+    // returns silently wrote frontmatter-only files, leaving RECALL showing
+    // "EMPTY NOTE". Refuse to overwrite on empty OR clearly truncated.
+    // Loosened from "must contain dual-layer markers" because claude-cli
+    // ignores structured templates (per probe-synthesizeNote test) and
+    // returns its own preferred format. Content is still high-quality, just
+    // not always tagged with our specific section headers.
+    const distilledTrim = String(distilled || '').trim();
+    if (!distilledTrim) {
+      throw new Error('synthesize returned empty — refusing to overwrite note');
+    }
+    if (distilledTrim.length < 80) {
+      throw new Error('synthesize returned suspiciously short content (' + distilledTrim.length + ' chars) — refusing to overwrite');
+    }
+
+    if (resolvedMode === 'continuation') {
       // Append-only: keep existing 课程基础, append a dated 用户灵感 paragraph.
       // distilled (in continuation mode) is just the new 灵感 paragraph(s).
       const updatedBody = note.body.replace(/(\#\#\s*用户灵感\s*\n)/, (_m, h) => {
@@ -2288,6 +2631,20 @@ ipcMain.handle('lesson:finish', async (_e, { rel, userInsight, sessionFile, mode
       // Strip any existing frontmatter from updatedBody and re-prepend.
       const stripped = updatedBody.replace(/^---[\s\S]*?---\s*\n/, '');
       vault.write(rel, `${newFm}\n\n${stripped}`);
+      // 2026-05-03 — even on continuation, ensure the next lesson is unlocked.
+      // Previously continuation never touched downstream — but if the prior
+      // fresh finish timed out mid-flow (CLI 90s cap), the unlock pass was
+      // skipped. User retries in continuation mode; without this branch the
+      // next lesson stays locked forever. Idempotent: replaces locked:true →
+      // locked:false; no-op if already unlocked.
+      const nextRelCont = state.lessonRels?.[idx + 1];
+      if (nextRelCont) {
+        const next = vault.read(nextRelCont);
+        if (next) {
+          const rewritten = next.body.replace(/^locked:\s*true/m, 'locked: false');
+          if (rewritten !== next.body) vault.write(nextRelCont, rewritten);
+        }
+      }
     } else {
       // Fresh distill: full rebuild.
       const newFm = [
@@ -2313,16 +2670,24 @@ ipcMain.handle('lesson:finish', async (_e, { rel, userInsight, sessionFile, mode
       }
     }
 
-    // Update state.json (mastered/gaps via LLM-as-RNN).
-    const newState = await _hyphaAgent.updateState({
-      state, transcript, note: distilled, idx,
-      sequence: (state.lessonRels || []).map((_r, i) => ({ idx: i, title: '', learnGoal: '' })),
-    }, settings);
-    if (effectiveMode === 'fresh') {
-      newState.lastIdx = Math.max(state.lastIdx ?? -1, idx);
-    } else {
-      newState.lastIdx = state.lastIdx;
+    // Update state.json (mastered/gaps via LLM-as-RNN). Resilient: if the
+    // LLM call fails (timeout / network), fall back to previous state — we
+    // STILL want to record lastIdx so the next-lesson unlock + scheduler
+    // proceed. Previously a timeout here orphaned state.json at lastIdx=-1
+    // even though the lesson .md was already distilled, leaving the rail
+    // perpetually showing "no lesson finished".
+    let newState;
+    try {
+      newState = await _hyphaAgent.updateState({
+        state, transcript, note: distilled, idx,
+        sequence: (state.lessonRels || []).map((_r, i) => ({ idx: i, title: '', learnGoal: '' })),
+      }, settings);
+    } catch (e) {
+      console.error('[lesson:finish] updateState failed (using fallback):', e && e.message);
+      newState = { ...state, mastered: state.mastered || [], gaps: state.gaps || [] };
     }
+    // Always bump lastIdx (fresh OR continuation) — idempotent via Math.max.
+    newState.lastIdx = Math.max(state.lastIdx ?? -1, idx);
     newState.lessonRels = state.lessonRels;
 
     // Lacquer Loop A1: touch concept = lesson_idx on every finish (fresh OR continuation).
@@ -2360,7 +2725,25 @@ ipcMain.handle('lesson:finish', async (_e, { rel, userInsight, sessionFile, mode
       }
     } catch (_) { /* best-effort; never block finish */ }
 
+    // Capture cure-window state BEFORE touchConcept for diff logging
+    const _conceptBefore = newState.concepts && newState.concepts[String(idx)]
+      ? { layer_count: newState.concepts[String(idx)].layer_count, cure_window_ms: newState.concepts[String(idx)].cure_window_ms }
+      : { layer_count: 0, cure_window_ms: 0 };
     scheduler.touchConcept(newState, idx, predictionSuccess);
+    const _conceptAfter = newState.concepts[String(idx)] || {};
+    // 2026-05-02 W3 visibility — emit per pedagogy.md Layer 2 substrate so
+    // user can audit cure-clock evolution. Read events.jsonl to see this
+    // chain's spaced-revisit signal building over time.
+    _hyphaAppendEvent('concept_layered', {
+      slug,
+      lesson_id: idx,
+      success: predictionSuccess,
+      prev_layer_count: _conceptBefore.layer_count,
+      new_layer_count: _conceptAfter.layer_count,
+      prev_cure_window_ms: _conceptBefore.cure_window_ms,
+      new_cure_window_ms: _conceptAfter.cure_window_ms,
+      half_life_ms: _conceptAfter.half_life_estimate_ms,
+    });
 
     vault.writeJSON(`${slug}/state.json`, newState);
 
@@ -2401,6 +2784,49 @@ ipcMain.handle('lesson:finish', async (_e, { rel, userInsight, sessionFile, mode
     }
 
     _hyphaAppendEvent('lesson_finish', { topic: slug, idx, rel, mode: effectiveMode });
+    // v0.11.0 — fire-and-forget HERMES reflection LLM call. Updates the
+    // user-profile.md after each finished lesson. Per /tr 2026-05-02 v0.9.1
+    // plan: closes the HERMES feedback loop. Runs in background; doesn't
+    // block UI return path. All failures swallowed; reflectionLLM logs to
+    // <vault>/.hypha/reflections.jsonl regardless of parse success.
+    try {
+      const reflectionLLM = require('./lib/reflectionLLM');
+      const lessonNote = vault.read(rel);
+      const fm = (lessonNote && lessonNote.frontmatter) || {};
+      const body = (lessonNote && lessonNote.body) || '';
+      const insightMatch = body.match(/##\s*用户灵感[\s\S]*?(?=\n##\s|$)/);
+      const insightLayer = insightMatch ? insightMatch[0].replace(/^##\s*用户灵感/, '').trim() : '';
+      let atlasDelta = { settled: [], drifted: [] };
+      let quotes = [];
+      const lessonTitle = fm.title || '';
+      try {
+        const atlasObj = vault.readJSON(_atlasPath(slug, idx), null);
+        if (atlasObj) {
+          const concepts = atlasObj.concepts || {};
+          atlasDelta.settled = Object.values(concepts).filter(c => c && c.state === 'settled').map(c => c.term).filter(Boolean);
+          atlasDelta.drifted = Object.values(concepts).filter(c => c && c.state === 'drifted').map(c => c.term).filter(Boolean);
+          quotes = Array.isArray(atlasObj.quotes) ? atlasObj.quotes.slice(-5).map(q => q && q.text).filter(Boolean) : [];
+        }
+      } catch (_) {}
+      const llmCall = async (sys, usr) => {
+        const messages = [
+          { role: 'system', content: sys },
+          { role: 'user', content: usr },
+        ];
+        const r = await _hyphaAgent.llmJSON(messages, settings, { json: true, timeoutMs: 30000, temperature: 0.3, max_tokens: 800 });
+        return (typeof r === 'string') ? r : JSON.stringify(r);
+      };
+      reflectionLLM.reflect({
+        vaultRoot: vault.resolveRoot(),
+        lessonRel: rel,
+        lessonTitle,
+        transcript: body.slice(-3000),
+        insightLayer,
+        quotes,
+        atlasDelta,
+        llmCall,
+      }).catch(() => {});
+    } catch (_) {}
     // Phase 3.1 — adapt-after-finish trigger lives renderer-side (NoteView.jsx
     // calls window.ptor.hypha.lessonsAdapt(rel) after this IPC resolves).
     // Renderer-driven keeps the call-site visible and avoids self-import.
@@ -2408,6 +2834,59 @@ ipcMain.handle('lesson:finish', async (_e, { rel, userInsight, sessionFile, mode
   } catch (err) {
     _hyphaAppendEvent('lesson_finish_error', { topic: slug, idx, error: err.message });
     return { ok: false, error: err.message };
+  }
+});
+
+// v0.11.0 — manual reflection trigger. Mirror of the auto-fired block in
+// lesson:finish but invokable on demand (e.g. ColophonView "re-derive
+// profile from this lesson" button — deferred to v0.11.1). Awaits the LLM
+// call so caller can show progress.
+ipcMain.handle('lesson:reflect', async (_e, { rel } = {}) => {
+  if (!rel || typeof rel !== 'string') return { ok: false, error: 'rel required' };
+  try {
+    const reflectionLLM = require('./lib/reflectionLLM');
+    const settings = _hyphaSettings();
+    const lessonNote = vault.read(rel);
+    if (!lessonNote) return { ok: false, error: 'lesson not found' };
+    const fm = lessonNote.frontmatter || {};
+    const body = lessonNote.body || '';
+    const slug = fm.topic_slug || rel.split(/[\\/]/)[0];
+    const idx = parseInt(fm.lesson_idx, 10);
+    const insightMatch = body.match(/##\s*用户灵感[\s\S]*?(?=\n##\s|$)/);
+    const insightLayer = insightMatch ? insightMatch[0].replace(/^##\s*用户灵感/, '').trim() : '';
+    let atlasDelta = { settled: [], drifted: [] };
+    let quotes = [];
+    if (Number.isFinite(idx)) {
+      try {
+        const atlasObj = vault.readJSON(_atlasPath(slug, idx), null);
+        if (atlasObj) {
+          const concepts = atlasObj.concepts || {};
+          atlasDelta.settled = Object.values(concepts).filter(c => c && c.state === 'settled').map(c => c.term).filter(Boolean);
+          atlasDelta.drifted = Object.values(concepts).filter(c => c && c.state === 'drifted').map(c => c.term).filter(Boolean);
+          quotes = Array.isArray(atlasObj.quotes) ? atlasObj.quotes.slice(-5).map(q => q && q.text).filter(Boolean) : [];
+        }
+      } catch (_) {}
+    }
+    const llmCall = async (sys, usr) => {
+      const messages = [
+        { role: 'system', content: sys },
+        { role: 'user', content: usr },
+      ];
+      const r = await _hyphaAgent.llmJSON(messages, settings, { json: true, timeoutMs: 30000, temperature: 0.3, max_tokens: 800 });
+      return (typeof r === 'string') ? r : JSON.stringify(r);
+    };
+    return await reflectionLLM.reflect({
+      vaultRoot: vault.resolveRoot(),
+      lessonRel: rel,
+      lessonTitle: fm.title || '',
+      transcript: body.slice(-3000),
+      insightLayer,
+      quotes,
+      atlasDelta,
+      llmCall,
+    });
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
   }
 });
 
@@ -2874,16 +3353,18 @@ ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, prio
     try { event.sender.send('hypha:chain-progress', { stage, ...extra }); } catch (_) {}
   };
   try {
-    // v0.5.2 — classifyPriorKnowledge depends only on goal+answers, not on the
-    // stage-1 outputs, so run all 3 classifiers in one Promise.all (saves 3-5s
-    // wall time vs the previous sequential design).
+    // 2026-05-03 — switched 3 parallel classifier calls → 1 unified
+    // classifyAll call (saves 2 round-trips, ~10-20s on Opus). Plus
+    // classifyArchetype now runs IN PARALLEL with classifyAll instead of
+    // sequentially after (saves another ~10s). Net chain:create wall time
+    // drops from ~70-100s to ~40-60s on a healthy provider.
     const safeAnswers = Array.isArray(answers) ? answers : [];
     emit('classifying');
-    const [diff, intrinsic, prior] = await Promise.all([
-      _hyphaAgent.classifyDifficulty(goal, settings),
-      _hyphaAgent.classifyIntrinsicLoad(goal, settings),
-      _hyphaAgent.classifyPriorKnowledge(goal, safeAnswers, settings),
+    const [classified, _archetypeEarly] = await Promise.all([
+      _hyphaAgent.classifyAll(goal, safeAnswers, settings),
+      _hyphaAgent.classifyArchetype(goal, '', settings).catch(() => 'TECH-CONCEPT'),
     ]);
+    const { difficulty: diff, intrinsic, prior } = classified;
 
     const feasibility = require('./lib/feasibility');
     const feasibilityInput = {
@@ -2903,11 +3384,11 @@ ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, prio
     // it shapes link COUNT and pacing. Distinct from feasibility tier
     // (nearly-impossible/possible/easy) which shapes prompt tone + alternatives.
     const userPacingTier = (tier === 'gentle' || tier === 'heroic') ? tier : 'moderate';
-    // v0.6.6 — classify archetype + pass through so planChain can shape the
-    // chain by archetype phase pattern (TECH-CONCEPT vs MINDSET vs HUMANITIES
-    // chains have very different structural shapes — see agent.js planChain).
-    let chainArchetype = 'TECH-CONCEPT';
-    try { chainArchetype = await _hyphaAgent.classifyArchetype(goal, '', settings); } catch (_) {}
+    // v0.6.6 — archetype shapes planChain phase pattern. 2026-05-03: now
+    // resolved earlier via parallel Promise.all alongside classifyAll, so we
+    // reuse the result instead of re-calling. _archetypeEarly is the resolved
+    // value (or 'TECH-CONCEPT' fallback if classifyArchetype rejected).
+    const chainArchetype = (typeof _archetypeEarly === 'string' && _archetypeEarly) ? _archetypeEarly : 'TECH-CONCEPT';
     const chain = await _hyphaAgent.planChain(goal, {
       tier: verdict.tier,
       pacingTier: userPacingTier,
@@ -3128,7 +3609,15 @@ ipcMain.handle('chain:accept', async (event, { slug, covenantSnapshot } = {}) =>
           phases: [],
           lessonRels,
         });
-      } catch (_) { /* stub is best-effort; never break commit */ }
+      } catch (e) {
+        // v0.11.1 — log instead of swallowing. Per /tr 2026-05-02 chain
+        // truncation diagnosis: silent failure here was the smoking gun for
+        // user-reported "chain shows 1/5 but only 2 folders visible". Errors
+        // now go to events.jsonl + console for investigation; repair IPC
+        // (chain:repair-stubs) can re-run stub creation idempotently.
+        _hyphaAppendEvent('chain_stub_error', { slug, linkSlug: lk.slug, linkIdx: i, error: String(e && e.message || e) });
+        try { console.error('[chain:accept] stub creation failed for link', lk.slug, e && e.message); } catch (_) {}
+      }
     }
     // Stamp link 0's chain context too — chain:start will refresh state.json
     // but the stub here lets VaultTree group link 0 from the moment of accept.
@@ -3158,6 +3647,96 @@ ipcMain.handle('chain:accept', async (event, { slug, covenantSnapshot } = {}) =>
       firstSlug: null,
       lessonRel: null,
     };
+  } catch (err) {
+    return { ok: false, error: (err && err.message) || String(err) };
+  }
+});
+
+// v0.11.1 — chain:repair-stubs. Idempotent re-creation of missing chain link
+// stub folders. Per /tr 2026-05-02 chain truncation diagnosis: chain:accept's
+// stub-creation loop swallowed errors silently, leaving partial chains with
+// "1/5" header but only N actual folders. This IPC walks the chain meta-
+// folder's links-state.json + chain.json, verifies each link has a state.json
+// with chainSlug stamped, and re-runs the stub-creation logic for any missing
+// links. Auto-fired by VaultTree on mount when g.folders.length < g.totalLinks.
+//
+// Returns: { ok, repaired: [linkSlugs], errors: [...] }. Failures still
+// non-fatal (best-effort repair); each error is logged to events.jsonl.
+ipcMain.handle('chain:repair-stubs', async (_e, { chainSlug } = {}) => {
+  if (!chainSlug || typeof chainSlug !== 'string') return { ok: false, error: 'chainSlug required' };
+  try {
+    const slug = chainSlug.trim();
+    const linksState = vault.readJSON(`${slug}/links-state.json`, null);
+    const chain = vault.readJSON(`${slug}/chain.json`, null);
+    if (!linksState || !Array.isArray(linksState) || !chain) {
+      return { ok: false, error: 'chain meta-folder not found or unreadable' };
+    }
+    const planLinks = (chain.chain && Array.isArray(chain.chain.links)) ? chain.chain.links : [];
+    const dailyHoursForStubs = chain.dailyHours || 0.5;
+    const archetypeForStubs = chain.archetype || 'TECH-CONCEPT';
+    const repaired = [];
+    const errors = [];
+    for (let i = 1; i < linksState.length; i++) {
+      const lk = linksState[i];
+      if (!lk || !lk.slug) continue;
+      try {
+        if (vault.exists(`${lk.slug}/state.json`)) continue;
+        const planLink = planLinks[i] || {};
+        const expectedLessons = _resolveLessonsForLink({
+          role: lk.role || planLink.role,
+          lessons_count: planLink.lessons_count,
+          duration_weeks: lk.duration_weeks,
+        }, dailyHoursForStubs, chain.tier || 'moderate');
+        const today = new Date().toISOString().slice(0, 10);
+        const lessonRels = [];
+        for (let j = 0; j < expectedLessons; j++) {
+          const idxStr = String(j).padStart(2, '0');
+          const lessonRel = `${lk.slug}/${idxStr}-pending.md`;
+          const fm = [
+            '---',
+            `lesson_idx: ${j}`,
+            `learn_goal: ${JSON.stringify(`pending — chain link ${i + 1}/${linksState.length}: ${lk.topic}`)}`,
+            `locked: true`,
+            `topic_slug: ${lk.slug}`,
+            `date_created: ${today}`,
+            `date_distilled: null`,
+            `phase_id: pending`,
+            `phase_label: ${JSON.stringify('Pending chain link')}`,
+            `phase_lesson_idx: ${j}`,
+            `ghost: true`,
+            `chain_placeholder: true`,
+            '---',
+          ].join('\n');
+          const body = `${fm}\n\n# (pending — link ${i + 1}/${linksState.length}, lesson ${j + 1}/${expectedLessons})\n\n_pending_\n\nThis lesson activates when you finish link ${i}. Topic: ${lk.topic}\n`;
+          vault.write(lessonRel, body);
+          lessonRels.push(lessonRel);
+        }
+        vault.writeJSON(`${lk.slug}/state.json`, {
+          chainSlug: slug,
+          chainLinkIdx: i,
+          chainPlaceholder: true,
+          chainUltimateGoal: chain.ultimate_goal || '',
+          chainTotalLinks: linksState.length,
+          mastered: [], gaps: [],
+          preferences: { level: 'intermediate' },
+          goal: lk.goal,
+          timeCommit: 'custom',
+          customLessons: expectedLessons,
+          tier: chain.tier || 'moderate',
+          archetype: archetypeForStubs,
+          phases: [],
+          lessonRels,
+        });
+        repaired.push(lk.slug);
+      } catch (e) {
+        errors.push({ linkSlug: lk.slug, linkIdx: i, error: String(e && e.message || e) });
+        _hyphaAppendEvent('chain_stub_error', { slug, linkSlug: lk.slug, linkIdx: i, error: String(e && e.message || e), source: 'repair' });
+      }
+    }
+    if (repaired.length > 0) {
+      _hyphaAppendEvent('chain_stubs_repaired', { slug, count: repaired.length, links: repaired });
+    }
+    return { ok: true, repaired, errors };
   } catch (err) {
     return { ok: false, error: (err && err.message) || String(err) };
   }

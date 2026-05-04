@@ -47,6 +47,14 @@ contextBridge.exposeInMainWorld('ptor', {
     // [[wikilink]] referencing the target. Per user 2026-04-29 "Obsidian
     // 灵魂": bidirectional links are the substrate of compounding vault.
     backlinks: (rel)         => ipcRenderer.invoke('vault:backlinks', rel),
+    // v0.10.2 — Daily note (HERMES-style lesson-free capture surface).
+    // Returns { ok, rel } where rel is `daily/YYYY-MM-DD.md`. File is
+    // created if absent. Per /tr council 2026-05-02 wiki+gbrain proposal.
+    openDaily: ()            => ipcRenderer.invoke('vault:open-daily'),
+    // v0.11.0 — wiki:resolve. Resolves [[target]] to a vault entity. Used
+    // by NoteView wikilink click handler when basename match fails. Returns
+    // { kind, rel?, conceptKey?, exists }. Per /tr 2026-05-02 wiki three-piece (B).
+    wikiResolve: (target)    => ipcRenderer.invoke('wiki:resolve', target),
     // Import (Bear / Obsidian / Notion-export → vault)
     pickFolder:    ()                          => ipcRenderer.invoke('vault:pick-folder'),
     importScan:    (sourcePath)                => ipcRenderer.invoke('vault:import-scan', sourcePath),
@@ -124,6 +132,7 @@ contextBridge.exposeInMainWorld('ptor', {
     lesson: (args) => ipcRenderer.invoke('llm:lesson', args),
     lessonAbort: (requestId) => ipcRenderer.invoke('llm:lesson-abort', requestId),
     lessonSessions: (rel) => ipcRenderer.invoke('lesson:sessions', { rel }),
+    lessonSessionDelete: (rel, sessionFile) => ipcRenderer.invoke('lesson:session-delete', { rel, sessionFile }),
     lessonTranscript: (rel, sessionFile) => ipcRenderer.invoke('lesson:transcript', { rel, sessionFile }),
     lessonContinueFrom: (rel, sourceSessionFile) => ipcRenderer.invoke('lesson:continueFrom', { rel, sourceSessionFile }),
     onDeepenProgress: (cb) => {
@@ -159,6 +168,11 @@ contextBridge.exposeInMainWorld('ptor', {
     // chainAccept({ slug, covenantSnapshot }) → { ok, firstSlug, lessonRel } | { ok:false, error }
     // chainRefuse({ slug, reason?, checklistFlags? }) → { ok, mode:'reason-recorded'|'cancelled', newPlan? }
     chainAccept: (args) => ipcRenderer.invoke('chain:accept', args || {}),
+    // v0.11.1 — chain:repair-stubs. Idempotent re-creation of missing chain
+    // link stub folders. Auto-fired by VaultTree when totalLinks > folder
+    // count (silent partial-failure self-heal). Returns { ok, repaired,
+    // errors }. Per /tr 2026-05-02 chain truncation diagnosis.
+    chainRepairStubs: (chainSlug) => ipcRenderer.invoke('chain:repair-stubs', { chainSlug }),
     chainRefuse: (args) => ipcRenderer.invoke('chain:refuse', args || {}),
     // v0.6.5 — after chain:accept (lazy commit), the welcome form's continue
     // button fires chain:start to actually run the first link's curriculum.
@@ -222,10 +236,24 @@ contextBridge.exposeInMainWorld('ptor', {
     quoteAdd: (rel, payload) => ipcRenderer.invoke('quote:add', { rel, payload: payload || {} }),
     quoteAddInsight: (rel, quoteId, insight) => ipcRenderer.invoke('quote:add-insight', { rel, quoteId, insight }),
     quoteDelete: (rel, quoteId) => ipcRenderer.invoke('quote:delete', { rel, quoteId }),
+    // v0.9.0 HERMES-style user profile — file-based, derived from existing
+    // vault corpus (用户灵感 + atlas frequency + chain goal). Injected into
+    // every tutor system prompt as <USER_PROFILE>. Privacy: stays in vault.
+    userProfileGet: () => ipcRenderer.invoke('userProfile:get'),
+    userProfileRebuild: () => ipcRenderer.invoke('userProfile:rebuild'),
+    // v0.11.2 — pending HERMES reflection observations (confidence < 0.7) +
+    // user ratification. ColophonView UserProfilePanel surfaces these.
+    userProfilePending: (limit) => ipcRenderer.invoke('userProfile:pending', { limit: limit || 50 }),
+    userProfileRatify: (action, entry) => ipcRenderer.invoke('userProfile:ratify', { action, entry }),
     // Phase 3.1 — Settled-Signal Goal Adaptation. Renderer fires after
     // lesson:finish resolves (fresh mode); main process reads atlas, computes
     // settled_count, rewrites next locked lessons' learn_goal in BASIC/DEEP.
     lessonsAdapt: (rel) => ipcRenderer.invoke('lessons:adapt-after-finish', { rel }),
+    // v0.11.0 — manual HERMES reflection trigger. Auto-fires after each
+    // lesson:finish (fire-and-forget). This handle is for ColophonView's
+    // "re-derive from this lesson" button (deferred). Returns the diff +
+    // applied/deferred sections so the UI can show what was learned.
+    lessonReflect: (rel) => ipcRenderer.invoke('lesson:reflect', { rel }),
     // Phase 3.3 — adaptation audit & revert. List walks all curricula's
     // adaptations.jsonl; revert restores earliest pre-adaptation goal/title.
     adaptationsList: () => ipcRenderer.invoke('lesson-adaptations:list'),

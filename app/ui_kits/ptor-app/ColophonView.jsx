@@ -469,7 +469,14 @@ function ColophonView() {
   const defaultView = app.defaultView || 'evolution';
 
   // Token option lists (resolved at render — providers/models depend on choices).
-  const providerOptions = providers.map(p => ({ id: p.id, label: p.label }));
+  // 2026-05-02 — filter providers with `hidden: true` (e.g., claude-cli is
+  // hidden from public users to funnel them to Direct API for cleanest output;
+  // power users can still opt in by editing settings.json directly OR by
+  // setting `provider: 'claude-cli'` once and the picker will then surface
+  // the current value even if hidden).
+  const providerOptions = providers
+    .filter(p => !p.hidden || p.id === settings.provider)  // keep hidden if user already chose it
+    .map(p => ({ id: p.id, label: p.label }));
   const modelOptions = (providerObj.models || []).map(m => ({ id: m.id, label: m.label }));
   // v0.6.2 — fontSizeOptions / fontFamilyOptions / themeOptions removed
   // alongside their pickers (above). See comment near fontSize/themeAuto
@@ -694,6 +701,8 @@ function ColophonView() {
           </>
         )}
 
+        <UserProfilePanel />
+
         <div aria-hidden="true" style={{
           textAlign: 'center', color: 'var(--brass-mid)', opacity: 0.7,
           fontSize: 22, marginTop: 48, letterSpacing: '0.5em',
@@ -704,6 +713,213 @@ function ColophonView() {
           fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase',
           color: 'var(--ink-faint)', fontStyle: 'italic',
         }}>colophon · esc to leave · click any italic word to edit</div>
+      </div>
+    </div>
+  );
+}
+
+// v0.9.0 HERMES-style — UserProfilePanel renders the file-based user profile
+// derived from <vault>/.hypha/user-profile.md. Profile is auto-injected into
+// every tutor system prompt by agent.js designLesson. Per /tr council
+// 2026-05-02: Hypha's vault IS the personalization corpus. Cold-start
+// derivation (heuristic, no LLM) reads existing 用户灵感 + atlas + chain data.
+// Auto-reflection LLM call deferred to v0.9.1.
+function UserProfilePanel() {
+  const [profile, setProfile] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [rebuilding, setRebuilding] = React.useState(false);
+  const [lastSources, setLastSources] = React.useState(null);
+  // v0.11.2 — pending HERMES reflection observations (confidence < 0.7).
+  // Surfaced for user keep/drop. Per /tr 2026-05-02 v0.9.1 plan.
+  const [pending, setPending] = React.useState([]);
+  const reload = React.useCallback(() => {
+    if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.userProfileGet) {
+      setLoading(false);
+      return;
+    }
+    window.ptor.hypha.userProfileGet().then(r => {
+      if (r && r.ok) setProfile(r.profile);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+  React.useEffect(() => { reload(); }, [reload]);
+  React.useEffect(() => {
+    if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.userProfilePending) return;
+    let alive = true;
+    window.ptor.hypha.userProfilePending(50).then(r => {
+      if (alive && r && r.ok) setPending(Array.isArray(r.pending) ? r.pending : []);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [profile]);
+  const ratify = React.useCallback(async (entry, action) => {
+    if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.userProfileRatify) return;
+    try {
+      await window.ptor.hypha.userProfileRatify(action, entry);
+      setPending(prev => prev.filter(p => p.id !== entry.id));
+      if (action === 'accept') reload();
+    } catch (_) {}
+  }, [reload]);
+  const onRebuild = React.useCallback(async () => {
+    if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.userProfileRebuild) return;
+    setRebuilding(true);
+    try {
+      const r = await window.ptor.hypha.userProfileRebuild();
+      if (r && r.ok) {
+        setProfile(r.profile);
+        if (r.sources) setLastSources(r.sources);
+      }
+    } catch (_) {}
+    setRebuilding(false);
+  }, []);
+  const sections = (profile && profile.sections) || { STYLE: [], GRAVITATION: [], VOICE: [], PROJECT: [] };
+  const totalLines = ['STYLE', 'GRAVITATION', 'VOICE', 'PROJECT']
+    .reduce((n, k) => n + (sections[k]?.length || 0), 0);
+  return (
+    <div style={{ marginTop: 36 }}>
+      <h3 style={{
+        fontFamily: '"Cormorant Garamond", "EB Garamond", Georgia, serif',
+        fontStyle: 'italic', fontWeight: 500,
+        fontSize: 18, color: 'var(--ink-title)',
+        margin: '0 0 6px',
+      }}>tutor's sense of you</h3>
+      <p style={{
+        fontFamily: '"EB Garamond", "Noto Serif SC", Georgia, serif',
+        fontStyle: 'italic', fontSize: 14,
+        color: 'var(--ink-faint)', margin: '0 0 14px', lineHeight: 1.55,
+      }}>
+        derived from this vault's 用户灵感 + 概念地图 + chain goals; injected into every tutor turn.
+        edit by editing <code style={{ fontSize: 12, fontFamily: '"JetBrains Mono", monospace', opacity: 0.85 }}>.hypha/user-profile.md</code> directly. nothing leaves this vault.
+      </p>
+      {loading ? (
+        <div style={{ fontSize: 14, fontStyle: 'italic', color: 'var(--ink-faint)' }}>loading…</div>
+      ) : totalLines === 0 ? (
+        <div style={{
+          padding: '14px 18px',
+          background: 'color-mix(in srgb, var(--brass-mid) 5%, transparent)',
+          borderLeft: '2px solid color-mix(in srgb, var(--brass-mid) 38%, transparent)',
+          fontFamily: '"EB Garamond", "Noto Serif SC", Georgia, serif',
+          fontSize: 15, fontStyle: 'italic', color: 'var(--ink-muted)', lineHeight: 1.6,
+        }}>
+          no profile yet. click <em>derive from vault</em> below to seed from existing lessons; the tutor will start to feel different by the next lesson you finish.
+        </div>
+      ) : (
+        ['STYLE', 'GRAVITATION', 'VOICE', 'PROJECT'].map(k => {
+          const lines = sections[k] || [];
+          if (lines.length === 0) return null;
+          return (
+            <div key={k} style={{ marginBottom: 14 }}>
+              <div style={{
+                fontFamily: '"Cormorant Garamond", serif',
+                fontStyle: 'italic', fontSize: 12.5,
+                letterSpacing: '0.16em', textTransform: 'uppercase',
+                color: 'var(--brass-mid)', marginBottom: 4,
+              }}>{k.toLowerCase()}</div>
+              {lines.map((line, i) => (
+                <div key={i} style={{
+                  fontFamily: '"EB Garamond", "Noto Serif SC", Georgia, serif',
+                  fontStyle: 'italic', fontSize: 15,
+                  color: 'var(--ink-primary)', lineHeight: 1.55,
+                  paddingLeft: 14, marginBottom: 3,
+                  borderLeft: '1px solid color-mix(in srgb, var(--brass-mid) 22%, transparent)',
+                }}>· {line}</div>
+              ))}
+            </div>
+          );
+        })
+      )}
+      {pending.length > 0 && (
+        <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid color-mix(in srgb, var(--brass-mid) 18%, transparent)' }}>
+          <div style={{
+            fontFamily: '"Cormorant Garamond", serif',
+            fontStyle: 'italic', fontSize: 12.5,
+            letterSpacing: '0.16em', textTransform: 'uppercase',
+            color: 'var(--ink-faint)', marginBottom: 10,
+          }}>pending observations · {pending.length}</div>
+          <p style={{
+            fontFamily: '"EB Garamond", "Noto Serif SC", serif',
+            fontStyle: 'italic', fontSize: 13.5,
+            color: 'var(--ink-faint)', margin: '0 0 12px', lineHeight: 1.55, opacity: 0.85,
+          }}>
+            tutor noticed these but wasn't confident enough to commit. keep what fits, drop what doesn't.
+          </p>
+          {pending.slice(0, 8).map(p => (
+            <div key={p.id} style={{
+              marginBottom: 14,
+              paddingLeft: 14,
+              borderLeft: '1px solid color-mix(in srgb, var(--brass-mid) 16%, transparent)',
+            }}>
+              <div style={{
+                fontFamily: '"Cormorant Garamond", serif',
+                fontStyle: 'italic', fontSize: 11.5,
+                letterSpacing: '0.05em',
+                color: 'var(--ink-faint)', marginBottom: 2,
+              }}>{p.section.toLowerCase()} · confidence {p.confidence.toFixed(2)}{p.op !== 'add' ? ` · ${p.op}` : ''}</div>
+              <div style={{
+                fontFamily: '"EB Garamond", "Noto Serif SC", Georgia, serif',
+                fontStyle: 'italic', fontSize: 14.5,
+                color: 'var(--ink-primary)', lineHeight: 1.55,
+                marginBottom: 4,
+              }}>{p.text}</div>
+              <div style={{ display: 'flex', gap: 16, marginTop: 4 }}>
+                <button
+                  onClick={() => ratify(p, 'accept')}
+                  style={{
+                    background: 'transparent', border: 'none', padding: 0,
+                    fontFamily: 'inherit', fontStyle: 'italic', fontSize: 12.5,
+                    color: 'var(--brass-bright)', cursor: 'pointer',
+                    borderBottom: '1px solid transparent',
+                    transition: 'border-color 200ms',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderBottomColor = 'transparent'; }}
+                >keep</button>
+                <button
+                  onClick={() => ratify(p, 'dismiss')}
+                  style={{
+                    background: 'transparent', border: 'none', padding: 0,
+                    fontFamily: 'inherit', fontStyle: 'italic', fontSize: 12.5,
+                    color: 'var(--ink-faint)', cursor: 'pointer',
+                    borderBottom: '1px solid transparent',
+                    transition: 'border-color 200ms, color 200ms',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderBottomColor = 'var(--ink-muted)'; e.currentTarget.style.color = 'var(--ink-muted)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderBottomColor = 'transparent'; e.currentTarget.style.color = 'var(--ink-faint)'; }}
+                >drop</button>
+              </div>
+            </div>
+          ))}
+          {pending.length > 8 && (
+            <div style={{
+              fontFamily: '"EB Garamond", "Noto Serif SC", serif',
+              fontStyle: 'italic', fontSize: 12.5,
+              color: 'var(--ink-faint)',
+            }}>· {pending.length - 8} more older observations awaiting</div>
+          )}
+        </div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, marginTop: 16 }}>
+        <button
+          onClick={onRebuild}
+          disabled={rebuilding}
+          style={{
+            background: 'transparent', border: 'none', padding: 0, margin: 0,
+            cursor: rebuilding ? 'not-allowed' : 'pointer',
+            fontFamily: '"EB Garamond", "Noto Serif SC", serif',
+            fontStyle: 'italic', fontSize: 14,
+            color: rebuilding ? 'var(--ink-faint)' : 'var(--brass-bright)',
+            borderBottom: '1px solid transparent',
+            transition: 'border-color 200ms, color 200ms',
+          }}
+          onMouseEnter={e => { if (!rebuilding) e.currentTarget.style.borderBottomColor = 'var(--brass-bright)'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderBottomColor = 'transparent'; }}
+        >{rebuilding ? 'deriving…' : (totalLines > 0 ? '↺ re-derive from vault' : '→ derive from vault')}</button>
+        {lastSources && (
+          <span style={{
+            fontFamily: '"EB Garamond", "Noto Serif SC", serif',
+            fontStyle: 'italic', fontSize: 12.5,
+            color: 'var(--ink-faint)',
+          }}>read {lastSources.lessonNotesUsed} lessons · {lastSources.atlasesUsed} atlases · {lastSources.chainsUsed} chains</span>
+        )}
       </div>
     </div>
   );

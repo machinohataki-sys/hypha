@@ -136,7 +136,18 @@ function pickDuePool(folders) {
   const eligible = all.filter(i => i.lessonIdx == null || i.distilled);
   const fading  = eligible.filter(i => bucketOf(i.since) === 'fading' || bucketOf(i.since) === 'dormant');
   const week    = eligible.filter(i => bucketOf(i.since) === 'week');
-  return fading.length > 0 ? fading : week;
+  // 2026-05-03 — include just-finished lessons in the queue (today bucket)
+  // when they are distilled lesson notes specifically. Without this the user
+  // finishes a lesson and immediately sees "all notes are fresh — nothing
+  // dormant to recall" because RECALL's spaced-repetition assumption excluded
+  // the today bucket. Freshly-distilled lessons appear at the front of the
+  // pool so the user can verify their work landed.
+  const freshlyDistilled = eligible.filter(i =>
+    i.lessonIdx != null && i.distilled && bucketOf(i.since) === 'today'
+  );
+  if (fading.length > 0) return [...freshlyDistilled, ...fading];
+  if (week.length > 0)   return [...freshlyDistilled, ...week];
+  return freshlyDistilled;
 }
 
 function extractExcerpt(body) {
@@ -178,7 +189,7 @@ function RecallDashboard({ onPick }) {
   const [revealed, setRevealed] = React.useState(false);
   const [excerpt, setExcerpt] = React.useState('');
 
-  React.useEffect(() => {
+  const reload = React.useCallback(() => {
     if (!window.ptor || !window.ptor.vault) return;
     const strengthsP = (window.ptor.corpus && window.ptor.corpus.strengths)
       ? window.ptor.corpus.strengths().catch(() => ({}))
@@ -204,6 +215,16 @@ function RecallDashboard({ onPick }) {
       setRevealed(false);
     });
   }, []);
+
+  React.useEffect(() => { reload(); }, [reload]);
+
+  // 2026-05-03 — re-fetch on finish so a freshly-distilled lesson surfaces
+  // immediately when the user switches to RECALL.
+  React.useEffect(() => {
+    const onFinish = () => reload();
+    window.addEventListener('hypha:lesson-finished', onFinish);
+    return () => window.removeEventListener('hypha:lesson-finished', onFinish);
+  }, [reload]);
 
   const current = queue[index];
 
@@ -770,7 +791,69 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
   // while the welcome form was still alive with conflicting fields.
   const [committedChain, setCommittedChain] = React.useState(null);
   // { chainSlug, links, ultimate_goal, tier } | null
+  // v0.8.0 候光 — chain blueprint accept ceremony (Demand #4 — HERO).
+  // Letters wax-cool in (opacity 0+blur(1.6px) → opacity 1+blur(0), 28ms
+  // stagger, 720ms total via --ease-cure). Hairline draws under banner.
+  // Reservation suspends ambient breath during the moment + 1000ms grace.
+  const blueprintBannerRef = React.useRef(null);
+  const blueprintLabelRef = React.useRef(null);
+  const ceremonyDoneRef = React.useRef(null);  // value matches the slug we ceremonied
+  React.useEffect(() => {
+    if (!committedChain || !committedChain.chainSlug) return;
+    if (ceremonyDoneRef.current === committedChain.chainSlug) return;
+    if (!window.chouguang || !window.chouguang.motionAllowed()) return;
+    const labelEl = blueprintLabelRef.current;
+    const bannerEl = blueprintBannerRef.current;
+    if (!labelEl || !bannerEl) return;
+    ceremonyDoneRef.current = committedChain.chainSlug;
+    const text = labelEl.textContent || '';
+    if (!text) return;
+    let token = null;
+    try {
+      token = window.chouguang.ReservationCoordinator.acquire(bannerEl, { reason: 'chain-blueprint-accepted' });
+    } catch (_) {}
+    const easing = (function () {
+      try { return getComputedStyle(document.documentElement).getPropertyValue('--ease-cure').trim() || 'ease-out'; }
+      catch (_) { return 'ease-out'; }
+    })();
+    // Replace text with per-letter spans for stagger animation.
+    const chars = Array.from(text);
+    labelEl.textContent = '';
+    const spans = chars.map(ch => {
+      const s = document.createElement('span');
+      s.textContent = ch;
+      s.style.display = 'inline-block';
+      s.style.opacity = '0';
+      s.style.filter = 'blur(1.6px)';
+      labelEl.appendChild(s);
+      return s;
+    });
+    spans.forEach((s, idx) => {
+      s.animate(
+        [
+          { opacity: 0, filter: 'blur(1.6px)' },
+          { opacity: 1, filter: 'blur(0px)' },
+        ],
+        { duration: 720, delay: idx * 28, easing: easing, fill: 'forwards' }
+      );
+    });
+    try { window.chouguang.hairline(bannerEl, { durationMs: 720 }); } catch (_) {}
+    const totalMs = 720 + spans.length * 28;
+    const releaseAt = setTimeout(() => {
+      if (token) try { window.chouguang.ReservationCoordinator.release(token, 1000); } catch (_) {}
+    }, totalMs);
+    return () => {
+      clearTimeout(releaseAt);
+      if (token) try { window.chouguang.ReservationCoordinator.release(token, 0); } catch (_) {}
+    };
+  }, [committedChain]);
   const [status, setStatus] = React.useState(null);
+  // v0.10.0 — pre-read prediction captured during lesson generation wait.
+  // AntechamberCard sets this on submit/skip; passed to curriculum:create
+  // and persisted to lesson frontmatter as `pre_read_prediction`. Per /tr
+  // council 2026-05-02: turns the 30-90s wait into the lesson's first
+  // pedagogical move (P2 PRE-READ PREDICTION moved earlier in flow).
+  const [prePrediction, setPrePrediction] = React.useState(null); // null | string (empty = skipped)
   // Clarification stage state.
   const [questions, setQuestions] = React.useState([]); // [{id, question, options[], multiSelect, allowOther}]
   const [answers, setAnswers] = React.useState({});     // { questionId: string | string[] (selected option ids OR 'OTHER:<text>') }
@@ -985,6 +1068,7 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
         tier: tier,                       // v0.6.0 — gentle / moderate / heroic; multiplier applied server-side
         clarifications: clarifications,
         uploadedSource: uploadedSource,   // v0.5.0 — null when user did not pick a file
+        prePrediction: prePrediction,     // v0.10.0 — antechamber prediction; main.js writes to frontmatter; null/empty = skipped
       });
       if (r && r.ok && r.lessonRels && r.lessonRels[0]) {
         setStatus(null);
@@ -995,6 +1079,7 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
         setUploadError(null);
         setQuestions([]);
         setAnswers({});
+        setPrePrediction(null);                     // v0.10.0 — reset for next curriculum
         if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
         if (typeof onPick === 'function') onPick(r.lessonRels[0]);
       } else if (r && r.cancelled) {
@@ -1002,6 +1087,7 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
         setStatus(null);
         setHarvestStatus(null);
         setPhase('form');
+        setPrePrediction(null);                     // v0.10.0 — reset for next curriculum
         if (typeof setCreatingTopic === 'function') setCreatingTopic(null);
       } else {
         setStatus('error');
@@ -1894,14 +1980,15 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
                 fires chain:start instead of the welcome form's curriculum
                 pipeline. User can discard to return to solo mode. */}
             {committedChain && (
-              <div style={{
+              <div ref={blueprintBannerRef} style={{
                 marginBottom: 16, padding: '14px 18px',
                 background: 'color-mix(in srgb, var(--brass-bright) 10%, transparent)',
                 borderRadius: '14px 18px 14px 18px',
                 boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brass-bright) 36%, transparent)',
                 fontFamily: '"EB Garamond", Georgia, serif',
+                position: 'relative',
               }}>
-                <div style={{
+                <div ref={blueprintLabelRef} style={{
                   fontFamily: '"Cormorant Garamond", Georgia, serif',
                   fontWeight: 500, fontSize: 12, letterSpacing: '0.16em',
                   textTransform: 'uppercase', color: 'var(--ink-faint)',
@@ -2239,11 +2326,26 @@ function HyphaEvolutionWelcome({ onPick, creatingTopic, setCreatingTopic }) {
           </div>
         )}
 
-        {/* Phase: CREATING — vinyl + status copy ───────────────────────── */}
+        {/* Phase: CREATING — antechamber prediction card + vinyl + status copy */}
         {phase === 'creating' && (
           <div style={{
             padding: '40px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22,
           }}>
+            {/* v0.10.0 — antechamber pre-read prediction. Mounts during
+                generation in flight; fades out when status === 'done' or
+                error. Only renders when window.AntechamberCard exists, so
+                missing-bundle case is graceful. */}
+            {window.AntechamberCard && status && status !== 'done' && status !== 'error' && (
+              <window.AntechamberCard
+                waitType="lesson-gen"
+                topic={topic}
+                learnGoal={(goal || '').trim()}
+                stage={status}
+                sourceCount={(harvestStatus && harvestStatus.totalUseful) || 0}
+                visible={true}
+                onPredict={(text) => { setPrePrediction(text || ''); }}
+              />
+            )}
             <VinylSpinner stopped={status === 'error'} />
             {/* G7 — upload-mode source banner. When the user picked a local
                 document (uploadedSource set), the harvest pipeline is skipped

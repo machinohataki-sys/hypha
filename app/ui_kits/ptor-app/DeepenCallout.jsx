@@ -47,6 +47,10 @@ function DeepenCallout({ mode = 'deepen', selection, noteRel, style, lang, autor
   // the prompting phase, opens with autorun, calls window.ptor.llm.lesson(),
   // and renders streamed chunks the same way Quick does (synth-style markdown body).
   const isLesson = mode === 'lesson';
+  // 2026-05-03 — collapsible. User can shrink the callout to a single-line
+  // header showing selection-excerpt + ▶, expand back via click. Useful when
+  // multiple deepens stack on one note + reading the surrounding prose.
+  const [collapsed, setCollapsed] = React.useState(false);
   const [followupQ, setFollowupQ] = React.useState('');
   // autorun = continuation session (parent already gathered intent into
   // augmented selection). Skip prompting, go straight to running.
@@ -58,7 +62,6 @@ function DeepenCallout({ mode = 'deepen', selection, noteRel, style, lang, autor
   const [synthChunks, setSynthChunks] = React.useState('');
   const [done, setDone] = React.useState(false);
   const [error, setError] = React.useState(null);
-  const [collapsed, setCollapsed] = React.useState(false);
   const [expandedLens, setExpandedLens] = React.useState(null);  // slug or null — which marginalia card is open
   const [startedAt, setStartedAt] = React.useState(() => Date.now());
   const [tickT, setTickT] = React.useState(Date.now());
@@ -283,8 +286,25 @@ function DeepenCallout({ mode = 'deepen', selection, noteRel, style, lang, autor
 
   const showStatus = phase === 'running' && (!done || (!synthHtml && !error));
 
+  // Collapsed-state preview: first ~40 chars of selection italicized.
+  const collapsedPreview = (selection || '').slice(0, 40).trim() + ((selection || '').length > 40 ? '…' : '');
+
   return (
-    <div ref={calloutRef} className="deepen-callout">
+    <div ref={calloutRef} className={`deepen-callout${collapsed ? ' deepen-callout-collapsed' : ''}`}>
+      {/* 2026-05-03 — Collapsible header. Click chevron to fold/unfold. */}
+      <div
+        className="deepen-collapse-header"
+        onClick={() => setCollapsed(c => !c)}
+        title={collapsed ? '展开' : '折叠'}
+      >
+        <span className="deepen-collapse-chevron">{collapsed ? '▶' : '▼'}</span>
+        <span className="deepen-collapse-preview">
+          <em>{collapsedPreview}</em>
+          {!collapsed ? null : <span className="deepen-collapse-hint"> · {isQuick ? 'quick' : isLesson ? 'lesson' : 'deepen'}</span>}
+        </span>
+      </div>
+      {collapsed ? null : (
+      <>
       <style>{`
         .deepen-callout {
           /* V3.11 (huashu-design lesson 2026-04-29): kill border-radius.
@@ -302,6 +322,40 @@ function DeepenCallout({ mode = 'deepen', selection, noteRel, style, lang, autor
           color: var(--ink-primary);
           animation: deepen-mount 320ms cubic-bezier(0.22, 1, 0.36, 1);
           position: relative;
+        }
+        .deepen-callout-collapsed {
+          padding: 8px 14px 8px 26px;
+          margin: 12px 0;
+          font-size: 14px;
+        }
+        .deepen-collapse-header {
+          display: flex; align-items: baseline; gap: 8px;
+          cursor: pointer; user-select: none;
+          padding: 2px 0 8px;
+          font-family: inherit;
+          font-size: 13.5px;
+          color: var(--ink-faint);
+          font-style: italic;
+        }
+        .deepen-callout-collapsed .deepen-collapse-header {
+          padding: 0;
+        }
+        .deepen-collapse-header:hover { color: var(--ink-muted); }
+        .deepen-collapse-chevron {
+          font-style: normal;
+          font-size: 11px;
+          color: var(--brass-mid);
+          opacity: 0.7;
+          letter-spacing: 0;
+        }
+        .deepen-collapse-preview em {
+          font-style: italic;
+          color: var(--ink-muted);
+        }
+        .deepen-collapse-hint {
+          letter-spacing: 0.02em;
+          font-style: normal;
+          opacity: 0.6;
         }
         .deepen-callout .deepen-callout {
           border-left-width: 2px;
@@ -976,6 +1030,8 @@ function DeepenCallout({ mode = 'deepen', selection, noteRel, style, lang, autor
 
       {/* V3.12: footer date dropped. Header already shows "ago" — date was
           redundant per Tufte data-ink. */}
+      </>
+      )}
     </div>
   );
 }

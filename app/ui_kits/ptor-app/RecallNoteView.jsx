@@ -63,6 +63,177 @@ function RecallNoteView({ rel, onBack }) {
   // Clear sessions on rel change (sessions are scoped to current note view)
   React.useEffect(() => { setDeepenSessions([]); }, [rel]);
 
+  // 2026-05-03 v0148 — Recall inline deepen (user pivot from v0147 route-to-chat).
+  // User explicit: "不是 ask in chat 而是在当前页面 deepen 然后生成的内容就在
+  // 该内容段落正下方就行". Stay on Recall view; mount DeepenCallout INLINE
+  // below the source paragraph. Reuses RecallNoteView's existing
+  // deepenSessions state + DeepenCallout portal renderer (line 1707) — same
+  // mechanism the long-deleted Cmd+K used. Selection-based granularity (not
+  // paragraph), pill click triggers DeepenCallout's prompting phase which
+  // exposes the 5-key cognitive dial (疑/扩/抵/转/凝) + freeform direction.
+  const [recallQuote, setRecallQuote] = React.useState(null);  // { text, x, y }
+  React.useEffect(() => {
+    let pendingTimer = null;
+    const commit = () => {
+      try {
+        const sel = window.getSelection && window.getSelection();
+        if (!sel || sel.isCollapsed) return;
+        const text = (sel.toString() || '').trim();
+        if (text.length < 2) return;
+        let node = sel.anchorNode;
+        if (node && node.nodeType === 3) node = node.parentElement;
+        let inScope = false;
+        while (node && node !== document.body) {
+          if (node.classList && node.classList.contains('note-rendered')) {
+            inScope = true; break;
+          }
+          node = node.parentElement;
+        }
+        if (!inScope) return;
+        const range = sel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        setRecallQuote({
+          text,
+          x: rect.right,
+          y: rect.bottom,
+        });
+      } catch (_) {}
+    };
+    const onMouseUp = () => {
+      if (pendingTimer) clearTimeout(pendingTimer);
+      pendingTimer = setTimeout(commit, 30);
+    };
+    const onKeyUp = (e) => {
+      if (e.key === 'Shift') {
+        if (pendingTimer) clearTimeout(pendingTimer);
+        pendingTimer = setTimeout(commit, 30);
+      }
+    };
+    // Selection-collapse → dismiss pill (user clicked elsewhere). 200ms
+    // debounce so cleared-then-reselected doesn't flicker.
+    let collapseTimer = null;
+    const onSelChange = () => {
+      if (collapseTimer) clearTimeout(collapseTimer);
+      collapseTimer = setTimeout(() => {
+        try {
+          const sel = window.getSelection && window.getSelection();
+          if (!sel || sel.isCollapsed) setRecallQuote(null);
+        } catch (_) {}
+      }, 200);
+    };
+    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('keyup', onKeyUp);
+    document.addEventListener('selectionchange', onSelChange);
+    return () => {
+      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('keyup', onKeyUp);
+      document.removeEventListener('selectionchange', onSelChange);
+      if (pendingTimer) clearTimeout(pendingTimer);
+      if (collapseTimer) clearTimeout(collapseTimer);
+    };
+  }, []);
+
+  // Esc dismisses the pill without affecting selection.
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape' && recallQuote) setRecallQuote(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [recallQuote]);
+
+  // Clear pill on rel change (different note, stale pill).
+  React.useEffect(() => { setRecallQuote(null); }, [rel]);
+
+  // 2026-05-03 v0148 — Mount DeepenCallout INLINE below the source paragraph.
+  // User pivot: stay on Recall, generated content lands directly below the
+  // selected paragraph. Mechanism mirrors the original Cmd+K handler that was
+  // retired in v0145: walk selection → find block-level ancestor in
+  // .note-rendered → insertAdjacentElement('afterend') a deepen-host →
+  // setDeepenSessions adds an entry → portal at line 1707 renders
+  // DeepenCallout into that host. DeepenCallout's prompting phase exposes
+  // the 5-key cognitive dial (疑/扩/抵/转/凝) for direction selection.
+  const onDeepenInline = React.useCallback(() => {
+    if (!recallQuote || !recallQuote.text) return;
+    const sel = window.getSelection && window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+
+    // Find source block: walk from selection's end node up to .note-rendered.
+    const BLOCK_TAGS = new Set(['P', 'LI', 'BLOCKQUOTE', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'TABLE']);
+    const range = sel.getRangeAt(0);
+    let endNode = range.endContainer;
+    if (endNode && endNode.nodeType === 3) endNode = endNode.parentElement;
+
+    let container = null;
+    let walk = endNode;
+    while (walk && walk !== document.body) {
+      if (walk.classList && walk.classList.contains('note-rendered')) {
+        container = walk; break;
+      }
+      walk = walk.parentElement;
+    }
+    if (!container) return;
+
+    let anchorBlock = endNode;
+    while (anchorBlock && anchorBlock !== container && !BLOCK_TAGS.has(anchorBlock.tagName)) {
+      anchorBlock = anchorBlock.parentElement;
+    }
+    if (!anchorBlock || anchorBlock === container || !container.contains(anchorBlock)) {
+      anchorBlock = container.lastElementChild || container;
+    }
+
+    // Lang detection: ≥20% CJK chars → zh, else en.
+    const cjkCount = (recallQuote.text.match(/[一-龥぀-ゟ゠-ヿ]/g) || []).length;
+    const lang = (cjkCount / recallQuote.text.length >= 0.2) ? 'zh' : 'en';
+
+    const id = 'dpn_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    const host = document.createElement('div');
+    host.className = 'deepen-host';
+    host.setAttribute('data-session-id', id);
+    anchorBlock.insertAdjacentElement('afterend', host);
+
+    setDeepenSessions(prev => [...prev, {
+      id,
+      mode: 'deepen',
+      selection: recallQuote.text,
+      noteRel: rel,
+      style: 'denser',
+      lang,
+      direction: '',
+      host,
+    }]);
+    setRecallQuote(null);
+    // Clear browser selection so the pill doesn't immediately re-fire on
+    // the same selection state.
+    try { sel.removeAllRanges(); } catch (_) {}
+  }, [recallQuote, rel]);
+
+  // 2026-05-03 v0149 — Ctrl+Shift+D opens AskCard floating popover (per user
+  // "悬浮卡片" request). Single-shot llm.run against prompts/deepen.txt,
+  // rendered as fixed-position modal at line 1991. askCard state already exists
+  // at line 61 + onAppend wiring already exists; we only needed a trigger.
+  // Coexists with v0148 inline pill: pill click = inline DeepenCallout
+  // (deep multi-stage), chord = floating AskCard (fast single-shot).
+  React.useEffect(() => {
+    const onKey = (e) => {
+      const cmd = e.metaKey || e.ctrlKey;
+      if (!cmd || !e.shiftKey || e.altKey) return;
+      if (e.key !== 'd' && e.key !== 'D') return;
+      const t = e.target;
+      const tag = (t && t.tagName) ? t.tagName.toLowerCase() : '';
+      if (t && (t.isContentEditable || tag === 'input' || tag === 'textarea')) return;
+      const sel = window.getSelection && window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+      const text = sel.toString().trim();
+      if (!text) return;
+      e.preventDefault();
+      setAskCard({ template: 'deepen', selection: text, noteRel: rel });
+      setRecallQuote(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [rel]);
+
   // PROVENANCE-PALPATION (per /tr 2026-04-29 Victor synthesis): long-press 500ms+
   // on note body summons a strata-overlay revealing THANGKA-LEDGER atoms.
   // Hold-to-look gesture — release dismisses. Pointer movement >6px cancels
@@ -600,64 +771,12 @@ function RecallNoteView({ rel, onBack }) {
     ta.style.height = ta.scrollHeight + 'px';
   }, [body, mode]);
 
-  // Cmd+K / Ctrl+K on a NoteView selection → spawn an inline DeepenCallout session
-  // INSIDE .note-rendered, right after the selected paragraph (Path B真正的 inline).
-  // Implementation: find the closest block-level ancestor of selection, insert a
-  // <div class="deepen-host"> right after it via DOM manipulation, render the
-  // DeepenCallout via ReactDOM.createPortal into that host. Body re-render would
-  // clobber it, but body doesn't change mid-session (rel change clears sessions).
-  React.useEffect(() => {
-    const BLOCK_TAGS = new Set(['P', 'LI', 'BLOCKQUOTE', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'TABLE']);
-    const onKey = (e) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      // Ctrl+D = deepen (full 7-stage, ~1.5-2 min via wave + flash)
-      // Ctrl+Q = quick (single flash call, ~10s)
-      // Shift modifier on Ctrl+D = plainer style (default = denser)
-      const k = e.key.toLowerCase();
-      let mode;
-      if (k === 'd') mode = 'deepen';
-      else if (k === 'q') mode = 'quick';
-      else return;
-
-      const sel = window.getSelection && window.getSelection();
-      if (!sel || sel.isCollapsed) return;
-      const txt = (sel.toString() || '').trim();
-      if (txt.length < 2) return;
-      const noteRendered = document.querySelector('.note-rendered');
-      if (!noteRendered || !noteRendered.contains(sel.anchorNode)) return;
-      e.preventDefault();
-
-      // Find the closest block-level ancestor of the selection's end
-      const range = sel.getRangeAt(0);
-      let anchorNode = range.endContainer;
-      if (anchorNode.nodeType === 3) anchorNode = anchorNode.parentElement;
-      let anchorBlock = anchorNode;
-      while (anchorBlock && anchorBlock !== noteRendered && !BLOCK_TAGS.has(anchorBlock.tagName)) {
-        anchorBlock = anchorBlock.parentElement;
-      }
-      if (!anchorBlock || anchorBlock === noteRendered || !noteRendered.contains(anchorBlock)) {
-        anchorBlock = noteRendered.lastElementChild || noteRendered;
-      }
-
-      // Style only applies to deepen mode. Quick is single-call, no style branching.
-      const style = (mode === 'deepen' && e.shiftKey) ? 'plainer' : 'denser';
-
-      // Lang from selection: ≥20% CJK chars → zh, else en.
-      const cjkCount = (txt.match(/[一-龥぀-ゟ゠-ヿ]/g) || []).length;
-      const lang = (cjkCount / txt.length >= 0.2) ? 'zh' : 'en';
-
-      const idPrefix = mode === 'quick' ? 'qck_' : 'dpn_';
-      const id = idPrefix + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-      const host = document.createElement('div');
-      host.className = 'deepen-host';
-      host.setAttribute('data-session-id', id);
-      anchorBlock.insertAdjacentElement('afterend', host);
-
-      setDeepenSessions(prev => [...prev, { id, mode, selection: txt, noteRel: rel, style, lang, direction: '', host }]);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [rel]);
+  // 2026-05-03 v0145 — RecallNoteView no longer has a deepen affordance.
+  // Per /tr council 2026-05-03: the deepen verb is retired entirely; the
+  // active surface is the LessonChat selection-anchored composer
+  // (NoteView.jsx LessonChat). RecallNoteView shows ratified notes
+  // (read-only); deepen there can be added in a follow-up iteration if
+  // user need is real — currently deferred per Occam.
 
   // Clean up host divs when rel changes (effect ordering: this runs BEFORE
   // setDeepenSessions([]) clears state on rel change).
@@ -930,6 +1049,13 @@ function RecallNoteView({ rel, onBack }) {
             column-gap: 12px;
             padding: 32px 20px 56px;
           }
+        }
+
+        /* 2026-05-03 v0147 — Recall deepen pill fade-in. Matches the
+           Lesson-side composer transition register (220ms ease-out 80ms). */
+        @keyframes recall-ask-fade-in {
+          from { opacity: 0; transform: translateY(-4px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
 
         /* ─── Folio (running header — Lung's alcove discipline) ──────────── */
@@ -1689,7 +1815,6 @@ function RecallNoteView({ rel, onBack }) {
             absence (no decorative placeholder), per user 2026-04-29
             "等待council 有什么用" 反馈. */}
         {(agentTrace.length > 0
-          || vaultPeers.length > 0
           || (mode === 'edit' && deepenSessions.length > 0)
         ) && (
         <aside className="note-marginalia">
@@ -1744,23 +1869,11 @@ function RecallNoteView({ rel, onBack }) {
               Claude API 集成 + 手动 trigger 模式. 现在 edit col-3 仅有
               deepen breadcrumb + agent-trace + vault-peers fallback. */}
 
-          {/* Both modes fallback: same-folder peers when agentTrace=0. Real
-              navigable list. Click dispatches CustomEvent that App.jsx listens
-              for to update active rel — decoupled from prop drill. */}
-          {agentTrace.length === 0 && vaultPeers.length > 0 && (
-            <nav className="vault-peers" aria-label="folder peers">
-              <div className="hint-label">{(rel.split('/')[0] || 'vault')}</div>
-              {vaultPeers.map((p, i) => (
-                <button
-                  key={i}
-                  onClick={() => window.dispatchEvent(new CustomEvent('ptor:open-rel', { detail: p.rel }))}
-                  title={p.rel}
-                >
-                  {p.label.replace(/\.md$/i, '')}
-                </button>
-              ))}
-            </nav>
-          )}
+          {/* 2026-05-03 — vault-peers block removed per user request.
+              The same-folder peer list (showing 01-pending / 02-pending /…
+              under the chain folder name) cluttered the recall view; pending
+              lessons clearly aren't useful drill targets, and the chain rail
+              + footer already provide cleaner navigation. */}
         </aside>
         )}
 
@@ -1849,6 +1962,39 @@ function RecallNoteView({ rel, onBack }) {
           mtime={corpus?.mtime || null}
           onDismiss={() => setPalpationOpen(false)}
         />
+      )}
+      {/* 2026-05-03 v0148 — Recall inline deepen pill. Position:fixed,
+          anchored to selection's trailing edge, viewport-clamped. Click
+          mounts DeepenCallout INLINE below the source paragraph (stays on
+          Recall view; no chat route). */}
+      {recallQuote && (
+        <div
+          role="button"
+          aria-label="deepen this passage inline"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onDeepenInline}
+          style={{
+            position: 'fixed',
+            left: Math.min(Math.max(8, recallQuote.x + 8), (typeof window !== 'undefined' ? window.innerWidth : 1200) - 120),
+            top: Math.min(Math.max(8, recallQuote.y + 6), (typeof window !== 'undefined' ? window.innerHeight : 800) - 40),
+            zIndex: 100,
+            fontFamily: '"Cormorant Garamond", "EB Garamond", "Noto Serif SC", Georgia, serif',
+            fontStyle: 'italic',
+            fontSize: 12.5,
+            letterSpacing: '0.04em',
+            color: 'var(--ink-faint)',
+            padding: '5px 12px',
+            border: '1px solid color-mix(in srgb, var(--brass-mid) 38%, transparent)',
+            background: 'color-mix(in srgb, var(--brass-mid) 6%, var(--bg-page, #faf6ee))',
+            boxShadow: '0 4px 14px color-mix(in srgb, var(--brass-mid) 12%, transparent)',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            userSelect: 'none',
+            animation: 'recall-ask-fade-in 220ms ease-out 80ms both',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--ink-primary)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--ink-faint)'; }}
+        >· deepen</div>
       )}
     </div>
   );

@@ -137,6 +137,13 @@ function list() {
       const ghost = String(fm.ghost || '').toLowerCase() === 'true';
       const phaseLabel = String(fm.phase_label || '').replace(/^"|"$/g, '');
       const phaseId = String(fm.phase_id || '');
+      // v0.10.1 — capture date_created so chain folders can be sorted by
+      // creation order (chronological) instead of alphabetic by chainSlug.
+      // User reported newer chains rendering above older ones because pinyin
+      // slug compare put "yi-..." before "yong-...".
+      const dateCreated = (fm.date_created && String(fm.date_created).trim() && fm.date_created !== 'null')
+        ? String(fm.date_created).trim().replace(/^"|"$/g, '')
+        : null;
       return {
         id: `${d.name}/${e.name}`,
         rel: `${d.name}/${e.name}`,
@@ -152,6 +159,7 @@ function list() {
         ghost,
         phaseLabel,
         phaseId,
+        dateCreated,
       };
     });
 
@@ -195,6 +203,20 @@ function list() {
       }
     } catch (_) {}
 
+    // v0.10.1 — folder's earliest date_created across its items (used for
+    // chain-vs-chain chronological sort below). Falls through to null if no
+    // item has the field; sort then degrades to alphabetic chainSlug.
+    const itemDates = items.map(it => it.dateCreated).filter(Boolean).sort();
+    const folderDateCreated = itemDates[0] || null;
+
+    // v0.11.x — earliest item mtime as full-ISO ms-precision creation signal.
+    // frontmatter date_created is YYYY-MM-DD only; two chains created on the
+    // same day collide and force the comparator to fall back to alphabetic
+    // chainSlug (wrong order, e.g. "yi-..." sorts above "yong-..." even
+    // though the "yong-..." chain was generated first).
+    const itemMtimes = items.map(it => it.mtime).filter(Boolean).sort();
+    const folderEarliestMtime = itemMtimes[0] || null;
+
     folders.push({
       folder: d.name,
       count: items.length,
@@ -204,7 +226,23 @@ function list() {
       chainUltimateGoal,
       chainTotalLinks,
       chainPlaceholder,
+      dateCreated: folderDateCreated,
+      earliestMtime: folderEarliestMtime,
     });
+  }
+
+  // v0.11.x — pre-pass: per-chain earliest "creation signal" across ALL its
+  // folders. Prefer earliestMtime (full ISO with ms) over dateCreated
+  // (YYYY-MM-DD) so same-day chain creation orders deterministically by
+  // generation time. Falls back to dateCreated only when mtime is missing
+  // (legacy data).
+  const chainEarliestSignal = new Map();
+  for (const f of folders) {
+    if (!f.chainSlug) continue;
+    const sig = f.earliestMtime || f.dateCreated;
+    if (!sig) continue;
+    const cur = chainEarliestSignal.get(f.chainSlug);
+    if (!cur || sig < cur) chainEarliestSignal.set(f.chainSlug, sig);
   }
 
   // v0.6.8 — chain-aware folder ordering. Chain links sort by chainLinkIdx
@@ -216,7 +254,14 @@ function list() {
     const aChain = a.chainSlug || '';
     const bChain = b.chainSlug || '';
     if (aChain && bChain) {
-      if (aChain !== bChain) return aChain.localeCompare(bChain);
+      if (aChain !== bChain) {
+        // chain-vs-chain: compare by earliest mtime/dateCreated signal;
+        // tie-break alphabetic for determinism.
+        const aSig = chainEarliestSignal.get(aChain) || '';
+        const bSig = chainEarliestSignal.get(bChain) || '';
+        if (aSig && bSig && aSig !== bSig) return aSig.localeCompare(bSig);
+        return aChain.localeCompare(bChain);
+      }
       return (a.chainLinkIdx ?? 9999) - (b.chainLinkIdx ?? 9999);
     }
     if (aChain && !bChain) return 1;   // chain folders sink to bottom of list
@@ -263,19 +308,78 @@ function safeAbs(rel) {
   return { root, safe, abs };
 }
 
-// Delete a note (file) OR an empty/non-empty folder. Folder delete is
-// recursive — the caller (UI) must confirm before invoking.
+// Delete a note (file) OR a folder. 2026-05-02 — refactored to SOFT-DELETE:
+// moves the target to vault/.trash/<basename>-<unixMs>/ instead of unlink.
+// purgeStaleTrash() (called on app startup + per vault:list when free) hard-
+// purges trash entries older than 7 days. restoreFromTrash() can recover
+// within that window. The .trash dir is hidden from vault.list (skipped by
+// dotfile filter at the top of list()). On any error during the move (cross-
+// device, permissions, ENOSPC), falls back to legacy hard delete so the UI
+// promise still resolves.
 function del(rel) {
-  const { abs, safe } = safeAbs(rel);
+  const { abs, root, safe } = safeAbs(rel);
   if (!fs.existsSync(abs)) return { ok: false, reason: 'not found', rel: safe.replace(/\\/g, '/') };
-  const stat = fs.statSync(abs);
-  if (stat.isDirectory()) {
-    fs.rmSync(abs, { recursive: true, force: true });
-  } else {
-    fs.unlinkSync(abs);
+  try {
+    const trashDir = path.join(root, '.trash');
+    fs.mkdirSync(trashDir, { recursive: true });
+    const baseName = path.basename(abs);
+    const ts = Date.now();
+    const trashTarget = path.join(trashDir, `${baseName}-${ts}`);
+    fs.renameSync(abs, trashTarget);
+    _backlinksCacheClear();
+    return { ok: true, rel: safe.replace(/\\/g, '/'), trashedAs: path.basename(trashTarget) };
+  } catch (_) {
+    // Fallback to hard delete if soft-delete fails (cross-device rename, perms)
+    try {
+      const stat = fs.statSync(abs);
+      if (stat.isDirectory()) fs.rmSync(abs, { recursive: true, force: true });
+      else fs.unlinkSync(abs);
+    } catch (_) {}
+    _backlinksCacheClear();
+    return { ok: true, rel: safe.replace(/\\/g, '/'), trashedAs: null };
   }
-  _backlinksCacheClear();   // del → existing backlinks may break
-  return { ok: true, rel: safe.replace(/\\/g, '/') };
+}
+
+// purgeStaleTrash — hard-delete .trash entries older than maxAgeMs (default 7d).
+// Idempotent + silent on errors. Called on Hypha startup + opportunistically.
+function purgeStaleTrash(maxAgeMs) {
+  const root = ensureRoot();
+  const trashDir = path.join(root, '.trash');
+  if (!fs.existsSync(trashDir)) return { purged: 0 };
+  const cutoff = Date.now() - (typeof maxAgeMs === 'number' ? maxAgeMs : 7 * 24 * 3600 * 1000);
+  let purged = 0;
+  try {
+    const entries = fs.readdirSync(trashDir, { withFileTypes: true });
+    for (const e of entries) {
+      const m = e.name.match(/-(\d+)$/);
+      if (!m) continue;
+      const ts = Number(m[1]);
+      if (!Number.isFinite(ts) || ts > cutoff) continue;
+      const p = path.join(trashDir, e.name);
+      try {
+        const st = fs.statSync(p);
+        if (st.isDirectory()) fs.rmSync(p, { recursive: true, force: true });
+        else fs.unlinkSync(p);
+        purged++;
+      } catch (_) {}
+    }
+  } catch (_) {}
+  return { purged };
+}
+
+// restoreFromTrash — move .trash/<trashName> back to original vault root
+// position (strip trailing -<ts>). Refuses if target name already exists.
+function restoreFromTrash(trashName) {
+  const root = ensureRoot();
+  const trashAbs = path.join(root, '.trash', trashName);
+  if (!fs.existsSync(trashAbs)) return { ok: false, reason: 'not found in trash' };
+  const m = trashName.match(/^(.+?)-\d+$/);
+  const originalName = m ? m[1] : trashName;
+  const targetAbs = path.join(root, originalName);
+  if (fs.existsSync(targetAbs)) return { ok: false, reason: 'target already exists' };
+  fs.renameSync(trashAbs, targetAbs);
+  _backlinksCacheClear();
+  return { ok: true, rel: originalName };
 }
 
 // Rename / move a file or folder. Both rels are vault-relative.
@@ -423,4 +527,5 @@ function exists(rel) {
 module.exports = {
   resolveRoot, list, read, write, del, rename, mkdir, backlinks,
   readJSON, writeJSON, appendJSONL, readJSONL, listDir, exists,
+  purgeStaleTrash, restoreFromTrash,
 };

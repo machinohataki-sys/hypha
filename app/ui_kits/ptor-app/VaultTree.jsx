@@ -76,6 +76,190 @@ function VaultTree({ active, onSelect, viewMode }) {
   const toggleChainCollapse = React.useCallback((chainSlug) => {
     setChainCollapse(prev => ({ ...prev, [chainSlug]: !prev[chainSlug] }));
   }, []);
+  // v0.7.3 — JS-measured height per chain for fold/unfold animation. The
+  // CSS-Grid 0fr↔1fr trick that works for sub-folders (line ~510) misfires in
+  // the chain wrapper because its inner div contains React.Fragment-emitted
+  // pairs of [folder header + sub-grid wrapper] — nested grid containers
+  // through Fragments hit a Chromium interpolation edge case. Switch to
+  // direct height animation: a ResizeObserver caches each chain's natural
+  // scrollHeight; the outer wrapper transitions `height: Npx ↔ 0` for
+  // unambiguous full-duration motion in both directions. The observer
+  // re-fires when sub-folders inside a chain open/close, keeping the cached
+  // height live so the chain wrapper grows smoothly with its contents.
+  const chainContentRefs = React.useRef({});           // { slug: HTMLDivElement }
+  const [chainHeights, setChainHeights] = React.useState({});  // { slug: pixelHeight }
+  React.useEffect(() => {
+    const observers = {};
+    for (const slug of Object.keys(chainContentRefs.current)) {
+      const el = chainContentRefs.current[slug];
+      if (!el || typeof ResizeObserver !== 'function') continue;
+      const obs = new ResizeObserver(entries => {
+        const h = (entries[0] && entries[0].contentRect && entries[0].contentRect.height) || el.scrollHeight;
+        setChainHeights(prev => prev[slug] === h ? prev : { ...prev, [slug]: h });
+      });
+      obs.observe(el);
+      observers[slug] = obs;
+    }
+    return () => Object.values(observers).forEach(o => o.disconnect());
+  }, [VAULT]);
+
+  // v0.8.3 候光 (HOU-GUANG / waiting light) — ambient motion grammar wiring.
+  // RIPPED OUT in this revision per /tr 2026-05-02 council (LUNG H1 + LEO core
+  // principle): the per-frame rAF reading Animation.currentTime to spawn
+  // ambient ink-bleeds was forcing a 60Hz main-thread/compositor handshake
+  // (rAF + currentTime read = main-thread sync), AND the spawned bleeds with
+  // animated filter:blur created visible "color flicker" against the cream
+  // backdrop on Windows D3D11 (shader-cache miss). User-reported symptom.
+  // KEPT: P1 BREATH (per-row WAAPI sine), P2 HERO ink-bleed on phase advance,
+  // P4 chain-header HAIRLINE.
+  // DROPPED: ambient ink-bleed (E1 whisper layer), setInterval sweep,
+  // per-frame rAF tick. IO observation now happens directly in registerRow
+  // when refs come in — no polling, no lazy 500ms latency.
+  const rowRefs = React.useRef(new Map());           // id -> { el, isRow, phaseDotEl }
+  const rowAnims = React.useRef(new Map());          // id -> WAAPI Animation
+  const prevPhasesRef = React.useRef(new Map());     // item.id -> last phase value
+  const chainHeaderHlDone = React.useRef(new Set()); // chain slug already drawn
+  const sharedIORef = React.useRef(null);            // single IntersectionObserver for breath
+
+  const registerRow = React.useCallback((id, el, isRow, phaseDotEl) => {
+    if (!id) return;
+    if (el) {
+      rowRefs.current.set(id, { el, isRow: !!isRow, phaseDotEl: phaseDotEl || null });
+      // Direct IO attach — no setInterval polling needed.
+      const io = sharedIORef.current;
+      if (io) try { io.observe(el); } catch (_) {}
+    } else {
+      const prev = rowRefs.current.get(id);
+      if (prev && prev.el && sharedIORef.current) {
+        try { sharedIORef.current.unobserve(prev.el); } catch (_) {}
+      }
+      rowRefs.current.delete(id);
+      const a = rowAnims.current.get(id);
+      if (a) { try { a.cancel(); } catch (_) {} rowAnims.current.delete(id); }
+    }
+  }, []);
+
+  // Shared IO for breath (P1). Single observer for all rows; cancel-on-exit
+  // (NOT pause) per SCOUT 2026-05-02 to avoid iterations:Infinity leak.
+  React.useEffect(() => {
+    if (!window.chouguang || !window.chouguang.motionAllowed) return;
+    if (!window.chouguang.motionAllowed()) return;
+    let alive = true;
+    const startBreath = (id, info) => {
+      if (rowAnims.current.has(id)) return;
+      const item = (window.VAULT_ITEM_BY_ID && window.VAULT_ITEM_BY_ID.get) ? window.VAULT_ITEM_BY_ID.get(id) : null;
+      const days = item && item.lastAttendedAt ? Math.max(0, (Date.now() - new Date(item.lastAttendedAt).getTime()) / 86400000) : 999;
+      try {
+        const anim = window.chouguang.breathe(info.el, { id, recencyDays: days });
+        if (anim) rowAnims.current.set(id, anim);
+      } catch (_) {}
+    };
+    const stopBreath = (id) => {
+      const a = rowAnims.current.get(id);
+      if (a) { try { a.cancel(); } catch (_) {} rowAnims.current.delete(id); }
+    };
+    const io = new IntersectionObserver(entries => {
+      if (!alive) return;
+      entries.forEach(e => {
+        const el = e.target;
+        let foundId = null;
+        for (const [id, info] of rowRefs.current.entries()) {
+          if (info.el === el) { foundId = id; break; }
+        }
+        if (!foundId) return;
+        if (e.isIntersecting) startBreath(foundId, { el });
+        else stopBreath(foundId);
+      });
+    });
+    sharedIORef.current = io;
+    // Observe any rows already registered before this effect ran.
+    for (const info of rowRefs.current.values()) {
+      if (info.el) try { io.observe(info.el); } catch (_) {}
+    }
+    return () => {
+      alive = false;
+      sharedIORef.current = null;
+      try { io.disconnect(); } catch (_) {}
+      for (const a of rowAnims.current.values()) { try { a.cancel(); } catch (_) {} }
+      rowAnims.current.clear();
+    };
+  }, [VAULT]);
+
+  // HERO phase-advance ink-bleed (Demand #2 — THE ONE MOMENT).
+  React.useEffect(() => {
+    if (!window.chouguang) return;
+    // Build a quick lookup: id -> item for phase comparison.
+    const allItems = [];
+    for (const f of VAULT) (f.items || []).forEach(it => allItems.push(it));
+    // Seed prev on first run (avoid false-fire on initial mount).
+    if (prevPhasesRef.current.size === 0) {
+      allItems.forEach(it => prevPhasesRef.current.set(it.id, it.phase || 0));
+      return;
+    }
+    allItems.forEach(it => {
+      const prev = prevPhasesRef.current.get(it.id);
+      const curr = it.phase || 0;
+      if (typeof prev === 'number' && curr > prev) {
+        const info = rowRefs.current.get(it.id);
+        if (info && info.phaseDotEl) {
+          try { window.chouguang.inkBleed(info.phaseDotEl, { scale: 'hero' }); } catch (_) {}
+        }
+      }
+      prevPhasesRef.current.set(it.id, curr);
+    });
+  }, [VAULT]);
+
+  // Chain-header hairline (P4) — once per chain on first viewport entry.
+  React.useEffect(() => {
+    if (!window.chouguang) return;
+    // Wait one frame so DOM has the new chain headers.
+    const id = requestAnimationFrame(() => {
+      const headers = document.querySelectorAll('[data-chain-header]');
+      headers.forEach(h => {
+        const slug = h.getAttribute('data-chain-header');
+        if (!slug || chainHeaderHlDone.current.has(slug)) return;
+        chainHeaderHlDone.current.add(slug);
+        try { window.chouguang.hairline(h, { durationMs: 520 }); } catch (_) {}
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [VAULT]);
+
+  // v0.11.1 — chain auto-repair on mount. When a chain group's folder count
+  // is less than its declared totalLinks, the chain:accept stub-creation
+  // loop likely failed silently for some links. Fire chain:repair-stubs
+  // (idempotent — only acts on truly missing links) once per session per
+  // slug. After repair, vault.list refresh surfaces the recovered folders.
+  // Per /tr 2026-05-02 council diagnosis: silent partial-failure self-heal.
+  const chainRepairAttempted = React.useRef(new Set());
+  React.useEffect(() => {
+    if (!window.ptor || !window.ptor.hypha || !window.ptor.hypha.chainRepairStubs) return;
+    // Build a quick chainSlug → { folderCount, totalLinks } map from VAULT.
+    const chainCounts = new Map();
+    for (const f of VAULT) {
+      if (!f.chainSlug) continue;
+      const cur = chainCounts.get(f.chainSlug) || { folderCount: 0, totalLinks: f.chainTotalLinks || 0 };
+      cur.folderCount += 1;
+      if (f.chainTotalLinks && f.chainTotalLinks > cur.totalLinks) cur.totalLinks = f.chainTotalLinks;
+      chainCounts.set(f.chainSlug, cur);
+    }
+    let cancelled = false;
+    for (const [slug, counts] of chainCounts.entries()) {
+      if (counts.totalLinks <= 0) continue;
+      if (counts.folderCount >= counts.totalLinks) continue;
+      if (chainRepairAttempted.current.has(slug)) continue;
+      chainRepairAttempted.current.add(slug);
+      window.ptor.hypha.chainRepairStubs(slug).then(r => {
+        if (cancelled) return;
+        if (r && r.ok && Array.isArray(r.repaired) && r.repaired.length > 0) {
+          // Refresh vault to surface newly-recovered folders.
+          refresh();
+        }
+      }).catch(() => {});
+    }
+    return () => { cancelled = true; };
+  }, [VAULT]);
+
   // v0.6.3 — custom tutor persona authoring (inline panel inside tutor modal).
   const [personaCreateOpen, setPersonaCreateOpen] = React.useState(false);
   const [personaDraft, setPersonaDraft] = React.useState({ label: '', short: '', prompt: '' });
@@ -102,11 +286,37 @@ function VaultTree({ active, onSelect, viewMode }) {
   // Cmd+, / Ctrl+, dispatches hypha:open-colophon → App.jsx switches viewMode
   // to 'colophon'. The old settings modal was deleted 2026-04-30 per
   // LUNG+LEO+YOGO council (kill modal, settings is a vault page not a dialog).
+  // v0.10.2 — Cmd+D / Ctrl+D opens today's daily note (creates if absent).
+  // Per /tr 2026-05-02 wiki+gbrain three-piece: lesson-free capture surface.
   React.useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === ',') {
         e.preventDefault();
         try { window.dispatchEvent(new CustomEvent('hypha:open-colophon')); } catch (_) {}
+      } else if ((e.metaKey || e.ctrlKey) && (e.key === 'd' || e.key === 'D') && !e.shiftKey && !e.altKey) {
+        // Skip if user is typing in an input/textarea/contenteditable
+        const t = e.target;
+        const tag = (t && t.tagName) ? t.tagName.toLowerCase() : '';
+        const editable = (t && (t.isContentEditable || tag === 'input' || tag === 'textarea'));
+        if (editable) return;
+        // 2026-05-03 v0143/v0145 — Ctrl+D restored to its sole purpose: open
+        // today's inspiration note. Prior selection-skip logic removed.
+        // Deepen as a discrete verb is RETIRED (v0145): selection-anchored
+        // composer in LessonChat (NoteView.jsx) is the new flow — select
+        // text in tutor reply or rendered note, the chat composer auto-
+        // shows a quoted preview + "ask about this —" placeholder. User
+        // decision per /tr 2026-05-03: "ctrl d就是灵感笔记的功能" + "该方法
+        // 没有实用性，重新想".
+        e.preventDefault();
+        if (window.ptor && window.ptor.vault && window.ptor.vault.openDaily) {
+          window.ptor.vault.openDaily().then(r => {
+            if (r && r.ok && r.rel) {
+              try { window.dispatchEvent(new CustomEvent('hypha:open-evolution')); } catch (_) {}
+              if (typeof onSelect === 'function') onSelect(r.rel);
+              refresh();
+            }
+          }).catch(() => {});
+        }
       }
     };
     window.addEventListener('keydown', onKey);
@@ -160,6 +370,25 @@ function VaultTree({ active, onSelect, viewMode }) {
     };
     window.addEventListener('hypha:open-tutor-customize', onCustomize);
     return () => window.removeEventListener('hypha:open-tutor-customize', onCustomize);
+  }, []);
+
+  // 2026-05-02 长卷 redesign — folder right-click went away with VaultTree's
+  // visible tree, so the language picker lost its only entry point. Mirror
+  // the tutor-customize event pattern so NoteView's lesson header can open
+  // the language modal too.
+  React.useEffect(() => {
+    const onLanguage = async (e) => {
+      const slug = e && e.detail && e.detail.slug;
+      if (!slug || !window.ptor || !window.ptor.hypha || !window.ptor.hypha.curriculumGetLanguage) return;
+      try {
+        const r = await window.ptor.hypha.curriculumGetLanguage(slug);
+        const current = (r && r.ok) ? (r.language || '') : '';
+        setLanguageEdit({ slug, language: current });
+        setLanguageSaved(false);
+      } catch (_) {}
+    };
+    window.addEventListener('hypha:open-language', onLanguage);
+    return () => window.removeEventListener('hypha:open-language', onLanguage);
   }, []);
 
   // ChainPlanner event listener moved to App.jsx 2026-05-01 (where the
@@ -252,8 +481,19 @@ function VaultTree({ active, onSelect, viewMode }) {
           recall 是 storage 模式，note 操作放这里语义对；evolution 是学习模式，
           + 当然是新课程。menu 背景用 var(--bg-base)（paper register），跟当前
           theme 一致，不再用 modal-card 在 atlas-day 下撞色。 */}
+      {/* v0.7.3 — pin "+" header so it never drifts when chain folds/unfolds
+          or when a tall vault scrolls. position:sticky also establishes a
+          containing block for the absolute-positioned actionMenu dropdown,
+          so the dropdown still anchors to the header. Background covers the
+          content beneath when sticky engages — glass register inherited from
+          vault root keeps the manuscript feel. */}
       <div ref={actionWrapRef} style={{
-        position: 'relative',
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+        background: 'var(--glass-light)',
+        backdropFilter: 'var(--glass-blur)',
+        WebkitBackdropFilter: 'var(--glass-blur)',
         padding: '2px 16px 12px',
         margin: '0 0 10px',
         display: 'flex', alignItems: 'baseline', gap: 10,
@@ -444,7 +684,7 @@ function VaultTree({ active, onSelect, viewMode }) {
           const isFolderCtxTarget = ctxMenu && ctxMenu.kind === 'folder' && ctxMenu.id === folder.folder;
           return (
           <React.Fragment key={folder.folder}>
-            <div onClick={() => setOpen({ ...open, [folder.folder]: !isOpen })}
+            <div onClick={() => setOpen(prev => ({ ...prev, [folder.folder]: !prev[folder.folder] }))}
                  data-ctx-target={isFolderCtxTarget ? 'true' : undefined}
                  onContextMenu={(e) => {
                    e.preventDefault();
@@ -528,6 +768,14 @@ function VaultTree({ active, onSelect, viewMode }) {
                   const isCtxTarget = ctxMenu && ctxMenu.kind === 'item' && ctxMenu.id === item.id;
                   return (
                     <div key={item.id}
+                         ref={el => {
+                           if (el) {
+                             const dotEl = el.querySelector('[data-phase-dot]');
+                             registerRow(item.id, el, true, dotEl);
+                           } else {
+                             registerRow(item.id, null);
+                           }
+                         }}
                          data-ctx-target={isCtxTarget ? 'true' : undefined}
                          onClick={() => { if (!isRenaming && !isLocked && !isGhost) onSelect(item.id); }}
                          onContextMenu={(e) => {
@@ -567,7 +815,7 @@ function VaultTree({ active, onSelect, viewMode }) {
                              'color 200ms cubic-bezier(0.3, 0.7, 0.2, 1) 40ms,' +
                              'box-shadow 200ms cubic-bezier(0.2, 0.7, 0.2, 1) 60ms',
                          }}>
-                      <span style={{
+                      <span data-phase-dot style={{
                         width: 6, height: 6, borderRadius: '50%',
                         background: `radial-gradient(circle at 35% 30%, var(--pearl-glow), transparent 55%), ${PHASE_VAR[item.phase]}`,
                         boxShadow: `inset 0 0 0 0.5px rgba(0,0,0,0.08)`,
@@ -691,6 +939,7 @@ function VaultTree({ active, onSelect, viewMode }) {
             <button
               key={'chain-header-' + g.slug}
               type="button"
+              data-chain-header={g.slug}
               onClick={() => toggleChainCollapse(g.slug)}
               title={isCollapsed
                 ? `expand · ${g.folders.length} link${g.folders.length === 1 ? '' : 's'} hidden`
@@ -729,28 +978,46 @@ function VaultTree({ active, onSelect, viewMode }) {
             </button>
           );
           entryIdx += 1;
-          // Animated chain-group wrapper. Same grid-rows trick as sub-folder
-          // (line ~565 in renderFolder) — same easing function — but +60ms
-          // duration + opacity layer with delayed-entry on expand. The
-          // pointer-events: none under collapse prevents accidental clicks
-          // on the about-to-vanish row during fade.
+          // v0.7.3 — JS-measured height animation. The grid-rows trick (v0.7.2)
+          // failed in this position; switched to direct `height` animation
+          // against a ResizeObserver-measured pixel value (declared above the
+          // IIFE). Outer div animates height + opacity; inner div carries the
+          // ref so its natural scrollHeight is what drives the cached value.
+          // First render before measurement uses 'auto' so the layout settles
+          // and the observer fires immediately; thereafter numeric px.
+          // v0.11.3 — chain-group height clipping fix.
+          // Previously: height was `${measuredH}px` from a ResizeObserver on
+          // the inner div. Symptom: only the first chain-link folder rendered
+          // visibly even though g.folders.map() emitted all 7 React elements.
+          // Root cause: under chains with many placeholder folders containing
+          // hundreds of ghost lessons each (yc-思想源流 72, paul-graham 65,
+          // sam-altman 95, ... → 800+ rows total per chain), the
+          // ResizeObserver's first measurement landed before all child
+          // folders' grid-rows transitions resolved, locking measuredH at the
+          // height of just the first folder. Subsequent observations were
+          // suppressed by the prev[slug] === h dedupe in the observer
+          // callback because the inner div's contentRect didn't change once
+          // its first-render layout settled. Net: 6 of 7 folder headers
+          // clipped under overflow: hidden.
+          // Fix: drop the JS-measured height entirely. Use `height: 'auto'`
+          // when expanded so the chain group always sizes to its full natural
+          // content. The collapse direction loses the smooth height
+          // animation, but content-fidelity > animation. Opacity transition
+          // retained for soft fade on collapse.
           elements.push(
             <div
               key={'chain-group-' + g.slug}
               style={{
-                display: 'grid',
-                gridTemplateRows: isCollapsed ? '0fr' : '1fr',
-                transition: 'grid-template-rows 380ms cubic-bezier(0.22, 1, 0.36, 1)',
-              }}
-            >
-              <div style={{
-                overflow: 'hidden', minHeight: 0,
+                overflow: 'hidden',
+                height: isCollapsed ? '0px' : 'auto',
                 opacity: isCollapsed ? 0 : 1,
                 pointerEvents: isCollapsed ? 'none' : 'auto',
                 transition: isCollapsed
                   ? 'opacity 200ms cubic-bezier(0.22, 1, 0.36, 1)'
                   : 'opacity 240ms cubic-bezier(0.22, 1, 0.36, 1) 80ms',
-              }}>
+              }}
+            >
+              <div>
                 {g.folders.map(f => renderFolder(f, true))}
               </div>
             </div>
@@ -765,6 +1032,14 @@ function VaultTree({ active, onSelect, viewMode }) {
           1px brass-bright top hairline on hover (Norm Architects craft marker).
           State at rest, no italic (budget reserved for brand). Cmd+, also opens. */}
       <div
+        ref={el => {
+          if (el) {
+            const dotEl = el.querySelector('[data-tokonoma-pip]');
+            registerRow('tokonoma-footer', el, false, dotEl);
+          } else {
+            registerRow('tokonoma-footer', null);
+          }
+        }}
         onClick={() => { try { window.dispatchEvent(new CustomEvent('hypha:open-colophon')); } catch (_) {} }}
         onMouseEnter={() => setChipHover(true)}
         onMouseLeave={() => setChipHover(false)}
@@ -799,7 +1074,7 @@ function VaultTree({ active, onSelect, viewMode }) {
             transition: 'color 220ms',
           }}>
             <span>{currentSettings.model || 'glm-5'}</span>
-            <span aria-hidden="true" style={{
+            <span aria-hidden="true" data-tokonoma-pip style={{
               width: 6, height: 6, borderRadius: '50%',
               background: chipHover ? 'var(--accent-teal)' : 'color-mix(in srgb, var(--accent-teal) 78%, transparent)',
               boxShadow: chipHover ? '0 0 6px color-mix(in srgb, var(--accent-teal) 50%, transparent)' : 'none',

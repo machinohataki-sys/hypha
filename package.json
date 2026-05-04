@@ -1,6 +1,6 @@
 {
   "name": "hypha",
-  "version": "0.7.2",
+  "version": "0.11.2",
   "description": "Hypha — the NOTE AGENT. Internal codename: ptor2. For self-directed researchers and bachelor-foundation learners.",
   "main": "app/main.js",
   "repository": {
@@ -34,6 +34,7 @@
     "to-ico": "^1.1.5"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.92.0",
     "@fontsource-variable/source-serif-4": "^5.2.9",
     "@fontsource/cormorant-garamond": "^5.2.11",
     "@fontsource/eb-garamond": "^5.2.7",
