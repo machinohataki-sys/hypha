@@ -111,12 +111,6 @@ contextBridge.exposeInMainWorld('ptor', {
     // Stream chunks arrive on 'llm:chunk' events; subscribe via onChunk first.
     run: (templateName, vars, requestId) => ipcRenderer.invoke('llm:run', { templateName, vars, requestId }),
     abort: (requestId) => ipcRenderer.invoke('llm:abort', requestId),
-    // v0150 — provider-aware deepen for AskCard floating popover. Honors user
-    // settings (Claude/OpenAI/Gemini/GLM via _hyphaAgent.streamTurn). Pre-injects
-    // wiki-context. Streams chunks on 'llm:chunk' (use onChunk above to subscribe).
-    // Abort via existing deepenAbort(requestId) — shares _deepenAbort map.
-    deepenPopover: (selection, noteRel, requestId) =>
-      ipcRenderer.invoke('llm:deepen-popover', { selection, noteRel, requestId }),
     // onChunk((payload) => void) — payload = { requestId, text }. Returns unsubscribe fn.
     onChunk: (cb) => {
       const handler = (_e, payload) => cb(payload);
@@ -147,8 +141,64 @@ contextBridge.exposeInMainWorld('ptor', {
       return () => ipcRenderer.removeListener('llm:deepen-progress', handler);
     },
   },
+  // v0158 — Agent-Sovereign IPC bridges. Hypha as agent persistence layer:
+  // each agent under <vault>/.agents/<name>/ has its own system-prompt + memory.
+  agent: {
+    list: () => ipcRenderer.invoke('agent:list'),
+    load: (name) => ipcRenderer.invoke('agent:load', { name }),
+    create: (name, systemPrompt, config) => ipcRenderer.invoke('agent:create', { name, systemPrompt, config }),
+    // v0158b — invoke now accepts surface param ('spotlight' | 'lesson' | 'deepen' | 'recall' | 'ask')
+    // for token budget enforcement + cross-surface state tracking.
+    // v0158h — optional noteRel: when surface='spotlight' and noteRel set, main
+    // prepends the note's content as default context (so user can ask about
+    // the open note without manual paste).
+    invoke: (name, userMsg, requestId, surface, noteRel) => ipcRenderer.invoke('agent:invoke', { name, userMsg, requestId, surface, noteRel }),
+    abort: (requestId) => ipcRenderer.invoke('agent:abort', requestId),
+    // v0158b auto-migration: scan vault for existing courses, create matching
+    // @course-<slug> agents from frontmatter, import old session JSONLs.
+    migrateCurricula: () => ipcRenderer.invoke('agent:migrate-curricula'),
+    // v0158h — clean ORPHAN user-turns from existing session files (idempotent).
+    purgeOrphans: () => ipcRenderer.invoke('agent:purge-orphans'),
+    // Stream chunks arrive on 'agent:chunk' events: { requestId, text, stage }
+    // stage values: 'start' | 'chunk' | 'done' | 'error'
+    onChunk: (cb) => {
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on('agent:chunk', handler);
+      return () => ipcRenderer.removeListener('agent:chunk', handler);
+    },
+  },
+  // v0158c — "Install LLM in Hypha" UX. Replaces "configure provider" mental
+  // model with "install / test / uninstall" lifecycle. Wraps existing settings.
+  install: {
+    status: () => ipcRenderer.invoke('install:status'),
+    test: () => ipcRenderer.invoke('install:test'),
+    uninstall: () => ipcRenderer.invoke('install:uninstall'),
+  },
+  // v0158d — CLI install lifecycle (orchestrate npm install + claude login from inside Hypha)
+  cli: {
+    detect: () => ipcRenderer.invoke('cli:detect'),
+    install: () => ipcRenderer.invoke('cli:install'),
+    login: () => ipcRenderer.invoke('cli:login'),
+    uninstall: () => ipcRenderer.invoke('cli:uninstall'),
+    onProgress: (cb) => {
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on('cli:install-progress', handler);
+      return () => ipcRenderer.removeListener('cli:install-progress', handler);
+    },
+  },
   // Hypha-specific extensions on top of ptor namespace.
   hypha: {
+    // v0156 — Anthropic OAuth one-click sign-in. Spawns `claude setup-token`,
+    // captures the sk-ant-oat01-... token from stdout, writes to settings.json.
+    // Returns { ok, tokenMasked, provider, model } | { ok:false, error }.
+    // Progress chunks (claude CLI's interactive prompts / browser-open hint)
+    // arrive on 'claude:setup-token-progress' — subscribe via onClaudeSetupTokenProgress.
+    claudeSetupToken: () => ipcRenderer.invoke('claude:setup-token'),
+    onClaudeSetupTokenProgress: (cb) => {
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on('claude:setup-token-progress', handler);
+      return () => ipcRenderer.removeListener('claude:setup-token-progress', handler);
+    },
     curriculumClarify: (args) => ipcRenderer.invoke('curriculum:clarify', args || {}),
     curriculumCreate: (topic, level, opts) => ipcRenderer.invoke('curriculum:create', { topic, level, ...(opts || {}) }),
     curriculumCancel: (topic) => ipcRenderer.invoke('curriculum:cancel', { topic }),

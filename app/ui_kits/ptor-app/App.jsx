@@ -865,6 +865,33 @@ function PTorApp() {
     };
   }, [viewMode, creatingTopic]);
 
+  // v0158 — Spotlight global trigger. Ctrl+; / Cmd+; opens the agent invocation
+  // overlay (Spotlight.jsx). Skips when typing in input/textarea/contenteditable
+  // (so the chord doesn't hijack semicolon entry in the user's writing).
+  // v0158h — read `active` via ref to avoid closure staleness.
+  const activeRef = React.useRef(active);
+  React.useEffect(() => { activeRef.current = active; }, [active]);
+  React.useEffect(() => {
+    const onKey = (e) => {
+      const cmd = e.metaKey || e.ctrlKey;
+      if (!cmd || e.shiftKey || e.altKey) return;
+      if (e.key !== ';') return;
+      const t = e.target;
+      const tag = (t && t.tagName) ? t.tagName.toLowerCase() : '';
+      if (t && (t.isContentEditable || tag === 'input' || tag === 'textarea')) return;
+      e.preventDefault();
+      try {
+        const cur = activeRef.current || null;
+        console.log('[spotlight-trigger] active=', cur);
+        window.dispatchEvent(new CustomEvent('hypha:spotlight-open', {
+          detail: { activeRel: cur },
+        }));
+      } catch (_) {}
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // Open evolution view from anywhere — VaultTree "+" dispatches this so
   // clicking + in settings/recall jumps back to evolution + then opens Learn.
   React.useEffect(() => {
@@ -1273,6 +1300,12 @@ function PTorApp() {
           context={chainContext}
         />
       )}
+      {/* v0158 — Spotlight overlay for agent invocation (Ctrl+; / Cmd+;).
+          Listens for 'hypha:spotlight-open' event dispatched by the keybinding
+          useEffect above. Renders nothing when closed; full-viewport modal when
+          open. Per agent-sovereign architecture: Spotlight is pure dispatch UI,
+          contains zero LLM prompts. */}
+      {window.Spotlight && <window.Spotlight />}
     </PTorWindow>
   );
 }

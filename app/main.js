@@ -830,6 +830,81 @@ ipcMain.handle('wiki:distill-one', async (_e, rel) => {
   } catch (e) { return { ok: false, error: e.message }; }
 });
 
+// claude:setup-token — v0156 — auto-spawn `claude setup-token` to acquire an
+// Anthropic OAuth token (sk-ant-oat01-...) from the user's Pro/Max subscription.
+// Replaces the manual "open terminal, copy paste token" flow. User clicks one
+// button in Colophon → claude binary opens user's default browser → user logs
+// in to Anthropic + approves → callback → claude prints token to stdout →
+// Hypha captures it + writes to settings.json (provider=claude, apiKey=token).
+// Anthropic's Apr-2026 policy update: OAuth tokens from Pro/Max accounts are
+// allowed in third-party tools, billed pay-as-you-go from "extra usage balance".
+ipcMain.handle('claude:setup-token', async (event) => {
+  return new Promise((resolve) => {
+    const { spawn: _setupSpawn } = require('node:child_process');
+    let child;
+    try {
+      child = _setupSpawn('claude', ['setup-token'], {
+        shell: process.platform === 'win32',
+        stdio: ['inherit', 'pipe', 'pipe'],
+      });
+    } catch (e) {
+      return resolve({ ok: false, error: 'claude CLI spawn threw: ' + e.message });
+    }
+    let stdout = '', stderr = '';
+    const hardTimer = setTimeout(() => { try { child.kill('SIGTERM'); } catch (_) {} }, 300_000); // 5min cap
+    child.stdout.on('data', d => {
+      const chunk = d.toString('utf8');
+      stdout += chunk;
+      try { event.sender.send('claude:setup-token-progress', { text: chunk }); } catch (_) {}
+    });
+    child.stderr.on('data', d => {
+      const chunk = d.toString('utf8');
+      stderr += chunk;
+      try { event.sender.send('claude:setup-token-progress', { text: chunk }); } catch (_) {}
+    });
+    child.on('error', err => {
+      clearTimeout(hardTimer);
+      const msg = /ENOENT|not found|cannot find/i.test(err.message)
+        ? 'claude CLI not installed. Run: npm install -g @anthropic-ai/claude-code'
+        : err.message;
+      resolve({ ok: false, error: msg });
+    });
+    child.on('close', code => {
+      clearTimeout(hardTimer);
+      const combined = stdout + '\n' + stderr;
+      // Anthropic OAuth tokens carry sk-ant-oat01- prefix per 2026 docs.
+      const m = combined.match(/sk-ant-oat01-[A-Za-z0-9_-]{20,}/);
+      if (!m) {
+        if (code !== 0) return resolve({ ok: false, error: `claude exit ${code}: ${stderr.slice(0, 300) || stdout.slice(-300)}` });
+        return resolve({ ok: false, error: 'token pattern (sk-ant-oat01-...) not found in CLI output', raw: combined.slice(-500) });
+      }
+      const token = m[0];
+      try {
+        const cur = _hyphaSettings();
+        cur.provider = 'claude';
+        cur.apiKey = token;
+        if (!cur.model || !cur.model.startsWith('claude-')) cur.model = 'claude-opus-4-7';
+        cur.baseURL = 'https://api.anthropic.com';
+        cur._authMethod = 'setup-token';
+        cur._tokenSavedAt = new Date().toISOString();
+        // Strip any prior CLI-migration markers so the chosen provider sticks
+        delete cur._migratedFrom;
+        delete cur._migratedAt;
+        delete cur._migrationReason;
+        vault.writeJSON('settings.json', cur);
+      } catch (e) {
+        return resolve({ ok: false, error: 'token captured but settings save failed: ' + e.message, token: token.slice(0, 16) + '…' + token.slice(-4) });
+      }
+      resolve({
+        ok: true,
+        tokenMasked: token.slice(0, 16) + '…' + token.slice(-4),
+        provider: 'claude',
+        model: 'claude-opus-4-7',
+      });
+    });
+  });
+});
+
 // llm:run — execute a prompt template against gemini CLI, stream output back via
 // 'llm:chunk' events on the originating webContents. Resolves with final status.
 // Templates live in app/prompts/<name>.txt. {{VAR}} placeholders interpolated from `vars`.
@@ -881,69 +956,11 @@ ipcMain.handle('llm:abort', (_e, requestId) => {
   return false;
 });
 
-// llm:deepen-popover — v0150 — provider-aware deepen for the AskCard floating
-// popover (Ctrl+Shift+D). Replaces the old llm:run('deepen', ...) path that
-// hardcoded gemini CLI. Routes through _hyphaAgent.streamTurn so it honors
-// whatever provider (Claude / OpenAI / Gemini API / GLM / CLI variants) the
-// user picked in settings. Pre-fetches vault context via wiki-context for
-// vault-grounded output. SystemPrompt loaded from prompts/deepen-popover.txt.
-// Streams chunks on 'llm:chunk' channel (matches AskCard's existing listener).
-// Aborts via shared _deepenAbort map (existing llm:deepen-abort already handles).
-ipcMain.handle('llm:deepen-popover', async (event, { selection, noteRel, requestId }) => {
-  if (!selection || !requestId) return { ok: false, error: 'selection + requestId required' };
-  const ac = new AbortController();
-  _deepenAbort.set(requestId, ac);
-  try {
-    const settings = _hyphaSettings();
-    let vaultCtx = '';
-    let vaultSource = 'skipped';
-    let vaultArticles = 0;
-    try {
-      const wc = await require('./lib/wiki-context').buildWikiContext({
-        vaultRoot: vault.resolveRoot(),
-        query: selection,
-        currentNoteRel: noteRel || '',
-        kCards: 6,
-        signal: ac.signal,
-      });
-      vaultCtx = wc.formatted || '';
-      vaultSource = wc.source || 'unknown';
-      vaultArticles = (wc.articles || []).length;
-    } catch (e) { console.log('[deepen-popover] vault context failed:', e.message); }
-    console.log(`[deepen-popover] provider=${settings.provider} model=${settings.model} vault-ctx: source=${vaultSource} articles=${vaultArticles} chars=${vaultCtx.length}`);
-
-    const sysPath = path.join(__dirname, 'prompts', 'deepen-popover.txt');
-    let systemPrompt;
-    try { systemPrompt = fs.readFileSync(sysPath, 'utf8').replace('{{CURRENT_DATE}}', new Date().toISOString().slice(0, 10)); }
-    catch (e) { return { ok: false, error: 'deepen-popover.txt not found: ' + e.message }; }
-
-    const userMsg = [
-      '## 选段',
-      selection,
-      noteRel ? `\n（来自笔记：${noteRel}）` : '',
-      vaultCtx ? `\n\n## 你过去相关的笔记 / 思考片段\n${vaultCtx}` : '\n\n（vault 里没找到强相关的延伸）',
-      '\n\n按 system 指令 deepen 这段。直接输出 4 段，不要前言。',
-    ].join('\n');
-
-    let outText = '';
-    try { event.sender.send('llm:chunk', { requestId, text: '' }); } catch (_) {}   // signal start
-    try {
-      await _hyphaAgent.streamTurn(
-        { systemPrompt, history: [], userMsg, settings, signal: ac.signal },
-        (chunk) => {
-          outText += chunk;
-          try { event.sender.send('llm:chunk', { requestId, text: chunk }); } catch (_) {}
-        }
-      );
-      return { ok: true, text: outText };
-    } catch (err) {
-      if (ac.signal.aborted) return { ok: true, text: outText, aborted: true };
-      console.log(`[deepen-popover] streamTurn failed: ${err.message}`);
-      return { ok: false, error: err.message, partial: outText };
-    }
-  } finally { _deepenAbort.delete(requestId); }
-});
-
+// v0155 — llm:deepen-popover IPC handler REMOVED per user "完全照搬过来 不要自己
+// 改动". Deepen now goes through ptor-design's Ctrl+D inline pattern → existing
+// llm:deepen 7-stage pipeline. AskCard popover (template='deepen') reverts to
+// the original llm.run path (still gemini-CLI, kept for compat with non-deepen
+// templates). Removed: ipcMain.handle('llm:deepen-popover', ...) entire block.
 // llm:deepen — 7-stage Path B pipeline (per /tr 2026-04-28 council). Streams
 // 'llm:deepen-progress' events { requestId, stage, status, text?, error?, label? }
 // during the run; resolves with { ok, synth, ctx } or { ok:false, error }.
@@ -996,6 +1013,444 @@ ipcMain.handle('llm:quick', async (event, { selection, noteRel, lang, direction,
   } finally {
     _deepenAbort.delete(requestId);
   }
+});
+
+// ── v0158 Agent-Sovereign Architecture ──────────────────────────────────
+// Per plan 2026-05-04: Hypha = pure infrastructure (file I/O + dispatch + UI).
+// Agents are sovereign actors stored under <vault>/.agents/<name>/ with their
+// own identity (system-prompt.md), memory (sessions/wisdom/wiki), and
+// reflection logic. Hypha owns NO prompts beyond the bundled default-tutor
+// template (which user can edit/delete after seeding).
+const _agentLoader = require('./lib/agent-loader');
+const _agentState = require('./lib/agent-state');           // v0158b L6
+const _tokenBudget = require('./lib/token-budget');          // v0158b L3
+const _agentAbort = new Map();   // requestId → AbortController for agent invocations
+
+// agent:list — returns sorted array of agent names. Auto-seeds default-tutor
+// from app/prompts/agent-default-tutor.md if vault has no agents yet.
+ipcMain.handle('agent:list', async () => {
+  try {
+    const root = vault.resolveRoot();
+    if (!root) return { ok: false, error: 'no vault open' };
+    const defaultPromptPath = path.join(__dirname, 'prompts', 'agent-default-tutor.md');
+    _agentLoader.seedDefaultIfEmpty(root, defaultPromptPath);
+    return { ok: true, agents: _agentLoader.listAgents(root) };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// agent:load — read full agent state (for UI inspection / edit).
+ipcMain.handle('agent:load', async (_e, { name }) => {
+  try {
+    const root = vault.resolveRoot();
+    if (!root) return { ok: false, error: 'no vault open' };
+    const a = _agentLoader.loadAgent(root, name);
+    if (!a) return { ok: false, error: 'agent not found: ' + name };
+    return { ok: true, agent: { name: a.name, dir: a.dir, systemPrompt: a.systemPrompt, config: a.config, latestSessionFile: a.latestSessionFile, recentTurns: a.recentSessions.length, wisdomChars: a.wisdom.length, wikiIndexChars: a.wikiIndex.length } };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// agent:create — create new agent dir + system-prompt.md + config.json.
+ipcMain.handle('agent:create', async (_e, { name, systemPrompt, config }) => {
+  try {
+    const root = vault.resolveRoot();
+    if (!root) return { ok: false, error: 'no vault open' };
+    const dir = _agentLoader.createAgent(root, name, systemPrompt, config || {});
+    return { ok: true, dir };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// agent:invoke — v0158h ENHANCED:
+// - v0158g: L3 token budget + L6 actor state, EPHEMERAL mode for spotlight, 50ms chunk batching
+// - v0158h: noteRel param — when surface='spotlight' and noteRel set, prepend note content
+//   as default context so user can ask about open note without manual paste.
+ipcMain.handle('agent:invoke', async (event, { name, userMsg, requestId, surface, noteRel }) => {
+  if (!name || !userMsg || !requestId) return { ok: false, error: 'name + userMsg + requestId required' };
+  const root = vault.resolveRoot();
+  if (!root) return { ok: false, error: 'no vault open' };
+
+  const surf = surface || 'spotlight';
+  // v0158g — ephemeral mode for spotlight: no session memory, no session write
+  const isEphemeral = (surf === 'spotlight');
+
+  // For ephemeral, load minimal agent (skip sessions/wisdom/wiki for speed)
+  const agent = isEphemeral
+    ? _agentLoader.loadAgentMinimal(root, name)
+    : _agentLoader.loadAgent(root, name);
+  if (!agent) return { ok: false, error: 'agent not found: ' + name };
+  const ac = new AbortController();
+  _agentAbort.set(requestId, ac);
+  const t0 = Date.now();
+  const priorInvs = (agent.actorState && agent.actorState.totalInvocations) || 0;
+  console.log(`[agent:invoke] name=${name} surface=${surf} ephemeral=${isEphemeral} userMsgLen=${userMsg.length} noteRel=${noteRel || '(none)'} requestId=${requestId} (priorInvocations=${priorInvs})`);
+
+  try {
+    const settings = _hyphaSettings();
+    const effectiveSettings = { ...settings };
+    if (agent.config && agent.config.model) effectiveSettings.model = agent.config.model;
+
+    // v0158h — prepend current note content (capped 2K chars) for spotlight surface
+    // when noteRel is provided. The agent gets "## Current note" header so it knows
+    // this is context, not the user's question. Uses vault.read() for safe path
+    // handling + frontmatter-aware reading.
+    let augmentedUserMsg = userMsg;
+    let noteInjected = false;
+    if (isEphemeral && noteRel) {
+      try {
+        const note = vault.read(noteRel);
+        if (note && note.body) {
+          const noteContent = note.body.slice(0, 2000);
+          augmentedUserMsg = `## Current note (${noteRel})\n\n${noteContent}\n\n---\n\n${userMsg}`;
+          noteInjected = true;
+          console.log(`[agent:invoke] note injected: rel=${noteRel} len=${noteContent.length} (cap 2000)`);
+        } else {
+          console.log(`[agent:invoke] note read returned empty: rel=${noteRel}`);
+        }
+      } catch (e) { console.log(`[agent:invoke] note read failed for ${noteRel}: ${e.message}`); }
+    } else if (isEphemeral) {
+      console.log(`[agent:invoke] no noteRel passed (active note unknown to spotlight trigger)`);
+    }
+
+    const ctx = _agentLoader.buildAgentContext(agent, augmentedUserMsg);
+
+    const budget = _tokenBudget.enforceContextBudget({
+      systemPrompt: ctx.systemPrompt,
+      history: ctx.history,
+      userMsg: ctx.userMsg,
+      surface: surf,
+    });
+    if (budget.warning) console.log(budget.warning);
+    const finalHistory = budget.history;
+
+    // v0158g — only write session for non-ephemeral (lesson surface). Spotlight =
+    // no persistence = no orphans possible.
+    let sessionFile = null;
+    if (!isEphemeral) {
+      sessionFile = _agentLoader.appendSession(root, name, { role: 'user', text: userMsg, requestId, surface: surf });
+    }
+
+    let outText = '';
+    let chunkCount = 0;
+    // v0158g — chunk batching. Buffer chunks for 50ms then flush as ONE IPC.
+    // Reduces IPC overhead + React rerender frequency by ~10x.
+    let _chunkBuffer = '';
+    let _flushTimer = null;
+    const _flushChunks = () => {
+      if (!_chunkBuffer) return;
+      const text = _chunkBuffer;
+      _chunkBuffer = '';
+      try { event.sender.send('agent:chunk', { requestId, text, stage: 'chunk' }); } catch (_) {}
+    };
+    const _scheduleFlush = () => {
+      if (_flushTimer) return;
+      _flushTimer = setTimeout(() => { _flushTimer = null; _flushChunks(); }, 50);
+    };
+
+    try { event.sender.send('agent:chunk', { requestId, text: '', stage: 'start', tokensIn: budget.finalTokens, budgetWarning: budget.warning, ephemeral: isEphemeral }); } catch (_) {}
+
+    try {
+      await _hyphaAgent.streamTurn(
+        { systemPrompt: ctx.systemPrompt, history: finalHistory, userMsg: ctx.userMsg, settings: effectiveSettings, signal: ac.signal },
+        (chunk) => {
+          outText += chunk;
+          chunkCount += 1;
+          _chunkBuffer += chunk;
+          _scheduleFlush();
+        }
+      );
+    } catch (err) {
+      if (_flushTimer) { clearTimeout(_flushTimer); _flushTimer = null; }
+      _flushChunks();
+      if (!isEphemeral) {
+        _agentLoader.appendSession(root, name, { role: 'error', text: err.message, requestId, surface: surf });
+      }
+      console.log(`[agent:invoke] streamTurn failed: ${err.message}`);
+      try { event.sender.send('agent:chunk', { requestId, text: '', stage: 'error', error: err.message }); } catch (_) {}
+      return { ok: false, error: err.message, partial: outText, sessionFile };
+    }
+
+    // Final flush of any remaining buffered chunks
+    if (_flushTimer) { clearTimeout(_flushTimer); _flushTimer = null; }
+    _flushChunks();
+
+    if (!isEphemeral && outText.trim()) {
+      _agentLoader.appendSession(root, name, { role: 'assistant', text: outText, requestId, surface: surf });
+    }
+
+    // v0158b L6 — record invocation in actor state (totalInvocations++, lastSurface, tokens)
+    const tokensOut = _tokenBudget._approxTokens(outText);
+    // Rough cost estimate using Claude Sonnet-like rates ($3/M in + $15/M out). User can override per-agent in config.
+    const inputRate = (effectiveSettings.model && /opus/i.test(effectiveSettings.model)) ? 15 : 3;
+    const outputRate = (effectiveSettings.model && /opus/i.test(effectiveSettings.model)) ? 75 : 15;
+    const costEstimateUSD = (budget.finalTokens / 1e6) * inputRate + (tokensOut / 1e6) * outputRate;
+    const newState = _agentState.recordInvocation(root, name, {
+      surface: surf,
+      tokensIn: budget.finalTokens,
+      tokensOut,
+      costEstimateUSD,
+    });
+
+    try { event.sender.send('agent:chunk', { requestId, text: '', stage: 'done', tokensOut, totalInvocations: newState.totalInvocations, costEstimateUSD: newState.totalCostEstimateUSD }); } catch (_) {}
+    console.log(`[agent:invoke] DONE name=${name} surface=${surf} total=${Date.now() - t0}ms chunks=${chunkCount} tokensIn=${budget.finalTokens} tokensOut=${tokensOut} cost=$${costEstimateUSD.toFixed(4)} totalInvocations=${newState.totalInvocations}`);
+    return { ok: true, text: outText, chunkCount, sessionFile, tokensIn: budget.finalTokens, tokensOut, costEstimateUSD, totalInvocations: newState.totalInvocations };
+  } finally {
+    _agentAbort.delete(requestId);
+  }
+});
+
+// agent:migrate-curricula — v0158b auto-migration. Scans vault for existing
+// curriculum courses (folders containing sources.json + state.json) and creates
+// a corresponding @course-<slug> agent for each. Imports existing lesson session
+// JSONL files into .agents/course-<slug>/sessions/ (does NOT delete originals —
+// legacy paths remain for v0158c LessonChat code switch). Returns a summary
+// report so user knows what was migrated.
+ipcMain.handle('agent:migrate-curricula', async () => {
+  try {
+    const root = vault.resolveRoot();
+    if (!root) return { ok: false, error: 'no vault open' };
+
+    // Scan vault root for course directories (have sources.json marker)
+    let entries = [];
+    try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch (_) {}
+    const courseSlugs = entries
+      .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+      .filter(e => {
+        try { return fs.statSync(path.join(root, e.name, 'sources.json')).isFile(); }
+        catch (_) { return false; }
+      })
+      .map(e => e.name);
+
+    const templatePath = path.join(__dirname, 'prompts', 'agent-course-template.md');
+    let template = '';
+    try { template = fs.readFileSync(templatePath, 'utf8'); }
+    catch (_) {
+      return { ok: false, error: 'agent-course-template.md not found at ' + templatePath };
+    }
+
+    const report = { ok: true, scanned: courseSlugs.length, created: [], skipped: [], imported_sessions: 0 };
+
+    for (const slug of courseSlugs) {
+      const agentName = `course-${slug}`.replace(/[^a-z0-9_-]/gi, '-').slice(0, 40);
+      // Skip if agent already exists
+      if (_agentLoader.listAgents(root).indexOf(agentName) >= 0) {
+        report.skipped.push({ slug, agent: agentName, reason: 'agent already exists' });
+        continue;
+      }
+
+      // Read course frontmatter from sources.json + state.json + try to find first lesson note
+      let topic = slug;
+      let learnGoal = '';
+      let archetype = 'TECH-CONCEPTUAL';
+      let priorNotes = '';
+      try {
+        const state = JSON.parse(fs.readFileSync(path.join(root, slug, 'state.json'), 'utf8'));
+        if (state.archetype) archetype = state.archetype;
+      } catch (_) {}
+      try {
+        const sources = JSON.parse(fs.readFileSync(path.join(root, slug, 'sources.json'), 'utf8'));
+        if (sources.topic) topic = sources.topic;
+        if (sources.learnGoal) learnGoal = sources.learnGoal;
+        if (sources.questions && sources.questions.length > 0) {
+          priorNotes = sources.questions.slice(0, 5).map((q, i) => `${i+1}. ${q}`).join('\n');
+        }
+      } catch (_) {}
+
+      // Fill template
+      const systemPrompt = template
+        .replace(/\{\{TOPIC\}\}/g, topic)
+        .replace(/\{\{LEARN_GOAL\}\}/g, learnGoal || '(not specified — infer from sources)')
+        .replace(/\{\{ARCHETYPE\}\}/g, archetype)
+        .replace(/\{\{PRIOR_NOTES_SUMMARY\}\}/g, priorNotes || '(no prior questions captured)')
+        .replace(/\{\{COURSE_SLUG\}\}/g, slug);
+
+      try {
+        _agentLoader.createAgent(root, agentName, systemPrompt, {
+          migratedFrom: slug,
+          migratedAt: new Date().toISOString(),
+          topic,
+          learnGoal,
+          archetype,
+          model: null, // use vault default
+        });
+        report.created.push({ slug, agent: agentName, topic });
+      } catch (e) {
+        report.skipped.push({ slug, agent: agentName, reason: 'create failed: ' + e.message });
+        continue;
+      }
+
+      // Import existing lesson sessions
+      const oldSessionsDir = path.join(root, slug, 'sessions');
+      const newSessionsDir = path.join(root, '.agents', agentName, 'sessions');
+      try {
+        if (fs.statSync(oldSessionsDir).isDirectory()) {
+          const files = fs.readdirSync(oldSessionsDir).filter(f => f.endsWith('.jsonl'));
+          for (const f of files) {
+            const src = path.join(oldSessionsDir, f);
+            const dst = path.join(newSessionsDir, f);
+            try { fs.copyFileSync(src, dst); report.imported_sessions += 1; }
+            catch (e) { console.log(`[migrate] copy failed ${src} → ${dst}: ${e.message}`); }
+          }
+        }
+      } catch (_) {}
+    }
+
+    console.log(`[agent:migrate-curricula] scanned=${report.scanned} created=${report.created.length} skipped=${report.skipped.length} imported_sessions=${report.imported_sessions}`);
+    return report;
+  } catch (e) {
+    console.log('[agent:migrate-curricula] failed:', e.message);
+    return { ok: false, error: e.message };
+  }
+});
+
+// agent:purge-orphans — v0158h. Walk all .agents/<name>/sessions/*.jsonl, drop
+// orphan user-turns (user msg with no following assistant/tutor) + drop error
+// rows. Mirrors v0158f load-time filter in agent-loader.js, but writes to disk
+// so the cleanup persists. Idempotent.
+ipcMain.handle('agent:purge-orphans', async () => {
+  const root = vault.resolveRoot();
+  if (!root) return { ok: false, error: 'no vault open' };
+  const report = { ok: true, agents: [], totalDropped: 0, totalKept: 0 };
+  let names = [];
+  try { names = _agentLoader.listAgents(root); } catch (_) {}
+  for (const name of names) {
+    const sessionsDir = path.join(root, '.agents', name, 'sessions');
+    let files = [];
+    try { files = fs.readdirSync(sessionsDir).filter(f => f.endsWith('.jsonl')); } catch (_) { continue; }
+    for (const f of files) {
+      const fp = path.join(sessionsDir, f);
+      let lines = [];
+      try { lines = fs.readFileSync(fp, 'utf8').split('\n').map(l => l.trim()).filter(Boolean); } catch (_) { continue; }
+      const turns = lines.map(l => { try { return JSON.parse(l); } catch (_) { return null; } });
+      const kept = [];
+      for (let i = 0; i < turns.length; i++) {
+        const t = turns[i];
+        if (!t || !t.role) continue;
+        if (t.role === 'error') continue;
+        if (t.role === 'user') {
+          const next = turns[i + 1];
+          if (next && (next.role === 'assistant' || next.role === 'tutor')) {
+            kept.push(t); kept.push(next); i++;
+          }
+        } else if ((t.role === 'assistant' || t.role === 'tutor')
+                    && (kept.length === 0 || kept[kept.length - 1].role === 'user')) {
+          kept.push(t);
+        }
+      }
+      const dropped = turns.length - kept.length;
+      if (dropped > 0) {
+        try {
+          fs.writeFileSync(fp, kept.map(t => JSON.stringify(t)).join('\n') + (kept.length ? '\n' : ''));
+          report.agents.push({ name, file: f, kept: kept.length, dropped });
+          report.totalDropped += dropped;
+          report.totalKept += kept.length;
+        } catch (e) { console.log(`[purge-orphans] write failed ${fp}: ${e.message}`); }
+      }
+    }
+  }
+  console.log(`[agent:purge-orphans] agents=${names.length} files-touched=${report.agents.length} dropped=${report.totalDropped} kept=${report.totalKept}`);
+  return report;
+});
+
+// agent:abort — stop an in-flight agent invocation.
+ipcMain.handle('agent:abort', (_e, requestId) => {
+  const ac = _agentAbort.get(requestId);
+  if (ac) { ac.abort(); return true; }
+  return false;
+});
+
+// ── v0158c "Hypha as Local LLM Runtime" UX support ─────────────────────────
+// Per user reframe 2026-05-04: Hypha is not "an app that uses APIs", it's "a
+// local environment where you install an LLM". These 3 IPCs back the Colophon
+// "Install LLM" panel — they wrap the same settings.json read/write the
+// existing UI already does, just with the install/test/uninstall vocabulary.
+
+const _installState = require('./lib/install-state');
+
+// ── v0158d CLI install lifecycle ─────────────────────────────────────────────
+// Per user 2026-05-04 wizard reframe: "let user pick path (API vs CLI), then
+// model, then complete install". For CLI path Hypha orchestrates `npm install
+// -g @anthropic-ai/claude-code` + `claude login` so user never leaves Hypha.
+const _cliInstall = require('./lib/cli-install');
+
+// cli:detect — check if `claude` binary is on PATH.
+ipcMain.handle('cli:detect', async () => {
+  return await _cliInstall.detectClaude();
+});
+
+// cli:install — spawn npm install -g @anthropic-ai/claude-code. Streams output
+// chunks via 'cli:install-progress' so wizard can show install log live.
+ipcMain.handle('cli:install', async (event) => {
+  return await _cliInstall.installClaude((chunk) => {
+    try { event.sender.send('cli:install-progress', { stream: 'install', text: chunk }); } catch (_) {}
+  });
+});
+
+// cli:login — spawn claude login (opens browser for OAuth). Streams output.
+ipcMain.handle('cli:login', async (event) => {
+  return await _cliInstall.loginClaude((chunk) => {
+    try { event.sender.send('cli:install-progress', { stream: 'login', text: chunk }); } catch (_) {}
+  });
+});
+
+// cli:uninstall — spawn npm uninstall -g.
+ipcMain.handle('cli:uninstall', async (event) => {
+  return await _cliInstall.uninstallClaude((chunk) => {
+    try { event.sender.send('cli:install-progress', { stream: 'uninstall', text: chunk }); } catch (_) {}
+  });
+});
+
+// install:status — return current installation state for Colophon panel display.
+ipcMain.handle('install:status', async () => {
+  try {
+    const settings = _hyphaSettings();
+    return { ok: true, state: _installState.getInstallState(settings) };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// install:test — send a tiny ping prompt to the installed LLM, verify round-trip.
+// Updates settings._lastVerifiedAt on success. Returns latency + sample response.
+ipcMain.handle('install:test', async () => {
+  const t0 = Date.now();
+  try {
+    const settings = _hyphaSettings();
+    if (!settings.apiKey || !settings.apiKey.trim()) {
+      return { ok: false, error: 'no LLM installed (apiKey empty)' };
+    }
+    let sample = '';
+    try {
+      await _hyphaAgent.streamTurn({
+        systemPrompt: 'You are a connectivity test. Reply only with the single word: pong',
+        history: [],
+        userMsg: 'ping',
+        settings,
+      }, (chunk) => { sample += chunk; });
+    } catch (err) {
+      return { ok: false, error: 'install test failed: ' + err.message, latencyMs: Date.now() - t0 };
+    }
+    const latencyMs = Date.now() - t0;
+    // Persist verified timestamp
+    try {
+      const cur = vault.readJSON('settings.json', {}) || {};
+      cur._lastVerifiedAt = new Date().toISOString();
+      vault.writeJSON('settings.json', cur);
+    } catch (e) { console.log('[install:test] settings write failed:', e.message); }
+    const state = _installState.getInstallState(_hyphaSettings());
+    return { ok: true, latencyMs, sample: sample.trim().slice(0, 100), state };
+  } catch (e) { return { ok: false, error: e.message, latencyMs: Date.now() - t0 }; }
+});
+
+// install:uninstall — clear apiKey + _lastVerifiedAt. Leaves provider+model
+// fields so user keeps their choice for re-install. Returns updated state.
+ipcMain.handle('install:uninstall', async () => {
+  try {
+    const cur = vault.readJSON('settings.json', {}) || {};
+    cur.apiKey = '';
+    cur._lastVerifiedAt = null;
+    delete cur._authMethod;
+    delete cur._tokenSavedAt;
+    vault.writeJSON('settings.json', cur);
+    const state = _installState.getInstallState(_hyphaSettings());
+    return { ok: true, state };
+  } catch (e) { return { ok: false, error: e.message }; }
 });
 
 // shell:open-external — open URL in user's default browser (NOT in Electron

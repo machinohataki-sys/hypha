@@ -293,31 +293,12 @@ function VaultTree({ active, onSelect, viewMode }) {
       if ((e.metaKey || e.ctrlKey) && e.key === ',') {
         e.preventDefault();
         try { window.dispatchEvent(new CustomEvent('hypha:open-colophon')); } catch (_) {}
-      } else if ((e.metaKey || e.ctrlKey) && (e.key === 'd' || e.key === 'D') && !e.shiftKey && !e.altKey) {
-        // Skip if user is typing in an input/textarea/contenteditable
-        const t = e.target;
-        const tag = (t && t.tagName) ? t.tagName.toLowerCase() : '';
-        const editable = (t && (t.isContentEditable || tag === 'input' || tag === 'textarea'));
-        if (editable) return;
-        // 2026-05-03 v0143/v0145 — Ctrl+D restored to its sole purpose: open
-        // today's inspiration note. Prior selection-skip logic removed.
-        // Deepen as a discrete verb is RETIRED (v0145): selection-anchored
-        // composer in LessonChat (NoteView.jsx) is the new flow — select
-        // text in tutor reply or rendered note, the chat composer auto-
-        // shows a quoted preview + "ask about this —" placeholder. User
-        // decision per /tr 2026-05-03: "ctrl d就是灵感笔记的功能" + "该方法
-        // 没有实用性，重新想".
-        e.preventDefault();
-        if (window.ptor && window.ptor.vault && window.ptor.vault.openDaily) {
-          window.ptor.vault.openDaily().then(r => {
-            if (r && r.ok && r.rel) {
-              try { window.dispatchEvent(new CustomEvent('hypha:open-evolution')); } catch (_) {}
-              if (typeof onSelect === 'function') onSelect(r.rel);
-              refresh();
-            }
-          }).catch(() => {});
-        }
       }
+      // v0155 — Ctrl+D = daily-note binding REMOVED. Deepen verb un-retired
+      // per user request "完全照搬 ptor-design", which uses Ctrl+D for inline
+      // DeepenCallout on selection (NoteView.jsx + RecallNoteView.jsx). Daily
+      // note now reachable via vault tree manually (no chord) — re-bind to a
+      // different chord later if needed.
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

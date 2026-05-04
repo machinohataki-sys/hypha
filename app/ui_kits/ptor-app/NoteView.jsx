@@ -743,28 +743,62 @@ function NoteViewInner({ rel, onBack, viewMode = 'evolution' }) {
     };
   }, [rel]);
 
-  // 2026-05-03 v0149 — Ctrl+Shift+D opens AskCard floating popover (per user
-  // "悬浮卡片" / "最开始那个版本" request — the v0.1 era UI, NOT the inline
-  // DeepenCallout). Single-shot llm.run against prompts/deepen.txt, rendered
-  // by AskCard at NoteView.jsx:2092 (askCard state at line 127, render alive).
-  // Coexists with v0148 inline pill in Recall view: pill = mouse / inline
-  // multi-stage; chord = keyboard / floating single-shot.
-  // VaultTree.jsx:296 owns plain Ctrl+D = daily-note (its `!e.shiftKey` check
-  // excludes this chord — no collision).
+  // v0155 — lifted verbatim from ptor-design/app/ui_kits/ptor-app/NoteView.jsx
+  // per user "ptor2 中有完整且我感觉满意的设计 / 完全照搬过来 不要自己改动".
+  // Cmd+K / Ctrl+K on a NoteView selection → spawn an inline DeepenCallout session
+  // INSIDE .note-rendered, right after the selected paragraph (Path B真正的 inline).
+  // Implementation: find the closest block-level ancestor of selection, insert a
+  // <div class="deepen-host"> right after it via DOM manipulation, render the
+  // DeepenCallout via ReactDOM.createPortal into that host. Body re-render would
+  // clobber it, but body doesn't change mid-session (rel change clears sessions).
   React.useEffect(() => {
+    const BLOCK_TAGS = new Set(['P', 'LI', 'BLOCKQUOTE', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'TABLE']);
     const onKey = (e) => {
-      const cmd = e.metaKey || e.ctrlKey;
-      if (!cmd || !e.shiftKey || e.altKey) return;
-      if (e.key !== 'd' && e.key !== 'D') return;
-      const t = e.target;
-      const tag = (t && t.tagName) ? t.tagName.toLowerCase() : '';
-      if (t && (t.isContentEditable || tag === 'input' || tag === 'textarea')) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      // Ctrl+D = deepen (full 7-stage, ~1.5-2 min via wave + flash)
+      // Ctrl+Q = quick (single flash call, ~10s)
+      // Shift modifier on Ctrl+D = plainer style (default = denser)
+      const k = e.key.toLowerCase();
+      let mode;
+      if (k === 'd') mode = 'deepen';
+      else if (k === 'q') mode = 'quick';
+      else return;
+
       const sel = window.getSelection && window.getSelection();
-      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-      const text = sel.toString().trim();
-      if (!text) return;
+      if (!sel || sel.isCollapsed) return;
+      const txt = (sel.toString() || '').trim();
+      if (txt.length < 2) return;
+      const noteRendered = document.querySelector('.note-rendered');
+      if (!noteRendered || !noteRendered.contains(sel.anchorNode)) return;
       e.preventDefault();
-      setAskCard({ template: 'deepen', selection: text, noteRel: rel });
+
+      // Find the closest block-level ancestor of the selection's end
+      const range = sel.getRangeAt(0);
+      let anchorNode = range.endContainer;
+      if (anchorNode.nodeType === 3) anchorNode = anchorNode.parentElement;
+      let anchorBlock = anchorNode;
+      while (anchorBlock && anchorBlock !== noteRendered && !BLOCK_TAGS.has(anchorBlock.tagName)) {
+        anchorBlock = anchorBlock.parentElement;
+      }
+      if (!anchorBlock || anchorBlock === noteRendered || !noteRendered.contains(anchorBlock)) {
+        anchorBlock = noteRendered.lastElementChild || noteRendered;
+      }
+
+      // Style only applies to deepen mode. Quick is single-call, no style branching.
+      const style = (mode === 'deepen' && e.shiftKey) ? 'plainer' : 'denser';
+
+      // Lang from selection: ≥20% CJK chars → zh, else en.
+      const cjkCount = (txt.match(/[一-龥぀-ゟ゠-ヿ]/g) || []).length;
+      const lang = (cjkCount / txt.length >= 0.2) ? 'zh' : 'en';
+
+      const idPrefix = mode === 'quick' ? 'qck_' : 'dpn_';
+      const id = idPrefix + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      const host = document.createElement('div');
+      host.className = 'deepen-host';
+      host.setAttribute('data-session-id', id);
+      anchorBlock.insertAdjacentElement('afterend', host);
+
+      setDeepenSessions(prev => [...prev, { id, mode, selection: txt, noteRel: rel, style, lang, direction: '', host }]);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

@@ -129,7 +129,9 @@ async function main() {
       const batBody = [
         '@echo off',
         'rem Personal launcher — enables CLI provider access via HYPHA_ALLOW_CLI=1.',
+        'rem v0154 — kill any prior Hypha first to dodge single-instance / cache lock issues.',
         'rem Distribution: ship Hypha-win32-x64\\ folder only, drop this .bat.',
+        'taskkill /IM Hypha.exe /F >nul 2>&1',
         'set HYPHA_ALLOW_CLI=1',
         'start "" "%~dp0Hypha-win32-x64\\Hypha.exe"',
         '',

@@ -351,6 +351,131 @@ function Token({ value, kind, options, selectedId, onChange, placeholder, dim })
   );
 }
 
+// v0158c — InstallPanel: replaces the bare "Authentication: <Token>" block with
+// install-lifecycle UX (status indicator + Test/Uninstall buttons). Per user
+// 2026-05-04 reframe: Hypha is "local LLM runtime", users INSTALL an LLM into
+// it. Wraps the Token paste field as one of the install methods.
+function InstallPanel({ settings, providerObj, saveSettings, loadSettings }) {
+  const [installState, setInstallState] = React.useState(null);
+  const [testing, setTesting] = React.useState(false);
+  const [testResult, setTestResult] = React.useState(null);
+
+  // Fetch initial install state from main (which reads settings + computes status color)
+  const refreshState = React.useCallback(async () => {
+    try {
+      const r = await window.ptor.install.status();
+      if (r && r.ok) setInstallState(r.state);
+    } catch (_) {}
+  }, []);
+  React.useEffect(() => { refreshState(); }, [refreshState, settings.apiKey, settings._lastVerifiedAt]);
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const r = await window.ptor.install.test();
+      if (r && r.ok) {
+        setTestResult({ ok: true, msg: `✓ verified · ${r.latencyMs}ms · sample: "${r.sample}"` });
+        if (r.state) setInstallState(r.state);
+        if (typeof loadSettings === 'function') loadSettings();
+      } else {
+        setTestResult({ ok: false, msg: `× test failed: ${(r && r.error) || 'unknown'}` });
+      }
+    } catch (e) {
+      setTestResult({ ok: false, msg: '× ' + (e && e.message || e) });
+    } finally { setTesting(false); }
+  };
+
+  const handleUninstall = async () => {
+    if (!window.confirm('Uninstall this LLM? Your provider+model choice stays, only the API key is cleared. You can re-install anytime.')) return;
+    try {
+      const r = await window.ptor.install.uninstall();
+      if (r && r.ok) {
+        if (r.state) setInstallState(r.state);
+        if (typeof loadSettings === 'function') loadSettings();
+        setTestResult(null);
+      } else {
+        alert('Uninstall failed: ' + ((r && r.error) || 'unknown'));
+      }
+    } catch (e) { alert('Uninstall error: ' + (e && e.message || e)); }
+  };
+
+  const dotColor = installState
+    ? (installState.statusColor === 'green' ? 'var(--success, #6da34d)' :
+       installState.statusColor === 'yellow' ? 'var(--warning, #c69842)' :
+       'var(--ink-faint)')
+    : 'var(--ink-faint)';
+
+  return (
+    <div style={{ margin: '0 0 24px' }}>
+      <p style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--ink-muted)', display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: dotColor, transform: 'translateY(1px)' }} />
+        <strong style={{ fontWeight: 600, color: 'var(--ink-title)' }}>Install LLM in Hypha</strong>
+        {installState && installState.installed && (
+          <span style={{ fontStyle: 'italic', fontSize: 14, color: 'var(--ink-faint)' }}>
+            — {installState.modelLabel} via {installState.providerLabel} · {installState.statusText}
+          </span>
+        )}
+        {installState && !installState.installed && (
+          <span style={{ fontStyle: 'italic', fontSize: 14, color: 'var(--ink-faint)' }}>
+            — not installed yet
+          </span>
+        )}
+      </p>
+
+      <p style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--ink-muted)' }}>
+        Authentication: <Token
+          value={settings.apiKey ? '••••••••' : ''}
+          kind="secret"
+          onChange={v => saveSettings({ apiKey: v })}
+          placeholder={(providerObj.keyHint) || 'paste key here'}
+          dim={!settings.apiKey}
+        />
+      </p>
+
+      {installState && installState.installed && (
+        <p style={{ margin: '0 0 12px', fontSize: 13, display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+          <button
+            onClick={handleTest}
+            disabled={testing}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--brass-mid)',
+              color: 'var(--brass-bright)',
+              padding: '5px 14px',
+              cursor: testing ? 'wait' : 'pointer',
+              fontStyle: 'italic',
+              fontFamily: 'inherit',
+              fontSize: 13,
+            }}
+          >{testing ? 'testing…' : '→ Test installation'}</button>
+          <button
+            onClick={handleUninstall}
+            style={{
+              background: 'transparent',
+              border: '1px solid color-mix(in srgb, var(--verdict-flag, #c46a5d) 60%, transparent)',
+              color: 'var(--verdict-flag, #c46a5d)',
+              padding: '5px 14px',
+              cursor: 'pointer',
+              fontStyle: 'italic',
+              fontFamily: 'inherit',
+              fontSize: 13,
+            }}
+          >× Uninstall</button>
+          {testResult && (
+            <span style={{
+              fontStyle: 'italic',
+              fontSize: 13,
+              color: testResult.ok ? 'var(--success, #6da34d)' : 'var(--verdict-flag, #c46a5d)',
+              marginLeft: 8,
+            }}>{testResult.msg}</span>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ColophonView() {
   const [settings, setSettings] = React.useState(null);
   const [profile, setProfile] = React.useState(null);
@@ -580,15 +705,161 @@ function ColophonView() {
             {providerObj.keyHint || 'using a logged-in vendor session — no key needed.'}
           </p>
         )}
-        {providerObj.via !== 'cli' && providerObj.via !== 'hypha-server' && (
-          <p style={{ margin: '0 0 24px', fontSize: 15, color: 'var(--ink-muted)' }}>
-            Authentication: <Token
-              value={settings.apiKey ? '••••••••' : ''}
-              kind="secret"
-              onChange={v => saveSettings({ apiKey: v })}
-              placeholder={(providerObj.keyHint) || 'paste key here'}
-              dim={!settings.apiKey}
-            />
+        {/* v0158d — wizard for first-time install (when no apiKey AND not on CLI),
+            otherwise InstallPanel for status/test/uninstall management.
+            For CLI provider: skip both (legacy keyHint paragraph still shows below). */}
+        {providerObj.via !== 'cli' && providerObj.via !== 'hypha-server' && !settings.apiKey && window.InstallWizard && (
+          <window.InstallWizard
+            settings={settings}
+            saveSettings={saveSettings}
+            onComplete={() => { if (typeof loadSettings === 'function') loadSettings(); }}
+          />
+        )}
+        {providerObj.via !== 'cli' && providerObj.via !== 'hypha-server' && settings.apiKey && (
+          <InstallPanel
+            settings={settings}
+            providerObj={providerObj}
+            saveSettings={saveSettings}
+            loadSettings={loadSettings}
+          />
+        )}
+        {/* CLI provider: show wizard for first-time CLI install (no _migratedFrom marker means user picked it directly) */}
+        {providerObj.via === 'cli' && !settings._migratedFrom && window.InstallWizard && (
+          <window.InstallWizard
+            settings={settings}
+            saveSettings={saveSettings}
+            onComplete={() => { if (typeof loadSettings === 'function') loadSettings(); }}
+          />
+        )}
+        {/* v0157 — API key acquisition tutorial. Shown for Claude Direct API
+            (the recommended provider). 4-step inline guide so non-developer
+            users can get an Anthropic API key without leaving Hypha for
+            a confusing dev portal. Cost expectations stated upfront so users
+            aren't surprised by Anthropic billing. Per /tr 2026-05-03 council
+            decision: Hypha = "depth-learner tool" tier (like Obsidian / Roam),
+            not mass consumer SaaS — but the key-acquisition friction can be
+            softened with a hand-held wizard. */}
+        {providerObj.id === 'claude' && !settings.apiKey && (
+          <details style={{ margin: '-12px 0 24px', fontSize: 14 }}>
+            <summary style={{
+              cursor: 'pointer',
+              fontStyle: 'italic',
+              color: 'var(--brass-bright)',
+              listStyle: 'none',
+              padding: '6px 0',
+            }}>
+              <span style={{ marginRight: 8 }}>▸</span>
+              first time? how to get an Anthropic API key (~3 minutes)
+            </summary>
+            <div style={{
+              margin: '12px 0 0 18px',
+              padding: '14px 18px',
+              borderLeft: '2px solid color-mix(in srgb, var(--brass-mid) 40%, transparent)',
+              fontFamily: 'inherit',
+              fontStyle: 'normal',
+              fontSize: 14.5,
+              lineHeight: 1.7,
+              color: 'var(--ink-muted)',
+            }}>
+              <ol style={{ margin: 0, paddingLeft: 22 }}>
+                <li style={{ marginBottom: 14 }}>
+                  Open Anthropic Console.{' '}
+                  <a
+                    href="#"
+                    onClick={e => {
+                      e.preventDefault();
+                      if (window.ptor && window.ptor.shell && window.ptor.shell.openExternal) {
+                        window.ptor.shell.openExternal('https://console.anthropic.com/');
+                      }
+                    }}
+                    style={{ color: 'var(--brass-bright)', textDecoration: 'none', borderBottom: '1px solid currentColor' }}
+                  >open console.anthropic.com →</a>
+                  <div style={{ fontStyle: 'italic', fontSize: 13, color: 'var(--ink-faint)', marginTop: 4 }}>
+                    Sign up with email if you don't have an account. Anthropic Console is separate from claude.ai (different login).
+                  </div>
+                </li>
+                <li style={{ marginBottom: 14 }}>
+                  Add a payment method (credit card).
+                  <div style={{ fontStyle: 'italic', fontSize: 13, color: 'var(--ink-faint)', marginTop: 4 }}>
+                    Pay-as-you-go: typical cost ≈ $0.02 per quick question (Sonnet 4.6) or ~$0.10 per deepen call (Opus 4.7). Set a monthly limit in Console → Settings → Billing → Spend Limit if you want a hard ceiling.
+                  </div>
+                </li>
+                <li style={{ marginBottom: 14 }}>
+                  Click <em>API Keys</em> in the left sidebar → <em>Create Key</em>.
+                  <div style={{ fontStyle: 'italic', fontSize: 13, color: 'var(--ink-faint)', marginTop: 4 }}>
+                    Name it "Hypha" so you can revoke just this one later if needed. Keep "no scope restrictions" for now (default).
+                  </div>
+                </li>
+                <li style={{ marginBottom: 6 }}>
+                  Copy the key (starts with <code style={{
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontSize: 12.5,
+                    background: 'color-mix(in srgb, var(--brass-mid) 14%, transparent)',
+                    padding: '1px 5px',
+                    borderRadius: 2,
+                  }}>sk-ant-api03-...</code>) and paste into the field above.
+                  <div style={{ fontStyle: 'italic', fontSize: 13, color: 'var(--ink-faint)', marginTop: 4 }}>
+                    The key is stored only in this vault's <code style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12.5 }}>settings.json</code> on your disk — never sent anywhere except api.anthropic.com directly. Shows as <code style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12.5 }}>••••••••</code> after save.
+                  </div>
+                </li>
+              </ol>
+              <div style={{
+                marginTop: 16,
+                paddingTop: 12,
+                borderTop: '0.5px dashed color-mix(in srgb, var(--brass-mid) 30%, transparent)',
+                fontStyle: 'italic',
+                fontSize: 13,
+                color: 'var(--ink-faint)',
+              }}>
+                Note: Anthropic Console (sk-ant-api03 keys) is separate from your Claude Pro/Max subscription. The API key is pay-per-token; it does <em>not</em> draw from the Pro/Max free quota. Claude Pro/Max only covers usage inside claude.ai web + Claude Code CLI itself.
+              </div>
+            </div>
+          </details>
+        )}
+        {/* v0156 — Anthropic OAuth one-click sign-in. Visible only for the
+            sdk-anthropic provider. Spawns `claude setup-token` (Claude Code CLI
+            must be installed: npm install -g @anthropic-ai/claude-code) → opens
+            user's default browser to Anthropic OAuth → captures sk-ant-oat01-
+            token + writes to settings.json. User saves the "console + credit
+            card" step; the token bills pay-as-you-go from their Pro/Max sub's
+            extra-usage balance. */}
+        {providerObj.id === 'claude' && (
+          <p style={{ margin: '-8px 0 24px', fontSize: 14 }}>
+            <button
+              onClick={async () => {
+                const btn = window.event && window.event.currentTarget;
+                if (btn) { btn.disabled = true; btn.textContent = '→ opening browser, complete sign-in there…'; }
+                try {
+                  const r = await window.ptor.hypha.claudeSetupToken();
+                  if (r && r.ok) {
+                    if (btn) btn.textContent = `✓ signed in: ${r.tokenMasked} (${r.model})`;
+                    if (typeof loadSettings === 'function') loadSettings();
+                    else setTimeout(() => window.location.reload(), 800);
+                  } else {
+                    if (btn) { btn.disabled = false; btn.textContent = '× sign-in failed — click to retry'; }
+                    console.error('[claude:setup-token]', r);
+                    alert('Sign-in failed: ' + ((r && r.error) || 'unknown error') + '\n\nMake sure Claude Code CLI is installed:\n  npm install -g @anthropic-ai/claude-code');
+                  }
+                } catch (e) {
+                  if (btn) { btn.disabled = false; btn.textContent = '× error — click to retry'; }
+                  alert('Error: ' + (e && e.message || e));
+                }
+              }}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--brass-mid)',
+                color: 'var(--brass-bright)',
+                padding: '7px 16px',
+                cursor: 'pointer',
+                fontStyle: 'italic',
+                fontFamily: 'inherit',
+                fontSize: 14,
+                letterSpacing: '0.01em',
+              }}
+            >→ shortcut: get token via Claude Code CLI</button>
+            <span style={{ fontStyle: 'italic', fontSize: 13, color: 'var(--ink-faint)', marginLeft: 14 }}>
+              optional — only if you already have Claude Code installed. Auto-acquires sk-ant-oat01 token (also pay-per-token, billed to Anthropic extra-usage balance, not Pro/Max free quota).
+            </span>
           </p>
         )}
 

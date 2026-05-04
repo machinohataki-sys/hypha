@@ -208,27 +208,50 @@ function RecallNoteView({ rel, onBack }) {
     try { sel.removeAllRanges(); } catch (_) {}
   }, [recallQuote, rel]);
 
-  // 2026-05-03 v0149 — Ctrl+Shift+D opens AskCard floating popover (per user
-  // "悬浮卡片" request). Single-shot llm.run against prompts/deepen.txt,
-  // rendered as fixed-position modal at line 1991. askCard state already exists
-  // at line 61 + onAppend wiring already exists; we only needed a trigger.
-  // Coexists with v0148 inline pill: pill click = inline DeepenCallout
-  // (deep multi-stage), chord = floating AskCard (fast single-shot).
+  // v0155 — lifted verbatim from ptor-design/app/ui_kits/ptor-app/NoteView.jsx
+  // per user "完全照搬过来 不要自己改动". Same Ctrl+D / Ctrl+Q / Ctrl+Shift+D
+  // pattern as NoteView; both surfaces get the keyboard trigger for parity.
   React.useEffect(() => {
+    const BLOCK_TAGS = new Set(['P', 'LI', 'BLOCKQUOTE', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'TABLE']);
     const onKey = (e) => {
-      const cmd = e.metaKey || e.ctrlKey;
-      if (!cmd || !e.shiftKey || e.altKey) return;
-      if (e.key !== 'd' && e.key !== 'D') return;
-      const t = e.target;
-      const tag = (t && t.tagName) ? t.tagName.toLowerCase() : '';
-      if (t && (t.isContentEditable || tag === 'input' || tag === 'textarea')) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      let mode;
+      if (k === 'd') mode = 'deepen';
+      else if (k === 'q') mode = 'quick';
+      else return;
+
       const sel = window.getSelection && window.getSelection();
-      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-      const text = sel.toString().trim();
-      if (!text) return;
+      if (!sel || sel.isCollapsed) return;
+      const txt = (sel.toString() || '').trim();
+      if (txt.length < 2) return;
+      const noteRendered = document.querySelector('.note-rendered');
+      if (!noteRendered || !noteRendered.contains(sel.anchorNode)) return;
       e.preventDefault();
-      setAskCard({ template: 'deepen', selection: text, noteRel: rel });
-      setRecallQuote(null);
+
+      const range = sel.getRangeAt(0);
+      let anchorNode = range.endContainer;
+      if (anchorNode.nodeType === 3) anchorNode = anchorNode.parentElement;
+      let anchorBlock = anchorNode;
+      while (anchorBlock && anchorBlock !== noteRendered && !BLOCK_TAGS.has(anchorBlock.tagName)) {
+        anchorBlock = anchorBlock.parentElement;
+      }
+      if (!anchorBlock || anchorBlock === noteRendered || !noteRendered.contains(anchorBlock)) {
+        anchorBlock = noteRendered.lastElementChild || noteRendered;
+      }
+
+      const style = (mode === 'deepen' && e.shiftKey) ? 'plainer' : 'denser';
+      const cjkCount = (txt.match(/[一-龥぀-ゟ゠-ヿ]/g) || []).length;
+      const lang = (cjkCount / txt.length >= 0.2) ? 'zh' : 'en';
+
+      const idPrefix = mode === 'quick' ? 'qck_' : 'dpn_';
+      const id = idPrefix + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      const host = document.createElement('div');
+      host.className = 'deepen-host';
+      host.setAttribute('data-session-id', id);
+      anchorBlock.insertAdjacentElement('afterend', host);
+
+      setDeepenSessions(prev => [...prev, { id, mode, selection: txt, noteRel: rel, style, lang, direction: '', host }]);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

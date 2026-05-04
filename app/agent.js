@@ -269,29 +269,68 @@ async function _runCliStream(messages, settings, onChunk, opts = {}) {
     let buffer = '';
     let isStreamJSON = Array.isArray(cfg.streamFlag) && cfg.streamFlag.includes('stream-json');
 
+    // v0158e — claude 2.x stream-json compatibility. The 1.x → 2.x bump (verified
+    // by user 2026-05-04: claude --version → 2.1.126) likely changed event shape.
+    // Old parser only matched {message: {content: [{type:'text',text}]}} OR ev.delta
+    // OR ev.text. New 2.x events may use Anthropic SSE shape (content_block_delta
+    // with delta.text). Add wider matching + log every event so we can capture
+    // unknown shapes for follow-up.
+    let _emittedChunks = 0;
+    let _allEventsRaw = '';      // accumulate raw stdout for fallback if 0 chunks
+    function _extractTextFromEvent(ev) {
+      // Match all known shapes from claude 1.x and 2.x stream-json
+      // 1.x: { type: 'assistant', message: { content: [{type:'text', text:'...'}] } }
+      if (ev.message && ev.message.content && Array.isArray(ev.message.content)) {
+        const t = ev.message.content
+          .filter(c => c && c.type === 'text')
+          .map(c => c.text || '')
+          .join('');
+        if (t) return t;
+      }
+      // 2.x SSE-style: { type: 'content_block_delta', delta: { type: 'text_delta', text: '...' } }
+      if (ev.type === 'content_block_delta' && ev.delta && typeof ev.delta.text === 'string') {
+        return ev.delta.text;
+      }
+      // 2.x alternate: { type: 'message_delta', delta: { content: [...] } }
+      if (ev.type === 'message_delta' && ev.delta && Array.isArray(ev.delta.content)) {
+        const t = ev.delta.content
+          .filter(c => c && c.type === 'text')
+          .map(c => c.text || '')
+          .join('');
+        if (t) return t;
+      }
+      // 2.x text-only field at top
+      if (ev.type === 'text' && typeof ev.text === 'string') return ev.text;
+      // Fallback: ev.text or ev.delta as string (legacy 1.x compat)
+      if (typeof ev.text === 'string') return ev.text;
+      if (typeof ev.delta === 'string') return ev.delta;
+      return '';
+    }
+
     child.stdout.on('data', d => {
       const chunk = d.toString('utf8');
+      _allEventsRaw += chunk;
       if (isStreamJSON) {
-        // newline-delimited JSON events. Parse each line, extract content.
         buffer += chunk;
         let lines = buffer.split('\n');
-        buffer = lines.pop(); // last partial line
+        buffer = lines.pop();
         for (const line of lines) {
           if (!line.trim()) continue;
           try {
             const ev = JSON.parse(line);
-            // Claude Code stream-json format: { type, message: { content: [{type,text}] } } or similar
-            const text = (ev.message && ev.message.content && ev.message.content
-              .filter(c => c.type === 'text')
-              .map(c => c.text)
-              .join(''))
-              || ev.delta || ev.text || '';
-            if (text) onChunk(text);
-          } catch (_) { /* not JSON, skip */ }
+            const text = _extractTextFromEvent(ev);
+            if (text) {
+              onChunk(text);
+              _emittedChunks += 1;
+            } else {
+              // Unknown event shape — log for diagnostic so we can update parser
+              console.log('[_runCliStream] unparsed event type=' + (ev.type || '?') + ' keys=' + Object.keys(ev).slice(0, 5).join(','));
+            }
+          } catch (_) { /* not JSON, skip — claude often prints non-JSON warnings */ }
         }
       } else {
-        // Plain text streaming — emit raw chunks.
         onChunk(chunk);
+        _emittedChunks += 1;
       }
     });
     child.stderr.on('data', d => { stderr += d.toString('utf8'); });
@@ -301,18 +340,26 @@ async function _runCliStream(messages, settings, onChunk, opts = {}) {
     });
     child.on('close', code => {
       if (onAbort && opts.signal) opts.signal.removeEventListener('abort', onAbort);
-      if (aborted) return resolve(); // halted by stop button — keep partial content
+      if (aborted) return resolve();
       if (code !== 0) return reject(new Error(`cli exit ${code}: ${stderr.slice(0, 300)}`));
-      // flush any remaining buffer line
+      // Flush any remaining buffer line
       if (isStreamJSON && buffer.trim()) {
         try {
           const ev = JSON.parse(buffer);
-          const text = (ev.message && ev.message.content && ev.message.content
-            .filter(c => c.type === 'text').map(c => c.text).join(''))
-            || ev.delta || ev.text || '';
-          if (text) onChunk(text);
-        } catch (_) { if (!isStreamJSON) onChunk(buffer); }
+          const text = _extractTextFromEvent(ev);
+          if (text) { onChunk(text); _emittedChunks += 1; }
+        } catch (_) {}
       }
+      // v0158e — empty-output fallback: if streamJSON parser found 0 chunks but
+      // child exited 0, treat raw stdout as plain text. Likely scenario: claude
+      // 2.x changed event shape entirely + parser missed everything. Better to
+      // emit "[object Object]"-like raw than blank. Strip ANSI control chars.
+      if (_emittedChunks === 0 && _allEventsRaw.trim()) {
+        console.log('[_runCliStream] FALLBACK: 0 chunks parsed from stream-json, ' + _allEventsRaw.length + ' bytes raw stdout. Emitting raw as plain text. Recent stdout sample: ' + _allEventsRaw.slice(0, 400));
+        const cleaned = _allEventsRaw.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+        if (cleaned) onChunk(cleaned);
+      }
+      console.log('[_runCliStream] DONE provider=' + cfg.id + ' emittedChunks=' + _emittedChunks + ' rawLen=' + _allEventsRaw.length + ' stderrLen=' + stderr.length);
       resolve();
     });
     try { child.stdin.write(prompt); child.stdin.end(); }
