@@ -1,58 +1,62 @@
-# Hypha — Private University Operating System
+# Hypha
 
-> For self-directed learners breaking industrial education and knowledge monopoly.
->
-> Internal codename: `ptor2`. Public brand: **Hypha**.
+> A methodology log, not a product.
 
-Hypha is the 4th agent category alongside image / code / workflow agents.
+This repository documents an attempt to build a learning system whose claims about a learner's understanding can be falsified by something other than another language model.
 
-**North star** (see [BLUEPRINT.md](./BLUEPRINT.md) for full spec): a goal-locked, evidence-driven, cadence-controlled, note-revival, entropy-reducing, creation-feedback, commons-replenishing private university OS with a low-disturbance companion layer.
+## Why this is not a product page
 
-You input a learning intent. Hypha harvests top sources (Nobel-rich uni / GitHub / HN), synthesizes a sequential pseudo-curriculum, and runs each lesson as a Socratic dialog. Each session auto-distills into a dual-layer note: course foundation + your insights. Knowledge then flows back into your own creation pool — the things you are actually building.
+Most learning tools either teach with confidence or grade with confidence. Both moves are cheap when the only check on the answer is the same kind of system that produced it. The substrate here is different: every claim that a learner has understood something must pass a non-language-model verification — a code cell that asserts, a proof that type-checks, or an answer key sealed before the test was taken.
 
-**Minimum loop**: `Goal → Lesson → Evidence → Note → Feedback → Next Lesson`.
+If that substrate doesn't hold, the system is honest about it on this page, in public, with measurements.
 
-**Ideal loop**: `Goal Contract → Mode Router → Bibliography Grounding → Curriculum / Library / Commons / Research Radar → Dynamic Lesson → Live Capture → Learning Evidence → Mastery Map → Living Note Reactivation → Creation Pool → Product Spark → Pack → Commons → Better Next Lesson`.
+## Branch state
 
-See [ROADMAP.md](./ROADMAP.md) for the v0.1 → v3.0 evolution path.
+- `main` — read-only baseline at `hypha@0.11.2`. Held until first calibration release.
+- `v0.5-substrate` — current ship branch. Where week-1 through week-16 work happens.
+
+## What week 1 through week 16 commits to producing
+
+Two artifacts, neither of which is the application itself.
+
+1. A weekly methodology log in `vault/.dev-log/`. Written by hand. Public from day one. Includes failures.
+2. A first calibration release in `vault/.calibration/2026-XX-XX/` at week 16. Parameter-frozen corpus, fixed evaluation set, third-party reproducibility script that runs in 30 minutes on commodity hardware. The release ships with measured F1 and Cohen's κ — even if the F1 is below target.
+
+If neither artifact ships, the experiment failed. That failure will be documented in the same dev-log.
+
+## What is being tested
+
+A claim with one falsifier.
+
+> Goal–Instance–Evidence tuples logged by a single learner can reach 80% transfer-hold under non-language-model verification, with inter-rater reliability κ ≥ 0.7 on a fifty-item double-coded golden set, within four weeks.
+
+If the four-week test passes, week 5 through week 16 attempts the same with ten design partners and a hundred-item evaluation set, ¥1.5 per tuple cost ceiling, F1 ≥ 0.75 on out-of-distribution held-out split.
+
+If either falsifier fires, the work pauses. The dev-log records why.
 
 ## Run
 
 ```bash
+git checkout v0.5-substrate
 npm install
 export HYPHA_DEFAULT_GLM_KEY="your_glm_key_here"
 npm start
 ```
 
-Alpha builds ship with Victor's GLM 5 token baked-in. When Victor revokes the alpha token, the settings modal will prompt you to paste your own GLM / OpenAI / Anthropic key.
+The application interface preserved from `main` continues to work. The change is internal: a tuple-stream substrate is being added beneath the lesson surface, and the lesson surface itself is being reorganized around instance / response / verdict rather than chat.
 
-## Architecture
+## Pre-V0.5 history
 
-Five source files, ~170 LOC of feature code. No bundler, no React, no DB, no backend.
+Six months of accumulated work was committed as a single baseline at `f8107b3` on `main`. That commit captures four character contracts, a three-provider abstraction, a five-connector harvest layer, an anti-slop telemetry stack, and an early Lesson Quality Harness. None of those components determine whether the four-week falsifier passes; they continue to run as monitoring, not as critical-path verifiers.
 
-```
-src/
-  main.js       Electron main process + IPC handlers
-  preload.js    contextBridge to renderer
-  index.html    3-pane shell
-  renderer.js   vanilla DOM event wiring
-  style.css     minimal brass register
-  agent.js      LLM prompts (harvest / sequence / lesson / distill / state)
-  lib/
-    vault.js    file-system helpers (lifted from ptor-design)
-    reinforce.js Ebbinghaus decay math (lifted from legacy ptor2 corpus)
+## Pre-V0.5 user data
 
-data/             ← gitignored, per-user
-  notes/{topic}-{idx}.md
-  curricula/{topic}/{sequence.json,state.json,sources/,sessions/}
-  events.jsonl
-  settings.json
-```
+Discarded. Old course state archived to `vault/.archive-pre-v0.5/2026-05-10/` and excluded from version control. The methodology log starts with an empty vault.
 
-## Forge artifact
+## What this repo does not claim
 
-Product passed all 4 forge phases on 2026-04-29. See `E:/victor/.claude/drive/forge/hypha-NOTE-AGENT-20260429.md`.
+It does not claim to be a private university. It does not claim to teach better than other tools. It does not claim that language-model judgments of learning are reliable. The point of the exercise is to find out whether a different substrate works, and to be specific about how that question is being answered.
 
-## License
+## Plan
 
-UNLICENSED — private project.
+Full plan lives at `C:\Users\32043\.claude\plans\fluffy-hugging-swan.md` under "V0.5 — Council-Synthesized Path". Sixteen-week scope: epoch zero (substrate proof, four weeks) and epoch one (initial Hypha, twelve weeks). Subsequent epochs (conversion, flywheel, university) are planned separately and gated on this one.
