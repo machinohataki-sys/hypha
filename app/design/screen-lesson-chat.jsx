@@ -1982,6 +1982,14 @@ const LessonChat = ({ goal, noteRel: propNoteRel, onBack, onYield }) => {
   // SkeletonPreviewCard renders + auto-begin gates on skeletonApproved.
   const [previewLessonTitles, setPreviewLessonTitles] = useState(null);
   const [previewTopSources, setPreviewTopSources] = useState(null);
+  // V0.5 E0 D5 — kernel swap. When state.json declares verification_channel
+  // (root-level: applies to all lessons; or per-lesson on lessonPlan[idx]),
+  // LessonChat renders <TupleSubstrateView /> instead of the chat metaphor.
+  // Legacy chat path UNCHANGED when this stays null. Accepted values:
+  // 'code' | 'sealed_rubric' | 'proof'. Wiring: D6 ships preload.js +
+  // main.js IPC (window.ptor.evaluator.{nextInstance,submitResponse}); D6
+  // also adds <script src="screen-tuple-substrate.jsx"> to HYPHA.html.
+  const [verificationChannel, setVerificationChannel] = useState(null);
   useEffect(() => {
     if (!lessonSlug || !window.ptor || !window.ptor.vault || typeof window.ptor.vault.read !== 'function') return undefined;
     let alive = true;
@@ -2006,7 +2014,25 @@ const LessonChat = ({ goal, noteRel: propNoteRel, onBack, onYield }) => {
           if (s && s.harvest_summary && typeof s.harvest_summary === 'object') {
             setHarvestSummary(prev => prev || s.harvest_summary);
           }
-        } catch (_) { setPreviewLessonTitles([]); setSkeletonPlan(null); }
+          // V0.5 E0 D5 — kernel-swap detection. Root verification_channel wins;
+          // per-lesson slot override possible. Whitelisted to known channels so
+          // a malformed state.json can't smuggle arbitrary strings into the swap.
+          const KNOWN_CHANNELS = ['code', 'sealed_rubric', 'proof'];
+          let vc = null;
+          if (s) {
+            const slotChannel = (lessonIdxNum != null
+              && Array.isArray(s.lessonPlan)
+              && s.lessonPlan[lessonIdxNum]
+              && s.lessonPlan[lessonIdxNum].verification_channel) || null;
+            const rootChannel = s.verification_channel || null;
+            const candidate = slotChannel || rootChannel;
+            if (candidate && KNOWN_CHANNELS.indexOf(candidate) !== -1) vc = candidate;
+          }
+          setVerificationChannel(vc);
+        } catch (err) {
+          setPreviewLessonTitles([]); setSkeletonPlan(null); setVerificationChannel(null);
+          console.warn('[lesson-chat] state.json parse failed:', err && err.message);
+        }
         try {
           const arr = sourcesTxt ? JSON.parse(sourcesTxt) : null;
           setPreviewTopSources(Array.isArray(arr) ? arr.slice(0, 5) : []);
@@ -2015,7 +2041,7 @@ const LessonChat = ({ goal, noteRel: propNoteRel, onBack, onYield }) => {
       } catch (_) {}
     })();
     return () => { alive = false; };
-  }, [lessonSlug]);
+  }, [lessonSlug, lessonIdxNum]);
 
   // v0.3 — body_ready listener. Stage 2 (curriculumApproveAndBody) finishes by
   // emitting `body_ready` via onCurriculumProgress; on receipt drop the mini-
@@ -2122,18 +2148,50 @@ const LessonChat = ({ goal, noteRel: propNoteRel, onBack, onYield }) => {
         />
       )}
 
-      {turns.length === 0 && !lessonBody && !skeletonPlan && !genProgress && (
+      {turns.length === 0 && !lessonBody && !skeletonPlan && !genProgress && !verificationChannel && (
         <div className="serif italic" style={{ marginBottom: 20, fontSize: 15, color: 'var(--ink-2)' }}>
           Type your first message to begin. The tutor opens with a probing question — answer in your own words. Type <span className="mono">/help</span> for commands.
         </div>
       )}
 
-      <TranscriptList
-        turns={turns}
-        streamingTurnId={streamingTurnId}
-        currentStreamState={streamState}
-        onAbort={handleAbort}
-      />
+      {/* V0.5 E0 D5 — kernel swap. When state.json declares verification_channel,
+          render TupleSubstrateView (Instance / Response / Verdict) instead of
+          the chat transcript. Legacy chat path runs UNCHANGED for absent channel.
+          window.TupleSubstrateView is registered by screen-tuple-substrate.jsx;
+          if HYPHA.html script-tag wiring (D6 scope) is missing, fall back to a
+          manuscript-register banner explaining the pending wiring. */}
+      {verificationChannel ? (
+        (() => {
+          const TupleView = window.TupleSubstrateView;
+          return TupleView ? (
+            <TupleView slug={lessonSlug} lessonIdx={lessonIdxNum} />
+          ) : (
+          <div
+            className="serif italic"
+            style={{
+              marginTop: 16,
+              padding: '20px 0',
+              borderTop: '1px solid #a98b3a',
+              borderBottom: '1px solid #a98b3a',
+              color: 'var(--ink-2)',
+              fontSize: 14,
+              lineHeight: 1.6,
+            }}
+          >
+            evaluator IPC pending — verification channel “{verificationChannel}” declared, but
+            <span className="mono"> window.TupleSubstrateView</span> is not yet loaded
+            (D6 wiring adds <span className="mono">screen-tuple-substrate.jsx</span> to HYPHA.html).
+          </div>
+          );
+        })()
+      ) : (
+        <TranscriptList
+          turns={turns}
+          streamingTurnId={streamingTurnId}
+          currentStreamState={streamState}
+          onAbort={handleAbort}
+        />
+      )}
 
       {error && (
         <div className="card-quiet col gap-8" style={{ padding: 16, marginTop: 12 }}>
@@ -2176,12 +2234,16 @@ const LessonChat = ({ goal, noteRel: propNoteRel, onBack, onYield }) => {
         </div>
       )}
 
-      <Composer
-        onSubmit={handleSubmit}
-        onAbort={handleAbort}
-        disabled={false}
-        streaming={streaming}
-      />
+      {/* V0.5 E0 D5 — Composer hidden when kernel-swap is active; the
+          ResponseColumn inside TupleSubstrateView provides its own submit. */}
+      {!verificationChannel && (
+        <Composer
+          onSubmit={handleSubmit}
+          onAbort={handleAbort}
+          disabled={false}
+          streaming={streaming}
+        />
+      )}
     </PageFrame>
   );
 };

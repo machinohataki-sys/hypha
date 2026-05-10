@@ -173,6 +173,81 @@ function recordLessonOutcome(row) {
   }).lastInsertRowid;
 }
 
+// V0.5 E0 D6 — chat-call cost-estimate helper.
+// Wraps `recordModelCall` for callers that have an `executeChat` dispatch
+// result. Pulls token counts from `result.usage` (OpenAI shape: {prompt_tokens,
+// completion_tokens}; some providers use {input_tokens, output_tokens}) and
+// estimates RMB cost via per-provider PLACEHOLDER rates. Rates are
+// **NOT calibrated** — order-of-magnitude only — and must be revisited once
+// the real pricing engine ships (per BLUEPRINT §17.2.1 Cheap Router).
+//
+// Returns the inserted row id, or null on failure (logged, never throws).
+//
+// intentional-placeholder: Cheap Router (BLUEPRINT §17.2.1 Infrastructure system)
+// owns calibrated per-provider rate cards + capability-class blended rates. Until
+// that pricing engine ships in v0.6+, recordChatCallEstimate exists to keep the
+// model_calls table populated (so cost-median aggregations work today) without
+// pretending the numbers are vendor-confirmed. All four providers share the same
+// stub triple ¥0.001 in / ¥0.003 out — order-of-magnitude only. Do not derive
+// pricing UI / billing from these values; only relative comparison + plumbing.
+const _COST_RATES_PLACEHOLDER = Object.freeze({
+  glm:      { in_per_1k: 0.001, out_per_1k: 0.003 },
+  deepseek: { in_per_1k: 0.001, out_per_1k: 0.003 },
+  kimi:     { in_per_1k: 0.001, out_per_1k: 0.003 },
+  moonshot: { in_per_1k: 0.001, out_per_1k: 0.003 },
+  _default: { in_per_1k: 0.001, out_per_1k: 0.003 },
+});
+
+function _extractTokens(usage) {
+  if (!usage || typeof usage !== 'object') return { in_: null, out_: null };
+  const in_  = Number.isFinite(usage.input_tokens)  ? usage.input_tokens
+             : Number.isFinite(usage.prompt_tokens) ? usage.prompt_tokens
+             : null;
+  const out_ = Number.isFinite(usage.output_tokens)     ? usage.output_tokens
+             : Number.isFinite(usage.completion_tokens) ? usage.completion_tokens
+             : null;
+  return { in_, out_ };
+}
+
+function _estimateCost(providerId, inputTokens, outputTokens) {
+  const key = String(providerId || '').toLowerCase();
+  const rate = _COST_RATES_PLACEHOLDER[key] || _COST_RATES_PLACEHOLDER._default;
+  const inCost  = Number.isFinite(inputTokens)  ? (inputTokens  / 1000) * rate.in_per_1k  : 0;
+  const outCost = Number.isFinite(outputTokens) ? (outputTokens / 1000) * rate.out_per_1k : 0;
+  return Number((inCost + outCost).toFixed(6));
+}
+
+// `dispatch` = executeChat return shape: {result, providerId, model, capability, attempts}
+// `taskType` = string label (e.g. 'designSkeletonOnly', 'designLesson', 'classifyAll')
+// `taskMeta` = optional {tuple_id, user_id, prompt_version, latency_ms, cache_hit, success}
+function recordChatCallEstimate(dispatch, taskType, taskMeta) {
+  if (!dispatch || typeof dispatch !== 'object') return null;
+  const result = dispatch.result;
+  const usage = result && typeof result === 'object'
+    ? (result.usage || (result.message && result.message.usage) || null)
+    : null;
+  const { in_, out_ } = _extractTokens(usage);
+  const meta = taskMeta || {};
+  const providerId = dispatch.providerId || meta.provider_id || 'unknown';
+  const row = {
+    ts: meta.ts || new Date().toISOString(),
+    user_id: meta.user_id || null,
+    tuple_id: meta.tuple_id || null,
+    task_type: taskType || 'unknown',
+    provider_id: providerId,
+    model_name: dispatch.model || meta.model_name || 'unknown',
+    prompt_version: meta.prompt_version || null,
+    input_tokens: in_,
+    output_tokens: out_,
+    estimated_cost: _estimateCost(providerId, in_, out_),
+    latency_ms: Number.isFinite(meta.latency_ms) ? meta.latency_ms : null,
+    success: meta.success === false ? false : true,
+    cache_hit: !!meta.cache_hit,
+    capability: dispatch.capability || meta.capability || null,
+  };
+  return recordModelCall(row);
+}
+
 function aggregateCostMedian(filter) {
   const db = open();
   const where = [];
@@ -192,6 +267,7 @@ module.exports = {
   open,
   close,
   recordModelCall,
+  recordChatCallEstimate,
   upsertGoldenItem,
   recordEvaluatorRun,
   recordLessonOutcome,

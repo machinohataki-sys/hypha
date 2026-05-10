@@ -26,18 +26,12 @@ function _vaultRoot() {
 }
 
 function _readItems(topic) {
-  const dir = path.join(_vaultRoot(), '.evaluator', 'golden', topic);
-  if (!fs.existsSync(dir)) return [];
-  const files = fs.readdirSync(dir).filter(f => f.endsWith('.json') && !f.startsWith('_'));
-  const out = [];
-  for (const f of files) {
-    try {
-      out.push(JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')));
-    } catch (err) {
-      console.warn(`[f1-harness] skip malformed ${f}: ${err.message}`);
-    }
-  }
-  return out;
+  // D5 fix: delegate to golden-loader so sidecar merging + sidecar filename
+  // exclusion are unified (loader.loadTopic now returns items[]). Avoids the
+  // bug where f1-harness read .rater-{a,b}.json sidecar files as items and
+  // then could not find ratings on them.
+  const ledger = golden.loadTopic(topic);
+  return ledger.items || [];
 }
 
 function _truthFromGround(item, candidate) {

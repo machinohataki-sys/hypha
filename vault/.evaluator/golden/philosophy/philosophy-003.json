@@ -13,13 +13,21 @@
       "alt_phrasings": [
         "conservation of mass-energy",
         "closed system",
-        "static identity"
+        "static identity",
+        "thermodynamic conservation",
+        "energy is conserved",
+        "isolated system invariant",
+        "no flow across boundary"
       ],
       "phrasing_hashes": [
         "d4565d112c7a414c7aa086ac664d67f9666854fdcabe6fbb48849a25a235168d",
         "1f070a5f1ef38907b7cfbd029afaae96053b044a3c02a619451fe304f759a593",
         "9d577d0ddedcc79bf1592b686c87bbefdf109c1bff4cadf2c266b18deee57018",
-        "a2a0a4146cf7256d6b72e9b9478ec6f86f33bc6b2fbe851f0c2608700cdc0e12"
+        "a2a0a4146cf7256d6b72e9b9478ec6f86f33bc6b2fbe851f0c2608700cdc0e12",
+        "587b7a589331ff92119ccffe5f03bb876a71106dc0f407b18033a6f895f59c84",
+        "b376c9ed2a18d0757c6a7d52f1053c6d282491560a3f7b1c1decb5b6de9a925d",
+        "07b4fea59b6170b54b35eb9b087a168198ace37e320e804cfee3d2af819c1d05",
+        "802a1d89f62d908bc728cdb4014fd0152f05e2f14e87b29da699ad34c47b3187"
       ],
       "claim_hash": "d4565d112c7a414c7aa086ac664d67f9666854fdcabe6fbb48849a25a235168d"
     },
@@ -30,14 +38,22 @@
         "branch prediction misspeculation",
         "rolled-back transaction",
         "speculative state",
-        "discarded computation"
+        "discarded computation",
+        "transient state",
+        "aborted transaction",
+        "speculative execution",
+        "mispredicted branch"
       ],
       "phrasing_hashes": [
         "e5559a972f5ec3e5177d0afb64b5d7e74a9d685a4d4878d7578120119e4225b4",
         "26a6b9097028f1c9554f62a7415499286f426843001102044f367e0d365b8e04",
         "f39ce3d57822f496da72caa735803e327540f7a80d1295730886fb2ace4158f9",
         "65dfaa612a960192d55819fec636016758b716b62acf50bdbb9fa9e075e28920",
-        "47734179f6f3aff75e12e0686bd1c01459263c4f64df0f995b2991bdca42f393"
+        "47734179f6f3aff75e12e0686bd1c01459263c4f64df0f995b2991bdca42f393",
+        "e227cc039227010f3b08b429824fd10baddeeadb3e9c924a705cd212f65b84fa",
+        "6caa02ef2866d66b2d9875bc30d9ac041cf127f4ac60604c3729dfbb4b14603c",
+        "a07e1269f5258914578b3f9fd4776cb15201d6ee9e1f9b5c1b6e7cbf94a2e2f7",
+        "769827f2bf58dab9f1f1b349c0fd14a8a9020bc7efb5db2aa56233d11f60381b"
       ],
       "claim_hash": "e5559a972f5ec3e5177d0afb64b5d7e74a9d685a4d4878d7578120119e4225b4"
     },
@@ -47,13 +63,21 @@
       "alt_phrasings": [
         "premise breaks because identity is time-dependent",
         "temporal becoming is allowed",
-        "state can exist transiently"
+        "state can exist transiently",
+        "being is not binary",
+        "existence as time function",
+        "static-vs-dynamic confusion",
+        "binary being is the false premise"
       ],
       "phrasing_hashes": [
         "c3d25a60482f3d69e0060b371254c234cbaeb72c5b79fd8f30dc0437dece6215",
         "204fbe70ea56f7d9b5357924cc7455d05f294afdf4da1712722e445c2eb676a7",
         "2edcb01d09997166341bcaa642e5059506e543b30a2d7085cace8a27b1f35be1",
-        "d0f8054e3fef6a4fe55b7e505ded6ae68aebecdf4bea5863ab5b91d7e9851664"
+        "d0f8054e3fef6a4fe55b7e505ded6ae68aebecdf4bea5863ab5b91d7e9851664",
+        "3f140a81a578e701016f1aa7a9d0fe7e074dccbf1ff54e6b3712700113dfd4ad",
+        "1e7d116e18d1c9cca162287fcdfe878027c3d726ba84167548e4af1c971ef028",
+        "ab861e66246d710046540d38d8e6df4f32f86c2414fbea71f1cf07c34c045738",
+        "d938086dc1d9204562e1c91bc048a0178a7462dc563b59fede344dd85f7f0048"
       ],
       "claim_hash": "c3d25a60482f3d69e0060b371254c234cbaeb72c5b79fd8f30dc0437dece6215"
     }
@@ -83,7 +107,7 @@
       ]
     }
   ],
-  "sealed_at": "2026-05-10T10:03:01.853Z",
+  "sealed_at": "2026-05-10T12:51:54.336Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."

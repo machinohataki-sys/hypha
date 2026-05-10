@@ -13,13 +13,21 @@
       "alt_phrasings": [
         "informative AND independent of experience",
         "beyond logic and observation",
-        "third knowledge source"
+        "third knowledge source",
+        "non-trivial yet a priori",
+        "informative non-empirical truth",
+        "substantive yet experience-independent",
+        "third epistemic category"
       ],
       "phrasing_hashes": [
         "1671452cd8bd95f7abc632c37738e8beffbb8f515a8070948cc09986ed356724",
         "9527471c832192f26a2ae8158b9ba4787b25c5fbcf96f5e0787708fcbc4f8c4e",
         "27c694661c028760749a348c89a29b6183ce8931eb410657d8d684503c4d2653",
-        "dcb8a63fee081af004043b86e730439014e5b5a5c4fcfc86447425d659be9f91"
+        "dcb8a63fee081af004043b86e730439014e5b5a5c4fcfc86447425d659be9f91",
+        "8f0026e3c53c96bfb3ded9b9c70bed8a918f8ed22d7140bed0ba8da0f5a8ca5e",
+        "6a9b14eb64c3fdd2caeee0dcf2c76faf03ef7feb7c60c4c0e8c6b60a2fcdd85e",
+        "1e12d3831e80c2191aba8a92df1ef860be81943e51b6a238dacbac92bedad6be",
+        "693559e3109421cba37e926cc6707bc076205c9414f550bd05cf2c87249b250f"
       ],
       "claim_hash": "1671452cd8bd95f7abc632c37738e8beffbb8f515a8070948cc09986ed356724"
     },
@@ -29,13 +37,21 @@
       "alt_phrasings": [
         "7 plus 5 equals 12",
         "arithmetic example",
-        "mathematical proposition"
+        "mathematical proposition",
+        "sum example",
+        "basic arithmetic case",
+        "addition of small integers",
+        "a sum like 7+5=12"
       ],
       "phrasing_hashes": [
         "b0a3d740018695609b0c577a0e6b69c0abb450851c15ebebb643d039ef761135",
         "d538fba4cd30af1163106399316990897864ded3c3e57fb5c6a6b816b24c6191",
         "7cfad6bbeb00f4047ccc2cbbeb5272d78f868e5ce63b080e8ffb9f90260e309d",
-        "31a365a4cde655b475c44db6b9f37102621ac464e90006ea5d1445de1c290e58"
+        "31a365a4cde655b475c44db6b9f37102621ac464e90006ea5d1445de1c290e58",
+        "f8bcf619f9870ba06911356811afffbc5887b7dc8f489a1e9636ee6980a3f13b",
+        "d3c0dc766c525d5aeb6006032a86f54adbcf8351548ad007544b7a56eb3a3b3b",
+        "07b7b59c3a33212a277ad7277867d82840d753c3c79996def3f7fef8fb3f1b23",
+        "814387dfeaded7d13f4599466ddc4305cef15bf6f69fe7da38843d5ce36a3267"
       ],
       "claim_hash": "b0a3d740018695609b0c577a0e6b69c0abb450851c15ebebb643d039ef761135"
     },
@@ -45,13 +61,21 @@
       "alt_phrasings": [
         "logicism reduces math to logic",
         "Frege Russell objection",
-        "arithmetic might be analytic"
+        "arithmetic might be analytic",
+        "logicist program",
+        "math as logic",
+        "Principia-style reduction",
+        "Frege program against Kant"
       ],
       "phrasing_hashes": [
         "549417421c16553d182d8eebdc814d7134b00dae2121fdb0f6ab7d6d32da55c9",
         "7dac6500474c0e18580cf558c3b7122ffda3cb6075c3031aa2deeedc85458d7d",
         "2f8af80c9a3461795055ec08a0ebf3576751b893fc26f1936765001551ac4e51",
-        "7528cd2846b77aa910c6f875d2e0cab2e2f31643b16be02bbf936a84b5a5f90d"
+        "7528cd2846b77aa910c6f875d2e0cab2e2f31643b16be02bbf936a84b5a5f90d",
+        "f3351949437684032b6c5068868891329f49edce4fd69be570bcabef342bfd4a",
+        "d8185b1ebb00301ec34cef314298fec7e834c70a1b922a4fb7211f035a636751",
+        "7767c2df46b13d02393f10c53313cf022f648c5aae54b7a2fa1222c5f107f3cf",
+        "8b99cadeff437eba2a626d1678961e98facfa407fcec5c1dbcde17aebfad98b8"
       ],
       "claim_hash": "549417421c16553d182d8eebdc814d7134b00dae2121fdb0f6ab7d6d32da55c9"
     }
@@ -82,7 +106,7 @@
       ]
     }
   ],
-  "sealed_at": "2026-05-10T10:03:02.895Z",
+  "sealed_at": "2026-05-10T12:51:54.652Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."

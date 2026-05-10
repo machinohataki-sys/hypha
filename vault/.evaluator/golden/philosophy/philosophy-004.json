@@ -13,13 +13,21 @@
       "alt_phrasings": [
         "initial claim",
         "gods love P-things",
-        "definition stated"
+        "definition stated",
+        "starting definition",
+        "opening premise",
+        "initial proposition",
+        "define P as god-loved"
       ],
       "phrasing_hashes": [
         "f8d257723805dff6300bd2601b601d985f25323ee17c72867df77f915cd9f8b5",
         "a603f885c8d06918b7085a2cec7c5e575668946165408ad9be0a14f3f9f8a9fd",
         "12348f79ff1b0100f8d09e6c51b0cd315ac0ef15ac0f96fdad260310580c8741",
-        "944a7e349733ac8ed56065b6d03519f44e74c026f4993c18de8140740cffda79"
+        "944a7e349733ac8ed56065b6d03519f44e74c026f4993c18de8140740cffda79",
+        "4a15f94b9082554ef6958ef1e755e7ebc3c9f390a7d838fa2818d3e1cbb5bb5f",
+        "b8d4b1f88517f88647d139afab43188e9b956a5040396e64782c8a17be11aba8",
+        "e09c4fca2b2ada89d68dfa4c63639945077961ed5ab0a1a4085208060a47d367",
+        "05ab5957d21f0f3ea5c0fcde231c01e5cbef9721ad36407f056e3e9c59bc3ede"
       ],
       "claim_hash": "f8d257723805dff6300bd2601b601d985f25323ee17c72867df77f915cd9f8b5"
     },
@@ -29,13 +37,21 @@
       "alt_phrasings": [
         "horns of dilemma",
         "either-or split",
-        "two readings"
+        "two readings",
+        "dilemma posed",
+        "two-fork question",
+        "binary choice forced",
+        "because-or-makes split"
       ],
       "phrasing_hashes": [
         "62c793d5f79fd5c6f2863d2169a0b6deae0128f8073dd76c473083676e1588f2",
         "b0d8743ba944b929219a57c514130e00406d15d854829516c34a745ae34c9e6a",
         "aa2a5ac08ed43bd7f5eda7f9fda76e29817c7d849d721a420149f877a99772f5",
-        "0eebab0eb7bee42c7f644f50d0799532cdef9695ddc3d70c2110b896b710f9e6"
+        "0eebab0eb7bee42c7f644f50d0799532cdef9695ddc3d70c2110b896b710f9e6",
+        "a234b3624044c05552d8c9a5fdceaa4b101af8b4332c596cb23b746f53df09e0",
+        "845d1f9900cc9504fcac9dfb30bb1881668fa0ad74ce51b1bb2c55504fa08c11",
+        "04225c620d0ea8ec68be1b431185e960c372bc4804e91a59a150211ed10b38dd",
+        "45355cea9b10a658b69927780e365408b65f2117065b01fdb72b57857f774315"
       ],
       "claim_hash": "62c793d5f79fd5c6f2863d2169a0b6deae0128f8073dd76c473083676e1588f2"
     },
@@ -46,14 +62,20 @@
         "both horns fail",
         "horn-collapse",
         "circularity or arbitrariness",
-        "first horn circular second arbitrary"
+        "first horn circular second arbitrary",
+        "each branch contradicts",
+        "circular-or-capricious",
+        "collapse of definition or arbitrariness"
       ],
       "phrasing_hashes": [
         "8880f628e9211b3942cb50077dd598c3d170125b27e04872cf7ca4c63042ed98",
         "e79a923e76b346e0ee7173d1e6e38f4b9ec98e1f49680b8fb678c4f0d05416a8",
         "c11a059b1b65557d79ef1d24d2cff81c86271f0fb28914b3acdb9cc89acb9d3a",
         "7d671debb295a362fdeec2c2764c332c0590997fdecf650fd30fd9b6363aef7a",
-        "aa8baa6d0215bb501ab2d6d5dd94b1abcb1aca9f5e099b3c4622f77301487118"
+        "aa8baa6d0215bb501ab2d6d5dd94b1abcb1aca9f5e099b3c4622f77301487118",
+        "0b208d735982b5593a563c9612d548af9c14a894b73f9a52a19e5afe0dc52641",
+        "6c3a0ddcef6eb8c816cf5c3b4566c118b5a125a903a7bc8274840a8527c6b2ab",
+        "193db7d7b5679ee5406d2474571b336f719155b8e090c59d7e0ff53d7ef22e16"
       ],
       "claim_hash": "8880f628e9211b3942cb50077dd598c3d170125b27e04872cf7ca4c63042ed98"
     }
@@ -83,7 +105,7 @@
       ]
     }
   ],
-  "sealed_at": "2026-05-10T10:03:01.874Z",
+  "sealed_at": "2026-05-10T12:51:54.375Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."

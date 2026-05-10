@@ -1,0 +1,36 @@
+{
+  "rater_id": "b",
+  "name": "wolf",
+  "ts": "2026-05-10T12:56:20.129Z",
+  "ratings": {
+    "c1": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "Candidate formalizes doubt procedure, identifies cogito as undoubtable residue, and notes reader halts at dream argument before deceiver hypothesis.",
+      "ts": "2026-05-10T12:56:04.145Z"
+    },
+    "c2": {
+      "features_hit": [],
+      "verdict": "fail",
+      "justification": "Candidate only states cogito, no formal procedure or typical reader halt.",
+      "ts": "2026-05-10T12:56:09.733Z"
+    },
+    "c3": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "Candidate formalizes doubt procedure, identifies cogito as residue, and notes reader halting at dream argument.",
+      "ts": "2026-05-10T12:56:20.129Z"
+    }
+  },
+  "wolf_baseline": true,
+  "model": "glm-direct:glm-4.5-air",
+  "cost_estimate_yuan": 0.015
+}

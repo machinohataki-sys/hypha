@@ -13,13 +13,21 @@
       "alt_phrasings": [
         "specific professional virtue",
         "engineering-specific",
-        "tied to software practice"
+        "tied to software practice",
+        "craft-specific",
+        "developer-particular",
+        "profession-bound virtue",
+        "not generic ethics"
       ],
       "phrasing_hashes": [
         "e837b70ffd262ce68a085856e781ed300cbdb6797b57f6526303d20a359df2e2",
         "4e2e03435e6c5e24f99ef4088f8aba60e8b384b063732b89a250759f390c4748",
         "82328277732704207f5bcaf1a323ec03ca6299101416ae8a650576e6d5685872",
-        "d684a3c2fc80aa3fdae1a69c20e1fae1cc54dfdfeed2ba9594ec7d3f624858ae"
+        "d684a3c2fc80aa3fdae1a69c20e1fae1cc54dfdfeed2ba9594ec7d3f624858ae",
+        "5b915331eebf45fca13efd095245c68af2f483cc4ac28582d54ea96a78257439",
+        "4c2252240ad9ba6f6e27b1ebb87bcdd0339f394041e31e798c10ae0e7686cf19",
+        "a77d4f486c6e8cb4f160e698ad3aec78c02997bf6a8a0a7c23f79aafda952e6f",
+        "20c8c2d3eac7c10ac295643b6c56349168f71e603433f6171a415d0ae43a1e20"
       ],
       "claim_hash": "e837b70ffd262ce68a085856e781ed300cbdb6797b57f6526303d20a359df2e2"
     },
@@ -29,13 +37,21 @@
       "alt_phrasings": [
         "vice of deficiency",
         "vice of excess",
-        "both extremes"
+        "both extremes",
+        "too-little and too-much",
+        "underdoing and overdoing",
+        "deficiency-excess pair",
+        "paired extremes"
       ],
       "phrasing_hashes": [
         "325a36c13cfcb73fe0f018a2a83043bdd7345e8bc04d8026aa222ab012a65ee3",
         "46143968c2197c6819d60f22fab2105476c3a61db07d1bd1410689b7f2681f74",
         "77b53ab81815babeea010d2cac31d91ee07eb589180030b3878aec9db1ebcdee",
-        "ca79a600c02fa693924d496323d798d2951839c5a887c168412d993998048b74"
+        "ca79a600c02fa693924d496323d798d2951839c5a887c168412d993998048b74",
+        "0aa2671c62886602d96371f28de802bed4051c8d9d8bde6aed716bd6a1ac02cc",
+        "5049e3495ab07fe228f5bee7e7eeaabc7f56b0d5c5a9b90192a4b494849f03a6",
+        "8c85eddbc4794ed5b25b934f0b759188d9a27687f774d32331af22465caddfc7",
+        "d28c03c721b014bcd41680da88d53089e1f5291de8b3975f60db6f557acd92e9"
       ],
       "claim_hash": "325a36c13cfcb73fe0f018a2a83043bdd7345e8bc04d8026aa222ab012a65ee3"
     },
@@ -45,13 +61,21 @@
       "alt_phrasings": [
         "observable in review",
         "concrete behavior",
-        "review pattern"
+        "review pattern",
+        "visible in PR",
+        "review-stage signal",
+        "observable code-review tell",
+        "concrete review behavior"
       ],
       "phrasing_hashes": [
         "8ffd8fd86fb2533ae53d6cec57e38251658054e59ecca9547ffff20d8e022032",
         "827f424f810bfe104c894bda3d9e23ce571becd95c0a0d33c4bda51bd70b6a80",
         "e9cee6a20dda288d4cca57c40ffb5617d387fcc1c24a86d51a761f2e56ee2873",
-        "ab8a0c2b5e979b15d468491c911b11354f9908eec1be91452a4f7de601e86d0b"
+        "ab8a0c2b5e979b15d468491c911b11354f9908eec1be91452a4f7de601e86d0b",
+        "94ea67bfa8f8c0641e7e089631f28427c9d85cd82e936e2c66d5e9d45277bffe",
+        "3a32b426dd9b444c01cd75471e59212e05322b88999a98c5e4e3049ff52a93cc",
+        "eb218d5735f750ea6681d9192e4136ff786494c570967ed9a627487a425f3784",
+        "22c5ff8c8a5d98c7d966fa640b542f6fc4b84880c11fb68aef0ada5bb0599dcc"
       ],
       "claim_hash": "8ffd8fd86fb2533ae53d6cec57e38251658054e59ecca9547ffff20d8e022032"
     }
@@ -82,7 +106,7 @@
       ]
     }
   ],
-  "sealed_at": "2026-05-10T10:03:01.939Z",
+  "sealed_at": "2026-05-10T12:51:54.493Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."

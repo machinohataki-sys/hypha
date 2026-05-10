@@ -205,6 +205,7 @@ function loadTopic(topic) {
     kappa_P_e: kappaResult.P_e,
     kappa_interpretation: kappaResult.interpretation,
     kappa_reason: kappaResult.reason || null,
+    items,
   };
 }
 

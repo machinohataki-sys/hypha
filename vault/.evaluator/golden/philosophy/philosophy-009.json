@@ -13,13 +13,21 @@
       "alt_phrasings": [
         "input belief",
         "iterate doubt test",
-        "suspend doubtable"
+        "suspend doubtable",
+        "test each belief for doubtability",
+        "methodical doubt loop",
+        "procedural doubt",
+        "doubt-and-suspend pipeline"
       ],
       "phrasing_hashes": [
         "692297b6e1cb69e88366cfc8ee4a56b019b430a33624c31993701afe3c8af66c",
         "eb3369f65c3f0643de0f5da2782debc97ab100638e9d25a8f5846321f4d6ad50",
         "4a0f0bd3b3310ef8e41247c3015ae14a29888ebccacd0cd19e37f4e171ef5897",
-        "e879d88331acb1826613ede1fa75a70cc7d1cdde4b65114fbd3c6a26bbc8b718"
+        "e879d88331acb1826613ede1fa75a70cc7d1cdde4b65114fbd3c6a26bbc8b718",
+        "92ac010af3c65610cc17b37205fade2b17955bde4fbf3abdb28cfdf27a412a3d",
+        "03214fecddf0787dd0ced03e3fe2f3bece1525becf5169d5672472e3981d183f",
+        "3ab4df63040c421eb26ac67faaf1df2c380a95dadf269a9ddd0c78f6c60799bd",
+        "07a527af9e9cd7727b0172e060b73dde20b1bb2a3e6095d82be8ad768a12da5c"
       ],
       "claim_hash": "692297b6e1cb69e88366cfc8ee4a56b019b430a33624c31993701afe3c8af66c"
     },
@@ -29,13 +37,21 @@
       "alt_phrasings": [
         "residue of certainty",
         "output is undoubtable",
-        "cogito appears"
+        "cogito appears",
+        "undoubtable remainder",
+        "cogito as fixed point",
+        "residual certainty",
+        "survivor of doubt"
       ],
       "phrasing_hashes": [
         "51e62165ecfa065ab9bd72a8040d3992914b106220cd3d6c96b62013717a5147",
         "8422bad7479743fb5cbba36ba57910063453036e4b3ed158a734b813acf6a70a",
         "3b72d508efe6b2342f8ca31acd03275c4de969fef6575dc8aa5e88703904ca3e",
-        "17916995bd795effc2aa5f4fda73f887ab0b8125c20d6dd0754ec163279f459b"
+        "17916995bd795effc2aa5f4fda73f887ab0b8125c20d6dd0754ec163279f459b",
+        "60bd047ab15ad50c04a99f3124d8f7ce435833c832bc44970b443d203238c451",
+        "e79401f1684e24aff5dc1420f7b766cb1ca7b104e9b03f21a34de7a6dfc2539a",
+        "5dcbbbaaf9e771a802ada9aafb33cd9a289dcd5de7a463e94000a1e203aff718",
+        "4be391f1edbcfaf50cd1c4472e186614145df21da070c5543bc029cc3e28be06"
       ],
       "claim_hash": "51e62165ecfa065ab9bd72a8040d3992914b106220cd3d6c96b62013717a5147"
     },
@@ -46,14 +62,20 @@
         "halts at dream argument",
         "halts at sense deception",
         "halts before deceiving God",
-        "gives up too early"
+        "gives up too early",
+        "stops before evil deceiver",
+        "truncates the doubt",
+        "incomplete doubt sequence"
       ],
       "phrasing_hashes": [
         "e12b4828e2ed75763502eabf4230245f16b0f57a8389c3c78e91c772367058d5",
         "228a46c20ce066c36377dcb4bbd1875275796dfdff01058c4a1972cec50ce365",
         "07112d5b2b70ec580473b9b4272e0307ef5fb2c3a66b9e7bf0d324d6d577a914",
         "d3d8634e8c9a29511c0eff57365cf22befaac668f8da7826855f6eb23c3d741e",
-        "ca57873f991a4f4005bb36006c6535ca205ed92f4ecc30f62745fe36a9b45b22"
+        "ca57873f991a4f4005bb36006c6535ca205ed92f4ecc30f62745fe36a9b45b22",
+        "887a5badfdb7963e4b0e6ed548420f1428b833deeee029f15930eddce7cbd732",
+        "8c79a5e8ee03454b34e172e5521f472d055453fec697b7b247baf1176a22039f",
+        "2285a94e8462633371dc3d5048a00dc9ce1b9d5711c672fc152c94503a0be72a"
       ],
       "claim_hash": "e12b4828e2ed75763502eabf4230245f16b0f57a8389c3c78e91c772367058d5"
     }
@@ -84,7 +106,7 @@
       ]
     }
   ],
-  "sealed_at": "2026-05-10T10:03:01.982Z",
+  "sealed_at": "2026-05-10T12:51:54.572Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."

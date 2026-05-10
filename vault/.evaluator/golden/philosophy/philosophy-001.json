@@ -12,14 +12,22 @@
       "claim": "reduction to a single natural substrate",
       "alt_phrasings": [
         "monism",
+        "monistic",
         "one substance",
-        "single material first principle"
+        "one substrate",
+        "single material first principle",
+        "unified material principle",
+        "first cause"
       ],
       "phrasing_hashes": [
         "f9ae34283cda0bbafb40a1d01e5a5ff30b72f90fb4307b01d9ba4fed129b827e",
         "5398bfe194f180897ad199c37dde46ca765fffaa8c9244512536e0c2cc5d3fb2",
+        "e7c91f49f30fff16fb3502f5afbaf6ebe1446b2fd76b683a335af7f17131fcfa",
         "5c6f7dc45f3dfd758d62d94f9d2495d1c8715f33d899c2b5921708b46991e0e4",
-        "e838d7982365ec4d05af79a569dd6cdb6d1e05b79d1a59fff0e8f79f95970dbc"
+        "27a56c8aafd01026d7121da96b169bc494fc32fd068fc2cac0f42f5c03a8e5a2",
+        "e838d7982365ec4d05af79a569dd6cdb6d1e05b79d1a59fff0e8f79f95970dbc",
+        "43d65396c654aced5d8161ca8da110268ff14ff60a58e3a644ace2c9b4853f16",
+        "3ea04b09c69d1ce0b08917767bc89e59a131824a17c6c95b1eaeace192e25885"
       ],
       "claim_hash": "f9ae34283cda0bbafb40a1d01e5a5ff30b72f90fb4307b01d9ba4fed129b827e"
     },
@@ -30,14 +38,20 @@
         "no gods",
         "secular",
         "natural-not-divine",
-        "not religious"
+        "not religious",
+        "naturalism",
+        "non-theological",
+        "without divine appeal"
       ],
       "phrasing_hashes": [
         "afbb9df6694ed06080c1b9b466a732a96868555a73264819cb8e4ee1abffebaa",
         "705734cb91fe1385226c14d8941ae55be99f9f28619c806c1c9e82c19e83ca3c",
         "044898b289e0e482ce55053f4f1d3695a90720b2dbeb1c358b9ee8004163a06c",
         "25bd320b3b13c3f80baa113b8a27e13a217dd71af002d8efa0abd7ef6417f7a5",
-        "f0c3e33920ac1d3a4fbdbe1828f43595de2c955a57280d3aabb6ac5f19ad43ea"
+        "f0c3e33920ac1d3a4fbdbe1828f43595de2c955a57280d3aabb6ac5f19ad43ea",
+        "fec5e7ac3df912d9f14cd2e0af0106cc111f7ee6e91eae71b80e15d9e63e102f",
+        "233c21b05dc6f8e69cf7c241eb1c5f6317d573d2fd3fca2712234624ad0068cb",
+        "7ef489189038aee691e6f9bf5da59ce50d507b34aaf564c57975198fdf9e39fa"
       ],
       "claim_hash": "afbb9df6694ed06080c1b9b466a732a96868555a73264819cb8e4ee1abffebaa"
     },
@@ -47,13 +61,21 @@
       "alt_phrasings": [
         "can be disproved by water-free thing",
         "observable refutation",
-        "empirical test"
+        "empirical test",
+        "falsifiable",
+        "empirically testable",
+        "refutable by observation",
+        "water-free counterexample"
       ],
       "phrasing_hashes": [
         "b0e8b06452455e750fa108d51c2a13fdd2e9ce8461263cc9ee9add2f5ddd02fe",
         "80ea2c3f2cef52cd68abdad046950944cf82c9272dabf1590bcd506ca7dc49da",
         "e247228a2b2ac9af00fe055a402b12357ced97bdc1a537886b5dd8c5a1131057",
-        "233108ce3574532f959318a174086f97d8b58f202731a400c2d0793fee037467"
+        "233108ce3574532f959318a174086f97d8b58f202731a400c2d0793fee037467",
+        "5cca087c48f093a995d250d4f649d39d759a5fb3ce4bde52073b7873483126c6",
+        "4dd1e00d10493460b0482a9935e275edc8455febf415cc46f8420cc065c29473",
+        "eb1f067c7e2d5c7d29b9a1ae15ee70d3f0b6adfe968220b60d3787351aabfff2",
+        "7e737b91d2c525776826152fba745a69ff2e5f1664d9f000dbd371abb6063b54"
       ],
       "claim_hash": "b0e8b06452455e750fa108d51c2a13fdd2e9ce8461263cc9ee9add2f5ddd02fe"
     }
@@ -82,7 +104,7 @@
       ]
     }
   ],
-  "sealed_at": "2026-05-10T10:03:01.805Z",
+  "sealed_at": "2026-05-10T12:51:53.724Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."

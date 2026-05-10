@@ -1,0 +1,46 @@
+{
+  "topic": "philosophy",
+  "ts": "2026-05-10T12:57:08.500Z",
+  "banner": "AUTHOR_GROUND_VS_WOLF_BASELINE_κ",
+  "note": "rater_a = AUTHOR_GROUND_TRUTH; rater_b = WOLF_RATER_BASELINE. Numbers advisory.",
+  "steps": [
+    {
+      "step": "wolf-rater-b",
+      "script": "wolf-rater.js",
+      "args": [
+        "philosophy",
+        "--rater=b"
+      ],
+      "exitCode": 0,
+      "stdout": "============================================================\n  WOLF_RATER_BASELINE — calibration to author truth,\n  NOT human inter-rater reliability. Use --truth-source=rater\n  numbers as ADVISORY pipeline-sanity checks only.\n============================================================\n[wolf-rater] topic=philosophy rater=b\n[wolf-rater] 33 pair(s) to rate; projected ¥0.165 (cap ¥0.50)\n[wolf-rater] philosophy-002::c1 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-002::c2 hit=[] verdict=fail model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-002::c3 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-003::c1 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-003::c2 hit=[] verdict=fail model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-003::c3 hit=[f1,f3] verdict=pass model=deepseek-direct:deepseek-v4-flash\n[wolf-rater] philosophy-004::c1 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-004::c2 hit=[] verdict=fail model=deepseek-direct:deepseek-v4-flash\n[wolf-rater] philosophy-004::c3 hit=[f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-005::c1 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-005::c2 hit=[] verdict=fail model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-005::c3 hit=[f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-006::c1 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-006::c2 hit=[] verdict=fail model=deepseek-direct:deepseek-v4-flash\n[wolf-rater] philosophy-006::c3 hit=[f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-007::c1 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-007::c2 hit=[] verdict=fail model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-007::c3 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-008::c1 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-008::c2 hit=[] verdict=fail model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-008::c3 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-009::c1 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-009::c2 hit=[] verdict=fail model=deepseek-direct:deepseek-v4-flash\n[wolf-rater] philosophy-009::c3 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-010::c1 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-010::c2 hit=[] verdict=fail model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-010::c3 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-011::c1 hit=[f1,f2,f3] verdict=pass model=glm-direct:glm-4.5-air\n[wolf-rater] philosophy-011::c2 hit=[] verdict=fail model=deepseek-direct:deepseek-v4-flash\n[wolf-rater] philosophy-011::c3 hit=[f1,f2,f3] verdict=pass model=deepseek-direct:deepseek-v4-flash\n[wolf-rater] philosophy-012::c1 hit=[f1,f2,f3] verdict=pass model=deepseek-direct:deepseek-v4-flash\n[wolf-rater] philosophy-012::c2 hit=[] verdict=fail model=deepseek-direct:deepseek-v4-flash\n[wolf-rater] philosophy-012::c3 hit=[f1,f2,f3] verdict=pass model=deepseek-direct:deepseek-v4-flash\n---\n[wolf-rater] labeled 33, failed 0, models=glm-direct:glm-4.5-air|deepseek-direct:deepseek-v4-flash\n[wolf-rater] cumulative est cost: ¥0.165 of ¥0.50 cap\n[wolf-rater] sidecar dir: E:\\victor\\hypha\\vault\\.evaluator\\golden\\philosophy\n[wolf-rater] reminder: WOLF_RATER_BASELINE — calibration to author truth, not human IRR.\n",
+      "stderr": ""
+    },
+    {
+      "step": "synth-rater-a",
+      "written": 11,
+      "skipped": 1,
+      "errors": []
+    },
+    {
+      "step": "compute-kappa",
+      "script": "compute-kappa.js",
+      "args": [
+        "philosophy"
+      ],
+      "exitCode": 0,
+      "stdout": "topic: philosophy\n  n_items: 12\n  n_double_coded: 12\n  n_single_coded: 0\n  n_ratified: 0\n  kappa: 0.9419 (almost-perfect)\n  P_o: 0.9722\n  P_e: 0.5223\n  agreement: 105 / 108\n\n[compute-kappa] PASS: kappa 0.9419 >= gate 0.7.\n",
+      "stderr": ""
+    },
+    {
+      "step": "run-f1-rater",
+      "script": "run-f1.js",
+      "args": [
+        "philosophy",
+        "--truth-source=rater"
+      ],
+      "exitCode": 1,
+      "stdout": "topic: philosophy\n  truth_source: rater\n  gate_passed: true\n  kappa_at_run: 0.9419\n  n_items: 36\n  n_evaluated: 0\n  n_skipped: 36 (0 due to rater disagreement)\n\n[run-f1] FAIL: no evaluable candidate-responses.\n",
+      "stderr": ""
+    }
+  ]
+}

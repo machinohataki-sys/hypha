@@ -27,6 +27,9 @@ Thumbs.db
 *.bak
 *.tmp
 
+# V0.5 — temp smoke + scratch files
+.tmp-smoke-*
+
 # V0.5 — SQLite indices + test slugs are machine-local
 *.db
 *.db-shm

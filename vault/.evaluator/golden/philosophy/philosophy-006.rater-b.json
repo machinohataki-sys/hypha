@@ -1,0 +1,35 @@
+{
+  "rater_id": "b",
+  "name": "wolf",
+  "ts": "2026-05-10T12:55:08.272Z",
+  "ratings": {
+    "c1": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "Candidate correctly maps all four causes to function components, identifies final cause as decorative due to reuse, and explains purpose comes from caller.",
+      "ts": "2026-05-10T12:54:58.443Z"
+    },
+    "c2": {
+      "features_hit": [],
+      "verdict": "fail",
+      "justification": "Candidate does not substantively address any of the required features.",
+      "ts": "2026-05-10T12:55:02.869Z"
+    },
+    "c3": {
+      "features_hit": [
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "Candidate correctly identifies final cause as decorative and explains reuse-driven purpose from caller.",
+      "ts": "2026-05-10T12:55:08.272Z"
+    }
+  },
+  "wolf_baseline": true,
+  "model": "glm-direct:glm-4.5-air",
+  "cost_estimate_yuan": 0.015
+}

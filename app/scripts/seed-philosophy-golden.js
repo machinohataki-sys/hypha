@@ -37,9 +37,9 @@ const ITEMS = [
     source_anchor: 'Diels-Kranz Fragment 11A12; SEP "Pre-Socratic Philosophy" §1',
     instance: 'Thales claimed water is the first principle of all things. State the structural feature of his claim that distinguishes it from a religious explanation, and one observable phenomenon that would falsify it as a literal claim about substance.',
     answer_features: [
-      { id: 'f1', claim: 'reduction to a single natural substrate', alt_phrasings: ['monism', 'one substance', 'single material first principle'] },
-      { id: 'f2', claim: 'naturalistic explanation without divine appeal', alt_phrasings: ['no gods', 'secular', 'natural-not-divine', 'not religious'] },
-      { id: 'f3', claim: 'falsifiable by observation of substance enduring without water', alt_phrasings: ['can be disproved by water-free thing', 'observable refutation', 'empirical test'] },
+      { id: 'f1', claim: 'reduction to a single natural substrate', alt_phrasings: ['monism', 'monistic', 'one substance', 'one substrate', 'single material first principle', 'unified material principle', 'first cause'] },
+      { id: 'f2', claim: 'naturalistic explanation without divine appeal', alt_phrasings: ['no gods', 'secular', 'natural-not-divine', 'not religious', 'naturalism', 'non-theological', 'without divine appeal'] },
+      { id: 'f3', claim: 'falsifiable by observation of substance enduring without water', alt_phrasings: ['can be disproved by water-free thing', 'observable refutation', 'empirical test', 'falsifiable', 'empirically testable', 'refutable by observation', 'water-free counterexample'] },
     ],
     k_threshold: 2,
     candidate_responses: [
@@ -53,9 +53,9 @@ const ITEMS = [
     source_anchor: 'Diels-Kranz Fragment 22B12 + 22B49a; SEP "Heraclitus" §2',
     instance: 'Heraclitus says you cannot step into the same river twice. Restate this in modern terms by naming the conserved quantity (if any) and the variant quantity, and give one engineered system where this distinction is operationally tracked.',
     answer_features: [
-      { id: 'f1', claim: 'identity or pattern is conserved as continuous trajectory', alt_phrasings: ['form persists', 'pattern conserved', 'identity is continuous'] },
-      { id: 'f2', claim: 'matter or content is the variant quantity', alt_phrasings: ['content changes', 'matter is variant', 'substance flows'] },
-      { id: 'f3', claim: 'engineered analog tracks identity across content edits', alt_phrasings: ['hash-versioned', 'append-only log', 'event sourcing', 'git', 'database row identity'] },
+      { id: 'f1', claim: 'identity or pattern is conserved as continuous trajectory', alt_phrasings: ['form persists', 'pattern conserved', 'identity is continuous', 'continuity of pattern', 'structural identity preserved', 'shape persists across change', 'invariant under flux'] },
+      { id: 'f2', claim: 'matter or content is the variant quantity', alt_phrasings: ['content changes', 'matter is variant', 'substance flows', 'material is variable', 'content is replaced', 'tokens swap underneath', 'water molecules differ'] },
+      { id: 'f3', claim: 'engineered analog tracks identity across content edits', alt_phrasings: ['hash-versioned', 'append-only log', 'event sourcing', 'git', 'database row identity', 'version control', 'commit history', 'primary-key persistence'] },
     ],
     k_threshold: 2,
     candidate_responses: [
@@ -69,9 +69,9 @@ const ITEMS = [
     source_anchor: 'Parmenides "On Nature" Fragment 8; SEP "Parmenides" §3',
     instance: 'Parmenides argued change is impossible because what-is cannot become what-is-not. Construct one analogy from physics or computer science where his deductive structure holds, and one where it fails. Identify the breaking premise.',
     answer_features: [
-      { id: 'f1', claim: 'analog where deduction holds (closed-system conservation)', alt_phrasings: ['conservation of mass-energy', 'closed system', 'static identity'] },
-      { id: 'f2', claim: 'analog where deduction fails (transient or rolled-back state)', alt_phrasings: ['branch prediction misspeculation', 'rolled-back transaction', 'speculative state', 'discarded computation'] },
-      { id: 'f3', claim: 'breaking premise: treating what-is as static binary not function over time', alt_phrasings: ['premise breaks because identity is time-dependent', 'temporal becoming is allowed', 'state can exist transiently'] },
+      { id: 'f1', claim: 'analog where deduction holds (closed-system conservation)', alt_phrasings: ['conservation of mass-energy', 'closed system', 'static identity', 'thermodynamic conservation', 'energy is conserved', 'isolated system invariant', 'no flow across boundary'] },
+      { id: 'f2', claim: 'analog where deduction fails (transient or rolled-back state)', alt_phrasings: ['branch prediction misspeculation', 'rolled-back transaction', 'speculative state', 'discarded computation', 'transient state', 'aborted transaction', 'speculative execution', 'mispredicted branch'] },
+      { id: 'f3', claim: 'breaking premise: treating what-is as static binary not function over time', alt_phrasings: ['premise breaks because identity is time-dependent', 'temporal becoming is allowed', 'state can exist transiently', 'being is not binary', 'existence as time function', 'static-vs-dynamic confusion', 'binary being is the false premise'] },
     ],
     k_threshold: 2,
     candidate_responses: [
@@ -85,9 +85,9 @@ const ITEMS = [
     source_anchor: 'Plato Euthyphro 9e-11b (Stephanus); SEP "Plato\'s Ethics" §3.2',
     instance: 'In Plato\'s Euthyphro, Socrates derives a contradiction from Euthyphro\'s definition of piety. Reconstruct the elenchus in three steps using a generic predicate P. State the form of the contradiction.',
     answer_features: [
-      { id: 'f1', claim: 'step 1 establishes the original definition (gods love P-things because they are P or vice versa)', alt_phrasings: ['initial claim', 'gods love P-things', 'definition stated'] },
-      { id: 'f2', claim: 'step 2 forces dilemma between two horns', alt_phrasings: ['horns of dilemma', 'either-or split', 'two readings'] },
-      { id: 'f3', claim: 'each horn yields contradiction (one collapses definition, other makes P arbitrary)', alt_phrasings: ['both horns fail', 'horn-collapse', 'circularity or arbitrariness', 'first horn circular second arbitrary'] },
+      { id: 'f1', claim: 'step 1 establishes the original definition (gods love P-things because they are P or vice versa)', alt_phrasings: ['initial claim', 'gods love P-things', 'definition stated', 'starting definition', 'opening premise', 'initial proposition', 'define P as god-loved'] },
+      { id: 'f2', claim: 'step 2 forces dilemma between two horns', alt_phrasings: ['horns of dilemma', 'either-or split', 'two readings', 'dilemma posed', 'two-fork question', 'binary choice forced', 'because-or-makes split'] },
+      { id: 'f3', claim: 'each horn yields contradiction (one collapses definition, other makes P arbitrary)', alt_phrasings: ['both horns fail', 'horn-collapse', 'circularity or arbitrariness', 'first horn circular second arbitrary', 'each branch contradicts', 'circular-or-capricious', 'collapse of definition or arbitrariness'] },
     ],
     k_threshold: 2,
     candidate_responses: [
@@ -101,9 +101,9 @@ const ITEMS = [
     source_anchor: 'Plato Republic 507b-509b (Stephanus); SEP "Plato on Forms" §1',
     instance: 'Plato\'s theory of Forms claims particulars participate in universal Forms. Specify one observable consequence of this theory that would distinguish it from nominalism, and explain why two thousand years of debate has not settled the question.',
     answer_features: [
-      { id: 'f1', claim: 'predicted consequence: discovery of intrinsic structure unifying disparate instances', alt_phrasings: ['mathematical universals hold across cases', 'non-physical pattern across instances', 'lawful structure'] },
-      { id: 'f2', claim: 'nominalism vs realism make identical empirical predictions', alt_phrasings: ['empirically indistinguishable', 'no observable difference', 'same predictions'] },
-      { id: 'f3', claim: 'unsettled because the disagreement is metaphysical not falsifiable', alt_phrasings: ['metaphysical not empirical', 'cannot be tested by current methods', 'underdetermined by data'] },
+      { id: 'f1', claim: 'predicted consequence: discovery of intrinsic structure unifying disparate instances', alt_phrasings: ['mathematical universals hold across cases', 'non-physical pattern across instances', 'lawful structure', 'shared form across particulars', 'universals hold lawfully', 'cross-instance regularity', 'structure unifies cases'] },
+      { id: 'f2', claim: 'nominalism vs realism make identical empirical predictions', alt_phrasings: ['empirically indistinguishable', 'no observable difference', 'same predictions', 'observationally equivalent', 'empirically tied', 'experimentally identical', 'same data both ways'] },
+      { id: 'f3', claim: 'unsettled because the disagreement is metaphysical not falsifiable', alt_phrasings: ['metaphysical not empirical', 'cannot be tested by current methods', 'underdetermined by data', 'beyond empirical reach', 'not falsifiable', 'metaphysical question', 'evidence-blind dispute'] },
     ],
     k_threshold: 2,
     candidate_responses: [
@@ -117,9 +117,9 @@ const ITEMS = [
     source_anchor: 'Aristotle Physics II.3 (194b-195a Bekker); Metaphysics V.2 (1013a-b)',
     instance: 'Apply Aristotle\'s four causes (material, formal, efficient, final) to a recursive Fibonacci function. Then identify which cause modern engineering treats as decorative and why.',
     answer_features: [
-      { id: 'f1', claim: 'four causes mapped concretely to function (bytes / recursive structure / call-site / output goal)', alt_phrasings: ['material is bytes or stack', 'formal is recursion structure', 'efficient is caller', 'final is the output'] },
-      { id: 'f2', claim: 'final cause identified as decorative in modern engineering', alt_phrasings: ['final cause is decoration', 'teleology is dropped', 'final is decorative', 'goal not embedded'] },
-      { id: 'f3', claim: 'reason is reuse: function purpose comes from caller not function itself', alt_phrasings: ['function reused for many purposes', 'caller supplies teleology', 'no embedded goal'] },
+      { id: 'f1', claim: 'four causes mapped concretely to function (bytes / recursive structure / call-site / output goal)', alt_phrasings: ['material is bytes or stack', 'formal is recursion structure', 'efficient is caller', 'final is the output', 'four causes mapped to function', 'all four causes applied', 'concrete cause assignment', 'matter form efficient end'] },
+      { id: 'f2', claim: 'final cause identified as decorative in modern engineering', alt_phrasings: ['final cause is decoration', 'teleology is dropped', 'final is decorative', 'goal not embedded', 'teleology demoted', 'purpose is ornamental', 'engineering ignores final cause'] },
+      { id: 'f3', claim: 'reason is reuse: function purpose comes from caller not function itself', alt_phrasings: ['function reused for many purposes', 'caller supplies teleology', 'no embedded goal', 'reuse-driven', 'caller decides purpose', 'purpose external to function', 'goal lives in call-site'] },
     ],
     k_threshold: 2,
     candidate_responses: [
@@ -133,9 +133,9 @@ const ITEMS = [
     source_anchor: 'Aristotle Nicomachean Ethics II.6 (1106b Bekker); SEP "Aristotle\'s Ethics" §6',
     instance: 'Aristotle locates virtue as a mean between two vices. Pick one professional virtue specific to a software engineer (NOT a generic virtue), name the two flanking vices precisely, and give one decision boundary observable in code review where both vices manifest.',
     answer_features: [
-      { id: 'f1', claim: 'virtue is software-specific (not generic courage / honesty)', alt_phrasings: ['specific professional virtue', 'engineering-specific', 'tied to software practice'] },
-      { id: 'f2', claim: 'two flanking vices named precisely with deficiency / excess structure', alt_phrasings: ['vice of deficiency', 'vice of excess', 'both extremes'] },
-      { id: 'f3', claim: 'concrete decision boundary in code review where each vice manifests', alt_phrasings: ['observable in review', 'concrete behavior', 'review pattern'] },
+      { id: 'f1', claim: 'virtue is software-specific (not generic courage / honesty)', alt_phrasings: ['specific professional virtue', 'engineering-specific', 'tied to software practice', 'craft-specific', 'developer-particular', 'profession-bound virtue', 'not generic ethics'] },
+      { id: 'f2', claim: 'two flanking vices named precisely with deficiency / excess structure', alt_phrasings: ['vice of deficiency', 'vice of excess', 'both extremes', 'too-little and too-much', 'underdoing and overdoing', 'deficiency-excess pair', 'paired extremes'] },
+      { id: 'f3', claim: 'concrete decision boundary in code review where each vice manifests', alt_phrasings: ['observable in review', 'concrete behavior', 'review pattern', 'visible in PR', 'review-stage signal', 'observable code-review tell', 'concrete review behavior'] },
     ],
     k_threshold: 2,
     candidate_responses: [
@@ -149,9 +149,9 @@ const ITEMS = [
     source_anchor: 'Epictetus Enchiridion §1; Discourses I.1; SEP "Epictetus" §3',
     instance: 'Epictetus distinguishes what is up to us (prohairesis) from what is not. State the distinction in one line, then apply to a software incident: a service goes down due to upstream provider regional outage. Identify the engineer\'s prohairetic responsibilities and what falls outside.',
     answer_features: [
-      { id: 'f1', claim: 'distinction stated: judgments and intentions are up to us; outcomes that depend on externals are not', alt_phrasings: ['internal judgments vs external outcomes', 'opinions and choices versus events', 'what we control versus what we do not'] },
-      { id: 'f2', claim: 'prohairetic responsibilities applied: communication, prior monitoring, response choice', alt_phrasings: ['how we communicate', 'monitoring set up beforehand', 'what we choose to do'] },
-      { id: 'f3', claim: 'externals identified: upstream outage, customer reaction, timing', alt_phrasings: ['outage itself', 'customer feelings', 'timing of incident'] },
+      { id: 'f1', claim: 'distinction stated: judgments and intentions are up to us; outcomes that depend on externals are not', alt_phrasings: ['internal judgments vs external outcomes', 'opinions and choices versus events', 'what we control versus what we do not', 'prohairesis vs externals', 'will versus events', 'inner choice and outer event split', 'control distinction'] },
+      { id: 'f2', claim: 'prohairetic responsibilities applied: communication, prior monitoring, response choice', alt_phrasings: ['how we communicate', 'monitoring set up beforehand', 'what we choose to do', 'pre-incident preparedness', 'communication discipline', 'response posture', 'observability up-front'] },
+      { id: 'f3', claim: 'externals identified: upstream outage, customer reaction, timing', alt_phrasings: ['outage itself', 'customer feelings', 'timing of incident', 'upstream failure', 'when outage hits', 'customer reception', 'externalities of incident'] },
     ],
     k_threshold: 2,
     candidate_responses: [
@@ -165,9 +165,9 @@ const ITEMS = [
     source_anchor: 'Descartes Meditation 1 (AT VII 17-23); SEP "Descartes\' Method" §2',
     instance: 'Descartes\' Meditations 1 produces the cogito after methodical doubt. Reconstruct the doubt as a formal procedure: input, transformation steps, output. State at which step a typical reader incorrectly halts and why.',
     answer_features: [
-      { id: 'f1', claim: 'procedure formalized: input is any belief, steps test doubtability and suspend', alt_phrasings: ['input belief', 'iterate doubt test', 'suspend doubtable'] },
-      { id: 'f2', claim: 'cogito emerges as residue of beliefs not doubtable', alt_phrasings: ['residue of certainty', 'output is undoubtable', 'cogito appears'] },
-      { id: 'f3', claim: 'typical reader halts before exhausting harder doubts (e.g., dream argument or evil deceiver)', alt_phrasings: ['halts at dream argument', 'halts at sense deception', 'halts before deceiving God', 'gives up too early'] },
+      { id: 'f1', claim: 'procedure formalized: input is any belief, steps test doubtability and suspend', alt_phrasings: ['input belief', 'iterate doubt test', 'suspend doubtable', 'test each belief for doubtability', 'methodical doubt loop', 'procedural doubt', 'doubt-and-suspend pipeline'] },
+      { id: 'f2', claim: 'cogito emerges as residue of beliefs not doubtable', alt_phrasings: ['residue of certainty', 'output is undoubtable', 'cogito appears', 'undoubtable remainder', 'cogito as fixed point', 'residual certainty', 'survivor of doubt'] },
+      { id: 'f3', claim: 'typical reader halts before exhausting harder doubts (e.g., dream argument or evil deceiver)', alt_phrasings: ['halts at dream argument', 'halts at sense deception', 'halts before deceiving God', 'gives up too early', 'stops before evil deceiver', 'truncates the doubt', 'incomplete doubt sequence'] },
     ],
     k_threshold: 2,
     candidate_responses: [
@@ -181,9 +181,9 @@ const ITEMS = [
     source_anchor: 'Hume Treatise Book I Part III §6; Enquiry §IV',
     instance: 'Hume argues induction cannot be justified non-circularly. Construct the circular argument explicitly. State how a working scientist responds in practice and why that response is not a refutation of Hume.',
     answer_features: [
-      { id: 'f1', claim: 'circular argument: induction has worked before, but THAT inference is itself inductive', alt_phrasings: ['justification uses induction itself', 'circularity stated', 'self-referential justification'] },
-      { id: 'f2', claim: 'scientist response: methodological commitment, not proven theorem', alt_phrasings: ['pragmatic acceptance', 'methodological not proven', 'works in practice'] },
-      { id: 'f3', claim: 'not a refutation: Hume conceded induction works, only denied deductive justification', alt_phrasings: ['Hume did not deny effectiveness', 'concedes one denies the other', 'addresses different question'] },
+      { id: 'f1', claim: 'circular argument: induction has worked before, but THAT inference is itself inductive', alt_phrasings: ['justification uses induction itself', 'circularity stated', 'self-referential justification', 'begging the question', 'induction justified by induction', 'circular reasoning identified', 'petitio principii'] },
+      { id: 'f2', claim: 'scientist response: methodological commitment, not proven theorem', alt_phrasings: ['pragmatic acceptance', 'methodological not proven', 'works in practice', 'practical posture', 'methodological assumption', 'working hypothesis', 'taken as policy not proof'] },
+      { id: 'f3', claim: 'not a refutation: Hume conceded induction works, only denied deductive justification', alt_phrasings: ['Hume did not deny effectiveness', 'concedes one denies the other', 'addresses different question', 'Hume granted it works', 'effectiveness vs deductive justification', 'separate claims', 'distinct questions'] },
     ],
     k_threshold: 2,
     candidate_responses: [
@@ -197,9 +197,9 @@ const ITEMS = [
     source_anchor: 'Kant Critique of Pure Reason A6-10/B10-14; Prolegomena §2',
     instance: 'Kant distinguishes a priori from a posteriori knowledge and analytic from synthetic propositions, yielding four combinations. State why synthetic a priori is the philosophically important category and give one mathematical proposition Kant claims is synthetic a priori. Note one reason a 21st-century reader may disagree.',
     answer_features: [
-      { id: 'f1', claim: 'synthetic a priori is a third source of knowledge beyond pure logic and pure observation', alt_phrasings: ['informative AND independent of experience', 'beyond logic and observation', 'third knowledge source'] },
-      { id: 'f2', claim: 'example: 7+5=12 (or similar arithmetic) treated as synthetic a priori', alt_phrasings: ['7 plus 5 equals 12', 'arithmetic example', 'mathematical proposition'] },
-      { id: 'f3', claim: 'Frege/Russell logicism would reduce arithmetic to logic, making it analytic', alt_phrasings: ['logicism reduces math to logic', 'Frege Russell objection', 'arithmetic might be analytic'] },
+      { id: 'f1', claim: 'synthetic a priori is a third source of knowledge beyond pure logic and pure observation', alt_phrasings: ['informative AND independent of experience', 'beyond logic and observation', 'third knowledge source', 'non-trivial yet a priori', 'informative non-empirical truth', 'substantive yet experience-independent', 'third epistemic category'] },
+      { id: 'f2', claim: 'example: 7+5=12 (or similar arithmetic) treated as synthetic a priori', alt_phrasings: ['7 plus 5 equals 12', 'arithmetic example', 'mathematical proposition', 'sum example', 'basic arithmetic case', 'addition of small integers', 'a sum like 7+5=12'] },
+      { id: 'f3', claim: 'Frege/Russell logicism would reduce arithmetic to logic, making it analytic', alt_phrasings: ['logicism reduces math to logic', 'Frege Russell objection', 'arithmetic might be analytic', 'logicist program', 'math as logic', 'Principia-style reduction', 'Frege program against Kant'] },
     ],
     k_threshold: 2,
     candidate_responses: [
@@ -213,9 +213,9 @@ const ITEMS = [
     source_anchor: 'Kant Groundwork of the Metaphysic of Morals §II (4:421-4:424); SEP "Kant\'s Moral Philosophy" §6',
     instance: 'Kant\'s categorical imperative tests a maxim by universalizing it. Apply this test to "I will deceive my evaluator about my work to gain credit." Walk through universalization, identify the contradiction (in conception or in will), explain why this maxim fails by Kant\'s standard.',
     answer_features: [
-      { id: 'f1', claim: 'universalization step performed: imagine all learners deceiving all evaluators', alt_phrasings: ['imagine universal adoption', 'every learner does this', 'as universal law'] },
-      { id: 'f2', claim: 'contradiction in conception: institution of evaluation dissolves under universal deception', alt_phrasings: ['institution collapses', 'cannot even be conceived', 'self-undermining', 'evaluation cannot exist'] },
-      { id: 'f3', claim: 'failure mode: maxim depends parasitically on most being truthful', alt_phrasings: ['parasitic on truthfulness of others', 'free-rider', 'cannot be universally adopted'] },
+      { id: 'f1', claim: 'universalization step performed: imagine all learners deceiving all evaluators', alt_phrasings: ['imagine universal adoption', 'every learner does this', 'as universal law', 'lift maxim to universal', 'universalize the maxim', 'apply to everyone', 'as if all adopt'] },
+      { id: 'f2', claim: 'contradiction in conception: institution of evaluation dissolves under universal deception', alt_phrasings: ['institution collapses', 'cannot even be conceived', 'self-undermining', 'evaluation cannot exist', 'institution becomes incoherent', 'practice destroys itself', 'evaluation dissolves'] },
+      { id: 'f3', claim: 'failure mode: maxim depends parasitically on most being truthful', alt_phrasings: ['parasitic on truthfulness of others', 'free-rider', 'cannot be universally adopted', 'rides on others honesty', 'depends on majority not adopting', 'free-rider problem', 'requires others to be honest'] },
     ],
     k_threshold: 2,
     candidate_responses: [

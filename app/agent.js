@@ -2,6 +2,28 @@
 
 const fetch = require('node-fetch');
 const OpenAI = require('openai');
+// V0.5 E0 D6 — typed event writer + sqlite model_calls bridge.
+// DAG-edge: agent.js imports events + sqlite; neither imports back.
+// `events.write(slug, ...)` replaces ad-hoc `vault.appendJSONL('events.jsonl', ...)`
+// scattered through this file (3 call sites in lines ~86-146 + 1 method-tag at ~2361).
+// Slug resolution: `opts.lesson_slug` || `settings.lesson_slug` || '_global'.
+// `_global` slug carves a vault/_global/events.jsonl bucket for context-free events
+// (provider connectivity tests, harvest scans). Per-lesson events still land per-slug.
+//
+// Cost recording (`sqliteDb.recordChatCallEstimate`) is wired at the
+// `designSkeletonOnly` executeChat call site (this file's only direct executeChat).
+// Other heavy executeChat-driven sites live OUTSIDE agent.js and remain UNWIRED in
+// this tranche (Machino-B file ownership = agent.js + db/sqlite.js only):
+//   - app/lib/lesson-body-generator.js:283  (T6_STRONG body gen)        [defer D7]
+//   - app/lib/scoring.js:243                 (scoreMicroProof judge)     [defer D7]
+//   - app/lib/anti-slop/prosecute-judge-rewrite.js:96/172/255 (3 calls)  [defer D7]
+//   - app/lib/anti-slop/confession.js:96     (confession layer)          [defer D7]
+//   - app/lib/harvest/layer1-canonical.js:752 (syllabus extract)         [defer D7]
+//   - app/scripts/wolf-rater.js:168          (offline judge)             [defer D7]
+// Wrapping those is a follow-up (D7+) — pattern is uniform: capture _t0, await
+// dispatch, call sqliteDb.recordChatCallEstimate(dispatch, '<taskType>', {latency_ms,...}).
+const events = require('./lib/events');
+const sqliteDb = require('./db/sqlite');
 // Hypha Product Constitution — prepended to every LLM system prompt so output
 // inherits the product's manuscript-register / pedagogical-philosophy soul,
 // not just generic LLM defaults. Edit `lib/hypha-constitution.js` to evolve.
@@ -81,10 +103,12 @@ function _detectAndLogIngratiation(text, settings, opts) {
   if (!Array.isArray(hits) || hits.length === 0) return;
 
   try {
-    const vault = require('./lib/vault');
     const phrases = hits.map(h => (h && h.match) ? String(h.match).slice(0, 80) : '').filter(Boolean);
-    vault.appendJSONL('events.jsonl', {
-      ts: new Date().toISOString(),
+    const slug = (opts && opts.lesson_slug) || (settings && settings.lesson_slug) || '_global';
+    // V0.5 E0 D6 — type/op + field names UNCHANGED (downstream consumers depend).
+    // `op` retained alongside events.write's required `type` to keep legacy readers working.
+    events.write(slug, {
+      type: 'ingratiation_flagged',
       op: 'ingratiation_flagged',
       provider: settings && settings.provider,
       model: settings && settings.model,
@@ -99,7 +123,10 @@ function _detectAndLogIngratiation(text, settings, opts) {
     if (typeof console !== 'undefined' && console.warn) {
       console.warn(`[ingratiation_flagged] count=${hits.length} phrases=`, phrases.slice(0, 3));
     }
-  } catch (_) { /* swallow — flagging must never break the call */ }
+  } catch (err) {
+    // Never silent-catch: flagging must not break the call but failure must surface.
+    console.warn('[ingratiation_flagged] write failed:', err && err.message);
+  }
 }
 
 function _detectAndLogPersonaLeak(text, settings, opts) {
@@ -109,10 +136,11 @@ function _detectAndLogPersonaLeak(text, settings, opts) {
   const ccLeak = _detectClaudeCodeLeak(text);
   if (ccLeak) {
     try {
-      const vault = require('./lib/vault');
       const idx = text.search(new RegExp(ccLeak.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i'));
-      vault.appendJSONL('events.jsonl', {
-        ts: new Date().toISOString(),
+      const slug = (opts && opts.lesson_slug) || (settings && settings.lesson_slug) || '_global';
+      // V0.5 E0 D6 — type/op + field names UNCHANGED.
+      events.write(slug, {
+        type: 'claude_code_meta_leak',
         op: 'claude_code_meta_leak',
         provider: settings && settings.provider,
         model: settings && settings.model,
@@ -122,7 +150,9 @@ function _detectAndLogPersonaLeak(text, settings, opts) {
         hint: 'CLI sandbox failed — CLAUDE.md walk-up or ~/.claude/ leak. Check _hyphaSandboxDir + CLAUDE_CONFIG_DIR/HOME env in spawn.',
       });
       console.warn('[claude_code_meta_leak] hit=', ccLeak, ' — sandbox may be misconfigured');
-    } catch (_) {}
+    } catch (err) {
+      console.warn('[claude_code_meta_leak] write failed:', err && err.message);
+    }
   }
   // Original agent-name leak detector (Lung/Leo/Yogo/Muse/etc).
   const re = _buildPersonaLeakRE(settings);
@@ -130,10 +160,11 @@ function _detectAndLogPersonaLeak(text, settings, opts) {
   const m = text.match(re);
   if (!m) return;
   try {
-    const vault = require('./lib/vault');
     const idx = text.search(re);
+    const slug = (opts && opts.lesson_slug) || (settings && settings.lesson_slug) || '_global';
+    // V0.5 E0 D6 — type/op + field names UNCHANGED.
     const evt = {
-      ts: new Date().toISOString(),
+      type: 'persona_leak',
       op: 'persona_leak',
       provider: settings && settings.provider,
       model: settings && settings.model,
@@ -141,9 +172,11 @@ function _detectAndLogPersonaLeak(text, settings, opts) {
       snippet: text.slice(Math.max(0, idx - 40), idx + 80),
       context: (opts && opts.context) || 'tutor_turn',
     };
-    vault.appendJSONL('events.jsonl', evt);
+    events.write(slug, evt);
     console.warn('[persona_leak]', m[0], 'in', evt.snippet.slice(0, 60));
-  } catch (_) { /* swallow — leak detection must never break the call */ }
+  } catch (err) {
+    console.warn('[persona_leak] write failed:', err && err.message);
+  }
 }
 
 const BANNED_DOMAINS = [
@@ -2357,16 +2390,19 @@ function _logMethodTag(text, settings, opts) {
   const m = text.match(METHOD_TAG_RE);
   if (!m) return;
   try {
-    const vault = require('./lib/vault');
-    vault.appendJSONL('events.jsonl', {
-      ts: new Date().toISOString(),
+    const slug = (opts && opts.lesson_slug) || (settings && settings.lesson_slug) || '_global';
+    // V0.5 E0 D6 — type/op + field names UNCHANGED.
+    events.write(slug, {
+      type: 'method_used',
       op: 'method_used',
       method: m[1],
       provider: settings && settings.provider,
       model: settings && settings.model,
       context: (opts && opts.context) || 'tutor_turn',
     });
-  } catch (_) {}
+  } catch (err) {
+    console.warn('[method_used] write failed:', err && err.message);
+  }
 }
 
 // getEmphasis — exposed to main.js so the lesson IPC can detect when a
@@ -4729,6 +4765,7 @@ Return the JSON now. Anchor lesson 0 at the start of the canonical syllabus orde
     let llm = null;
     try { llm = require('./lib/llm'); } catch (_) { llm = null; }
     if (llm && typeof llm.executeChat === 'function') {
+      const _t0 = Date.now();
       const dispatch = await llm.executeChat('T6_STRONG', {
         messages: [
           { role: 'system', content: sys },
@@ -4739,6 +4776,18 @@ Return the JSON now. Anchor lesson 0 at the start of the canonical syllabus orde
         maxTokens: 4000,
         timeoutMs: 90000,
       });
+      const _latency = Date.now() - _t0;
+      // V0.5 E0 D6 — record cost estimate row for designSkeletonOnly call.
+      // Wrapped: recordChatCallEstimate must never break course creation.
+      try {
+        sqliteDb.recordChatCallEstimate(dispatch, 'designSkeletonOnly', {
+          latency_ms: _latency,
+          tuple_id: (args && args.topicSlug) || null,
+          success: true,
+        });
+      } catch (err) {
+        console.warn('[recordChatCallEstimate] designSkeletonOnly slug=', (args && args.topicSlug) || '_global', 'err=', err && err.message);
+      }
       // executeChat result shape varies per provider; pull text content.
       const r = dispatch && dispatch.result;
       if (typeof r === 'string') raw = r;

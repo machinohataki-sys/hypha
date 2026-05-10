@@ -13,13 +13,21 @@
       "alt_phrasings": [
         "imagine universal adoption",
         "every learner does this",
-        "as universal law"
+        "as universal law",
+        "lift maxim to universal",
+        "universalize the maxim",
+        "apply to everyone",
+        "as if all adopt"
       ],
       "phrasing_hashes": [
         "141dce2e621a212bdf52e8695b04e5aabd459b3beeb18a22563a0d626b21946a",
         "83384d0802d164da1acc3bac899de3d1534cec81512958db5dc768c9b8ca108c",
         "0d7cbbccae5b9bbe5806be3100a31fd2af1fa2010cb3bc53f3301fbd2a25a339",
-        "e5d3ee81abd68a3eab511fd9aa6a9d22d48b798c99bbc6246c0abaeff69a12b3"
+        "e5d3ee81abd68a3eab511fd9aa6a9d22d48b798c99bbc6246c0abaeff69a12b3",
+        "7e9d624c61f0d692f5c9486f27df22994aefb3cd881e64807eb7223467b88761",
+        "70bb18549e0e1f848ffe1f68c12589ed1618e6090ec6a74f824f0ffdc5a73d81",
+        "e4f9c067939ddd014f1ff1b5a568d33d889d6d580fa0b712772cb614b8b67142",
+        "d37d1745014623bc5233d6726743ceb24dd90178a6dda0f57bc79f8053213ca0"
       ],
       "claim_hash": "141dce2e621a212bdf52e8695b04e5aabd459b3beeb18a22563a0d626b21946a"
     },
@@ -30,14 +38,20 @@
         "institution collapses",
         "cannot even be conceived",
         "self-undermining",
-        "evaluation cannot exist"
+        "evaluation cannot exist",
+        "institution becomes incoherent",
+        "practice destroys itself",
+        "evaluation dissolves"
       ],
       "phrasing_hashes": [
         "52dac56bb0eed320b7cbc807a72be4f1a273571cba71ea385896954651b85c1c",
         "2f8582b8feb8b6dc0f7250d6c1f487f56769eba5ebd26733b1b82fc0698a63c9",
         "c4246b1ffc2c9f9037cef8b1789a68642fe1670662791fe00f497188dcda5f79",
         "c76c17a046b1ef4287d60622e0080b1b8697aa15c7bb0615b7dbbd6dbc422f60",
-        "10e3d9525a81df70d6694bb48a98001167720074f40681ddeb3f98b45bd73a7c"
+        "10e3d9525a81df70d6694bb48a98001167720074f40681ddeb3f98b45bd73a7c",
+        "7f7400c62bcaab8737f41add39775a73e529546f93ad110b83c8ec1e364ed113",
+        "6b917e72bee0f143838f794dde264db68d1054f4a8810f46fd964382b2f40b00",
+        "11b5d2f61c23db8bacf6dc5e5b3c9f695e626ded7edb30d85b3ca8e6e41e849a"
       ],
       "claim_hash": "52dac56bb0eed320b7cbc807a72be4f1a273571cba71ea385896954651b85c1c"
     },
@@ -47,13 +61,21 @@
       "alt_phrasings": [
         "parasitic on truthfulness of others",
         "free-rider",
-        "cannot be universally adopted"
+        "cannot be universally adopted",
+        "rides on others honesty",
+        "depends on majority not adopting",
+        "free-rider problem",
+        "requires others to be honest"
       ],
       "phrasing_hashes": [
         "2c035bdbddca59c8053f68e9214f1351f0f2441c9193f7884cf1fe29ebae1144",
         "b010498c08794cadd1afe2aae92a7371d896ac76dcdf716e466c8b23d8c8e1a0",
         "4c5c880e37271f14ee22076f1ea29e82202edc2de278a08295ff2b35507203a5",
-        "2a7225c3fe9028dbd59845d0f388f3f711be170fad92973b4b43c26d04fb6b91"
+        "2a7225c3fe9028dbd59845d0f388f3f711be170fad92973b4b43c26d04fb6b91",
+        "5b490e9ebad96121ac11b0f6d8e824c97a51de4cf617d2a690689af5a1fdf047",
+        "383c87e6a9a94d6060866e89da7d33816c121637d9ffb3234fd49fc05791cbb5",
+        "2474e0a381f6161a58d4b4561bb04b07bf68ce719d20f96607588a489c9203e0",
+        "09c6e0cbbe24b8dd63e5b4e05dde79f3b0f0796735e11f38773bbdc8f831ccd8"
       ],
       "claim_hash": "2c035bdbddca59c8053f68e9214f1351f0f2441c9193f7884cf1fe29ebae1144"
     }
@@ -83,7 +105,7 @@
       ]
     }
   ],
-  "sealed_at": "2026-05-10T10:03:03.893Z",
+  "sealed_at": "2026-05-10T12:51:54.691Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
