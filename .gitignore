@@ -27,6 +27,13 @@ Thumbs.db
 *.bak
 *.tmp
 
+# V0.5 — SQLite indices + test slugs are machine-local
+*.db
+*.db-shm
+*.db-wal
+vault/test-slug/
+vault/.events-quarantine/
+
 # V0.5 — pre-V0.5 archive + scratch + helpers
 vault/.archive-pre-v0.5/
 .tmp-meow-audit/
