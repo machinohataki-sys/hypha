@@ -1,0 +1,16 @@
+{
+  "id": "philosophy-008",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "syllabus_anchor": "MIT OCW 24.00 wk7 — Stoic distinction",
+  "instance": "Epictetus distinguishes what is up to us (prohairesis) from what is not. State this distinction in one line, then apply it to a software incident: a service goes down because an upstream provider had a regional outage. Identify, with a sentence each, the engineer prohairetic responsibilities and the categories that fall outside them.",
+  "verification_channel": "sealed_rubric",
+  "answer_key_hash": "7d73fc9ae9877af861a53ec895d9101b8adddc6d1b6fbc17705280b39a324855",
+  "sealed_at": "2026-05-10T08:27:33.767Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "rater_a": null,
+  "rater_b": null,
+  "agreement": null,
+  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+}

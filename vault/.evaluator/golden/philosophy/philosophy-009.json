@@ -1,0 +1,16 @@
+{
+  "id": "philosophy-009",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "syllabus_anchor": "Yale OYC PHIL 181 wk7 — Descartes method",
+  "instance": "Descartes Meditations 1 produces the cogito after applying methodical doubt. Reconstruct the doubt as a formal procedure: input, transformation steps, output. State at which step a typical reader incorrectly halts and why that halt fails Descartes own standard.",
+  "verification_channel": "sealed_rubric",
+  "answer_key_hash": "002c6dac37241be3378199b8e3713c5866d8c5c9c8ae115d9e0e25b64f167895",
+  "sealed_at": "2026-05-10T08:27:33.793Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "rater_a": null,
+  "rater_b": null,
+  "agreement": null,
+  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+}

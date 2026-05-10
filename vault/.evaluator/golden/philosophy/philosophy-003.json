@@ -1,0 +1,16 @@
+{
+  "id": "philosophy-003",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "syllabus_anchor": "Yale OYC PHIL 181 — Parmenides on being",
+  "instance": "Parmenides argued that change is impossible because what-is cannot become what-is-not. Construct one analogy from physics or computer science where his deductive structure holds, and one where it fails. Explain which premise breaks in the failing case.",
+  "verification_channel": "sealed_rubric",
+  "answer_key_hash": "42dfb19ef3e51ffaf85ec0afda7ee5fc8d77ae13932a117e9cc68a59c0d05622",
+  "sealed_at": "2026-05-10T08:27:33.637Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "rater_a": null,
+  "rater_b": null,
+  "agreement": null,
+  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+}

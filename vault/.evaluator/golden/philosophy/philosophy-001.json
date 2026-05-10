@@ -1,0 +1,16 @@
+{
+  "id": "philosophy-001",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "syllabus_anchor": "MIT OCW 24.00 wk1 — Pre-Socratic substance question",
+  "instance": "Thales claimed water is the first principle of all things. State the SINGLE structural feature of his claim that distinguishes it from a religious explanation, and give one observable phenomenon that would falsify it as a literal claim about substance.",
+  "verification_channel": "sealed_rubric",
+  "answer_key_hash": "e3a873f71fca4c963b354189158d92570f35943dc13cdade10de9de631970a0c",
+  "sealed_at": "2026-05-10T08:27:33.584Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "rater_a": null,
+  "rater_b": null,
+  "agreement": null,
+  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+}

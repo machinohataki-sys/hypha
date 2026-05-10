@@ -1,0 +1,16 @@
+{
+  "id": "philosophy-007",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "syllabus_anchor": "MIT OCW 24.00 wk5 — Aristotelian virtue ethics",
+  "instance": "Aristotle locates virtue as a mean between two vices (e.g., courage between cowardice and rashness). Pick one professional virtue specific to a software engineer (NOT a generic virtue), name the two flanking vices precisely, and give one decision boundary observable in code review where both vices manifest.",
+  "verification_channel": "sealed_rubric",
+  "answer_key_hash": "004ffda76def238dbe5e02e96359438b9632a42fbb9990e9d651fa9b09e829bc",
+  "sealed_at": "2026-05-10T08:27:33.741Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "rater_a": null,
+  "rater_b": null,
+  "agreement": null,
+  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+}

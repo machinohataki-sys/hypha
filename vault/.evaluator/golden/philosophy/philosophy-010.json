@@ -1,0 +1,16 @@
+{
+  "id": "philosophy-010",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "syllabus_anchor": "MIT OCW 24.00 wk9 — Hume induction",
+  "instance": "Hume argues that induction (inferring from past observed regularities to future cases) cannot be justified non-circularly. Construct the circular argument explicitly. Then state how a working scientist responds in practice and why that response is not a refutation of Hume.",
+  "verification_channel": "sealed_rubric",
+  "answer_key_hash": "cdad47f25a2c0716f9f80677010c56802cd2a58576ec6b9999a8a95e32083b9b",
+  "sealed_at": "2026-05-10T08:27:33.820Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "rater_a": null,
+  "rater_b": null,
+  "agreement": null,
+  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+}

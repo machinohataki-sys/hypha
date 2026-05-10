@@ -1,0 +1,16 @@
+{
+  "id": "philosophy-012",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "syllabus_anchor": "MIT OCW 24.00 wk11 — Kant ethics",
+  "instance": "Kant categorical imperative tests a maxim by universalizing it. Apply this test to the maxim I will deceive my evaluator about my work to gain credit. Walk through the universalization step concretely, identify the contradiction (in conception OR in will), and explain why this maxim fails by Kant standard.",
+  "verification_channel": "sealed_rubric",
+  "answer_key_hash": "bee4e325feb14b4b2f628579fec059bfffbbadf8024a33526aa5659ea669423c",
+  "sealed_at": "2026-05-10T08:27:33.872Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "rater_a": null,
+  "rater_b": null,
+  "agreement": null,
+  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+}
