@@ -2,15 +2,90 @@
   "id": "philosophy-005",
   "topic": "philosophy",
   "lifecycle": "draft",
-  "syllabus_anchor": "MIT OCW 24.00 wk3 — Plato Forms",
-  "instance": "Plato theory of Forms claims that particulars participate in universal Forms. Specify one observable consequence of this theory that would distinguish it from nominalism (the view that universals are names only), and explain why two thousand years of debate has not settled the question.",
+  "source_anchor": "Plato Republic 507b-509b (Stephanus); SEP \"Plato on Forms\" §1",
+  "instance": "Plato's theory of Forms claims particulars participate in universal Forms. Specify one observable consequence of this theory that would distinguish it from nominalism, and explain why two thousand years of debate has not settled the question.",
   "verification_channel": "sealed_rubric",
-  "answer_key_hash": "3665cffa2829c5381bacac4b30574e0efe4a39c6428e899dee62471518abeec2",
-  "sealed_at": "2026-05-10T08:27:33.689Z",
+  "schema_version": "0.5.D3.1",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "predicted consequence: discovery of intrinsic structure unifying disparate instances",
+      "alt_phrasings": [
+        "mathematical universals hold across cases",
+        "non-physical pattern across instances",
+        "lawful structure"
+      ],
+      "phrasing_hashes": [
+        "274d8ce33c9d3ed8b07d730b5e47496abacd14e1823ee069ddd410e65b97c395",
+        "8eb671f1336d12d680957d91f307a801f19ecf66080f543f8b440264b3f7221d",
+        "145d44d6174840f673c27fb509f5c56b751df22329bd05b0beb705a492eaf00e",
+        "5c0adb827d7d7def52269c55b7f605e54a5665a2785ce9e712bc1e9cc671a556"
+      ],
+      "claim_hash": "274d8ce33c9d3ed8b07d730b5e47496abacd14e1823ee069ddd410e65b97c395"
+    },
+    {
+      "id": "f2",
+      "claim": "nominalism vs realism make identical empirical predictions",
+      "alt_phrasings": [
+        "empirically indistinguishable",
+        "no observable difference",
+        "same predictions"
+      ],
+      "phrasing_hashes": [
+        "b890fd257e1f711c998c8e7e7947e8206d4e6d46ca10707a7c3fe7e457544402",
+        "b5e9b1ae94bc8cb088d2ffe4bec8a00aef0aae8b62ce4e6ec1335a3eb85825a4",
+        "0d23a7a4d48ab3d3a74fb630126134dbb5d458f4ac6d403981924b6214c984f1",
+        "7ee17cc03110f1cf24648ab4798797afdca0202569777dd742ce308080c7200c"
+      ],
+      "claim_hash": "b890fd257e1f711c998c8e7e7947e8206d4e6d46ca10707a7c3fe7e457544402"
+    },
+    {
+      "id": "f3",
+      "claim": "unsettled because the disagreement is metaphysical not falsifiable",
+      "alt_phrasings": [
+        "metaphysical not empirical",
+        "cannot be tested by current methods",
+        "underdetermined by data"
+      ],
+      "phrasing_hashes": [
+        "d488d57d3578f1b97bb74d902993551be8c8b384c8cae99ad997a8cd53e25fbc",
+        "c9ac85daf5fc01d87541512c75b0ab50f13354c3430f905ed9b84b36592e0ee7",
+        "7fa9c95025bd2c36f9ecd4351b10a3404d0791cb92637ec6e0f4e45819cf929d",
+        "67289e910541de80a631c35eac1366a255b76382c4b92416fe42acd8ef6e2976"
+      ],
+      "claim_hash": "d488d57d3578f1b97bb74d902993551be8c8b384c8cae99ad997a8cd53e25fbc"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "A predicted consequence: laws of nature unify cases without exception, suggesting non-physical structure. Both views make identical empirical predictions, so the debate is metaphysical, not falsifiable.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Plato was right because we can imagine forms.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Nominalism predicts the same observations, so the debate cannot be settled empirically.",
+      "features_hit_truth": [
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T09:22:05.003Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "rater_a": null,
   "rater_b": null,
   "agreement": null,
-  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+  "notes": "D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters."
 }

@@ -2,15 +2,92 @@
   "id": "philosophy-004",
   "topic": "philosophy",
   "lifecycle": "draft",
-  "syllabus_anchor": "MIT OCW 24.00 wk2 — Socratic elenchus",
-  "instance": "In Plato Euthyphro, Socrates derives a contradiction from Euthyphro definition of piety. Reconstruct the elenchus in three steps without using the word \"pious\" in your reconstruction; substitute a generic predicate P. State the form of the contradiction.",
+  "source_anchor": "Plato Euthyphro 9e-11b (Stephanus); SEP \"Plato's Ethics\" §3.2",
+  "instance": "In Plato's Euthyphro, Socrates derives a contradiction from Euthyphro's definition of piety. Reconstruct the elenchus in three steps using a generic predicate P. State the form of the contradiction.",
   "verification_channel": "sealed_rubric",
-  "answer_key_hash": "5384f144c2d6cd3ce4d9815f70b13b31ce4f8fb1deb5641be579f70a51eb770c",
-  "sealed_at": "2026-05-10T08:27:33.663Z",
+  "schema_version": "0.5.D3.1",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "step 1 establishes the original definition (gods love P-things because they are P or vice versa)",
+      "alt_phrasings": [
+        "initial claim",
+        "gods love P-things",
+        "definition stated"
+      ],
+      "phrasing_hashes": [
+        "f8d257723805dff6300bd2601b601d985f25323ee17c72867df77f915cd9f8b5",
+        "a603f885c8d06918b7085a2cec7c5e575668946165408ad9be0a14f3f9f8a9fd",
+        "12348f79ff1b0100f8d09e6c51b0cd315ac0ef15ac0f96fdad260310580c8741",
+        "944a7e349733ac8ed56065b6d03519f44e74c026f4993c18de8140740cffda79"
+      ],
+      "claim_hash": "f8d257723805dff6300bd2601b601d985f25323ee17c72867df77f915cd9f8b5"
+    },
+    {
+      "id": "f2",
+      "claim": "step 2 forces dilemma between two horns",
+      "alt_phrasings": [
+        "horns of dilemma",
+        "either-or split",
+        "two readings"
+      ],
+      "phrasing_hashes": [
+        "62c793d5f79fd5c6f2863d2169a0b6deae0128f8073dd76c473083676e1588f2",
+        "b0d8743ba944b929219a57c514130e00406d15d854829516c34a745ae34c9e6a",
+        "aa2a5ac08ed43bd7f5eda7f9fda76e29817c7d849d721a420149f877a99772f5",
+        "0eebab0eb7bee42c7f644f50d0799532cdef9695ddc3d70c2110b896b710f9e6"
+      ],
+      "claim_hash": "62c793d5f79fd5c6f2863d2169a0b6deae0128f8073dd76c473083676e1588f2"
+    },
+    {
+      "id": "f3",
+      "claim": "each horn yields contradiction (one collapses definition, other makes P arbitrary)",
+      "alt_phrasings": [
+        "both horns fail",
+        "horn-collapse",
+        "circularity or arbitrariness",
+        "first horn circular second arbitrary"
+      ],
+      "phrasing_hashes": [
+        "8880f628e9211b3942cb50077dd598c3d170125b27e04872cf7ca4c63042ed98",
+        "e79a923e76b346e0ee7173d1e6e38f4b9ec98e1f49680b8fb678c4f0d05416a8",
+        "c11a059b1b65557d79ef1d24d2cff81c86271f0fb28914b3acdb9cc89acb9d3a",
+        "7d671debb295a362fdeec2c2764c332c0590997fdecf650fd30fd9b6363aef7a",
+        "aa8baa6d0215bb501ab2d6d5dd94b1abcb1aca9f5e099b3c4622f77301487118"
+      ],
+      "claim_hash": "8880f628e9211b3942cb50077dd598c3d170125b27e04872cf7ca4c63042ed98"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Step 1: define P-things as those gods love. Step 2: ask whether gods love them because P or whether they are P because gods love them. Step 3: first horn means P is prior so the definition collapses; second horn makes P arbitrary. Form is dilemma horn-collapse.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Socrates was just being annoying and Euthyphro gives up.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Two horns; one is circular, the other is arbitrary. Both fail.",
+      "features_hit_truth": [
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T09:22:03.606Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "rater_a": null,
   "rater_b": null,
   "agreement": null,
-  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+  "notes": "D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters."
 }

@@ -2,15 +2,91 @@
   "id": "philosophy-001",
   "topic": "philosophy",
   "lifecycle": "draft",
-  "syllabus_anchor": "MIT OCW 24.00 wk1 — Pre-Socratic substance question",
-  "instance": "Thales claimed water is the first principle of all things. State the SINGLE structural feature of his claim that distinguishes it from a religious explanation, and give one observable phenomenon that would falsify it as a literal claim about substance.",
+  "source_anchor": "Diels-Kranz Fragment 11A12; SEP \"Pre-Socratic Philosophy\" §1",
+  "instance": "Thales claimed water is the first principle of all things. State the structural feature of his claim that distinguishes it from a religious explanation, and one observable phenomenon that would falsify it as a literal claim about substance.",
   "verification_channel": "sealed_rubric",
-  "answer_key_hash": "e3a873f71fca4c963b354189158d92570f35943dc13cdade10de9de631970a0c",
-  "sealed_at": "2026-05-10T08:27:33.584Z",
+  "schema_version": "0.5.D3.1",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "reduction to a single natural substrate",
+      "alt_phrasings": [
+        "monism",
+        "one substance",
+        "single material first principle"
+      ],
+      "phrasing_hashes": [
+        "f9ae34283cda0bbafb40a1d01e5a5ff30b72f90fb4307b01d9ba4fed129b827e",
+        "5398bfe194f180897ad199c37dde46ca765fffaa8c9244512536e0c2cc5d3fb2",
+        "5c6f7dc45f3dfd758d62d94f9d2495d1c8715f33d899c2b5921708b46991e0e4",
+        "e838d7982365ec4d05af79a569dd6cdb6d1e05b79d1a59fff0e8f79f95970dbc"
+      ],
+      "claim_hash": "f9ae34283cda0bbafb40a1d01e5a5ff30b72f90fb4307b01d9ba4fed129b827e"
+    },
+    {
+      "id": "f2",
+      "claim": "naturalistic explanation without divine appeal",
+      "alt_phrasings": [
+        "no gods",
+        "secular",
+        "natural-not-divine",
+        "not religious"
+      ],
+      "phrasing_hashes": [
+        "afbb9df6694ed06080c1b9b466a732a96868555a73264819cb8e4ee1abffebaa",
+        "705734cb91fe1385226c14d8941ae55be99f9f28619c806c1c9e82c19e83ca3c",
+        "044898b289e0e482ce55053f4f1d3695a90720b2dbeb1c358b9ee8004163a06c",
+        "25bd320b3b13c3f80baa113b8a27e13a217dd71af002d8efa0abd7ef6417f7a5",
+        "f0c3e33920ac1d3a4fbdbe1828f43595de2c955a57280d3aabb6ac5f19ad43ea"
+      ],
+      "claim_hash": "afbb9df6694ed06080c1b9b466a732a96868555a73264819cb8e4ee1abffebaa"
+    },
+    {
+      "id": "f3",
+      "claim": "falsifiable by observation of substance enduring without water",
+      "alt_phrasings": [
+        "can be disproved by water-free thing",
+        "observable refutation",
+        "empirical test"
+      ],
+      "phrasing_hashes": [
+        "b0e8b06452455e750fa108d51c2a13fdd2e9ce8461263cc9ee9add2f5ddd02fe",
+        "80ea2c3f2cef52cd68abdad046950944cf82c9272dabf1590bcd506ca7dc49da",
+        "e247228a2b2ac9af00fe055a402b12357ced97bdc1a537886b5dd8c5a1131057",
+        "233108ce3574532f959318a174086f97d8b58f202731a400c2d0793fee037467"
+      ],
+      "claim_hash": "b0e8b06452455e750fa108d51c2a13fdd2e9ce8461263cc9ee9add2f5ddd02fe"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Thales said everything reduces to water — one substance, no gods needed. We could falsify by finding any matter that endures with zero water.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Water is the divine essence flowing through all things, holy and primordial.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "It is monistic, but Thales never said how to test it.",
+      "features_hit_truth": [
+        "f1"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T09:21:57.600Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "rater_a": null,
   "rater_b": null,
   "agreement": null,
-  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+  "notes": "D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters."
 }

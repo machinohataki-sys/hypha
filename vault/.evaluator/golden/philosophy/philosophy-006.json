@@ -2,15 +2,94 @@
   "id": "philosophy-006",
   "topic": "philosophy",
   "lifecycle": "draft",
-  "syllabus_anchor": "Yale OYC PHIL 181 — Aristotle four causes",
-  "instance": "Apply Aristotle four causes (material, formal, efficient, final) to a software function. For a recursive Fibonacci implementation, state each cause concretely. Then identify which cause modern engineering treats as decorative and why.",
+  "source_anchor": "Aristotle Physics II.3 (194b-195a Bekker); Metaphysics V.2 (1013a-b)",
+  "instance": "Apply Aristotle's four causes (material, formal, efficient, final) to a recursive Fibonacci function. Then identify which cause modern engineering treats as decorative and why.",
   "verification_channel": "sealed_rubric",
-  "answer_key_hash": "56d0edde5f3211e6589ac6f0ae9f9d5ab6dd0ba77f0d5ff4e7fe749c2bf81a70",
-  "sealed_at": "2026-05-10T08:27:33.715Z",
+  "schema_version": "0.5.D3.1",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "four causes mapped concretely to function (bytes / recursive structure / call-site / output goal)",
+      "alt_phrasings": [
+        "material is bytes or stack",
+        "formal is recursion structure",
+        "efficient is caller",
+        "final is the output"
+      ],
+      "phrasing_hashes": [
+        "3e4d9b128e243f161d38741b834388a62ebdfccc653763c501fac4b2ffaa8777",
+        "cfc6780dc69015eca6c761363081486c4d8d3f07504240e70efed6028b952330",
+        "8c962b197bee6f1f46a451035c932ae5b10ec171daba0a5364565099b9112354",
+        "c3912d987f8280006231802a2f0de02a198d037c489e14c2899f80f084816014",
+        "a077c0ed0671fa9ac602afa0ebcc2d400e49ab6222b2d1875ec9e64ca213d9ab"
+      ],
+      "claim_hash": "3e4d9b128e243f161d38741b834388a62ebdfccc653763c501fac4b2ffaa8777"
+    },
+    {
+      "id": "f2",
+      "claim": "final cause identified as decorative in modern engineering",
+      "alt_phrasings": [
+        "final cause is decoration",
+        "teleology is dropped",
+        "final is decorative",
+        "goal not embedded"
+      ],
+      "phrasing_hashes": [
+        "8e7d2078277fd7889949d4ea9756964f294b4609ce141e4d9cde73c960a1db54",
+        "c6b6e83075ef7bbb57b50f887108009b17f3f2186f55e2ed8206ee6222cf1b7e",
+        "77c674899e86f97f3b9209498eb9e4e162837af3cda5b99f557543eb7b5af68d",
+        "d88a459c868a24d6f28408bb2e0bdc84aeb302f3a26de597e1d49827f932fd0d",
+        "197209adc845dcc6f8cdd3242b0bd6d5eefcc235b5bfd1f9a2b26ca60f286ac9"
+      ],
+      "claim_hash": "8e7d2078277fd7889949d4ea9756964f294b4609ce141e4d9cde73c960a1db54"
+    },
+    {
+      "id": "f3",
+      "claim": "reason is reuse: function purpose comes from caller not function itself",
+      "alt_phrasings": [
+        "function reused for many purposes",
+        "caller supplies teleology",
+        "no embedded goal"
+      ],
+      "phrasing_hashes": [
+        "db665bcf0d789f8f7680144de121e8b103b796a6f37d42e7c8c353111e12f813",
+        "71a02dbbeddf161813e489136b1d7e7a54e18e6cd3604e39274c3580839d7347",
+        "29e4460f7d3bb0b2924ba12c2f8997d5628ad6e4a5761a6230639d9b2f55f92b",
+        "0ced7d11aa696ca727276b94a998cd45c62257ab68cd7fb02141d443a3612f09"
+      ],
+      "claim_hash": "db665bcf0d789f8f7680144de121e8b103b796a6f37d42e7c8c353111e12f813"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Material is the bytes. Formal is F(n)=F(n-1)+F(n-2). Efficient is the caller. Final is the n-th Fibonacci. Modern engineering treats final cause as decoration because functions are reused for different purposes.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Aristotle is outdated, we just have functions.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Final cause drops out because the function is called for many reasons, the caller decides.",
+      "features_hit_truth": [
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T09:22:06.711Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "rater_a": null,
   "rater_b": null,
   "agreement": null,
-  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+  "notes": "D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters."
 }

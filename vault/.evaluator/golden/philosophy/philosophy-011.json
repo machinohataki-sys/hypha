@@ -2,15 +2,91 @@
   "id": "philosophy-011",
   "topic": "philosophy",
   "lifecycle": "draft",
-  "syllabus_anchor": "MIT OCW 24.00 wk10 — Kant a priori",
-  "instance": "Kant distinguishes a priori from a posteriori knowledge, and analytic from synthetic propositions, yielding four combinations. State why the synthetic a priori is the philosophically important category, and give one mathematical proposition Kant claims is synthetic a priori. Note one reason a 21st century reader may disagree with the example.",
+  "source_anchor": "Kant Critique of Pure Reason A6-10/B10-14; Prolegomena §2",
+  "instance": "Kant distinguishes a priori from a posteriori knowledge and analytic from synthetic propositions, yielding four combinations. State why synthetic a priori is the philosophically important category and give one mathematical proposition Kant claims is synthetic a priori. Note one reason a 21st-century reader may disagree.",
   "verification_channel": "sealed_rubric",
-  "answer_key_hash": "9bbd301f33ab9363858614b8d9fe0dbd5938bff698e6edff71e1d88c05a5d686",
-  "sealed_at": "2026-05-10T08:27:33.846Z",
+  "schema_version": "0.5.D3.1",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "synthetic a priori is a third source of knowledge beyond pure logic and pure observation",
+      "alt_phrasings": [
+        "informative AND independent of experience",
+        "beyond logic and observation",
+        "third knowledge source"
+      ],
+      "phrasing_hashes": [
+        "1671452cd8bd95f7abc632c37738e8beffbb8f515a8070948cc09986ed356724",
+        "9527471c832192f26a2ae8158b9ba4787b25c5fbcf96f5e0787708fcbc4f8c4e",
+        "27c694661c028760749a348c89a29b6183ce8931eb410657d8d684503c4d2653",
+        "dcb8a63fee081af004043b86e730439014e5b5a5c4fcfc86447425d659be9f91"
+      ],
+      "claim_hash": "1671452cd8bd95f7abc632c37738e8beffbb8f515a8070948cc09986ed356724"
+    },
+    {
+      "id": "f2",
+      "claim": "example: 7+5=12 (or similar arithmetic) treated as synthetic a priori",
+      "alt_phrasings": [
+        "7 plus 5 equals 12",
+        "arithmetic example",
+        "mathematical proposition"
+      ],
+      "phrasing_hashes": [
+        "b0a3d740018695609b0c577a0e6b69c0abb450851c15ebebb643d039ef761135",
+        "d538fba4cd30af1163106399316990897864ded3c3e57fb5c6a6b816b24c6191",
+        "7cfad6bbeb00f4047ccc2cbbeb5272d78f868e5ce63b080e8ffb9f90260e309d",
+        "31a365a4cde655b475c44db6b9f37102621ac464e90006ea5d1445de1c290e58"
+      ],
+      "claim_hash": "b0a3d740018695609b0c577a0e6b69c0abb450851c15ebebb643d039ef761135"
+    },
+    {
+      "id": "f3",
+      "claim": "Frege/Russell logicism would reduce arithmetic to logic, making it analytic",
+      "alt_phrasings": [
+        "logicism reduces math to logic",
+        "Frege Russell objection",
+        "arithmetic might be analytic"
+      ],
+      "phrasing_hashes": [
+        "549417421c16553d182d8eebdc814d7134b00dae2121fdb0f6ab7d6d32da55c9",
+        "7dac6500474c0e18580cf558c3b7122ffda3cb6075c3031aa2deeedc85458d7d",
+        "2f8af80c9a3461795055ec08a0ebf3576751b893fc26f1936765001551ac4e51",
+        "7528cd2846b77aa910c6f875d2e0cab2e2f31643b16be02bbf936a84b5a5f90d"
+      ],
+      "claim_hash": "549417421c16553d182d8eebdc814d7134b00dae2121fdb0f6ab7d6d32da55c9"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Synthetic a priori would be a third knowledge source beyond logic and observation. Kant says 7+5=12 is one. A modern reader may disagree because Frege and Russell reduce arithmetic to logic, making it analytic.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Kant is hard to read.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "It is the category that is informative AND independent of experience. 7+5=12. But logicism challenges that.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T09:22:09.213Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "rater_a": null,
   "rater_b": null,
   "agreement": null,
-  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+  "notes": "D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters."
 }

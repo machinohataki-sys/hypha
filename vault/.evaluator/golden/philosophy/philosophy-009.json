@@ -2,15 +2,93 @@
   "id": "philosophy-009",
   "topic": "philosophy",
   "lifecycle": "draft",
-  "syllabus_anchor": "Yale OYC PHIL 181 wk7 — Descartes method",
-  "instance": "Descartes Meditations 1 produces the cogito after applying methodical doubt. Reconstruct the doubt as a formal procedure: input, transformation steps, output. State at which step a typical reader incorrectly halts and why that halt fails Descartes own standard.",
+  "source_anchor": "Descartes Meditation 1 (AT VII 17-23); SEP \"Descartes' Method\" §2",
+  "instance": "Descartes' Meditations 1 produces the cogito after methodical doubt. Reconstruct the doubt as a formal procedure: input, transformation steps, output. State at which step a typical reader incorrectly halts and why.",
   "verification_channel": "sealed_rubric",
-  "answer_key_hash": "002c6dac37241be3378199b8e3713c5866d8c5c9c8ae115d9e0e25b64f167895",
-  "sealed_at": "2026-05-10T08:27:33.793Z",
+  "schema_version": "0.5.D3.1",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "procedure formalized: input is any belief, steps test doubtability and suspend",
+      "alt_phrasings": [
+        "input belief",
+        "iterate doubt test",
+        "suspend doubtable"
+      ],
+      "phrasing_hashes": [
+        "692297b6e1cb69e88366cfc8ee4a56b019b430a33624c31993701afe3c8af66c",
+        "eb3369f65c3f0643de0f5da2782debc97ab100638e9d25a8f5846321f4d6ad50",
+        "4a0f0bd3b3310ef8e41247c3015ae14a29888ebccacd0cd19e37f4e171ef5897",
+        "e879d88331acb1826613ede1fa75a70cc7d1cdde4b65114fbd3c6a26bbc8b718"
+      ],
+      "claim_hash": "692297b6e1cb69e88366cfc8ee4a56b019b430a33624c31993701afe3c8af66c"
+    },
+    {
+      "id": "f2",
+      "claim": "cogito emerges as residue of beliefs not doubtable",
+      "alt_phrasings": [
+        "residue of certainty",
+        "output is undoubtable",
+        "cogito appears"
+      ],
+      "phrasing_hashes": [
+        "51e62165ecfa065ab9bd72a8040d3992914b106220cd3d6c96b62013717a5147",
+        "8422bad7479743fb5cbba36ba57910063453036e4b3ed158a734b813acf6a70a",
+        "3b72d508efe6b2342f8ca31acd03275c4de969fef6575dc8aa5e88703904ca3e",
+        "17916995bd795effc2aa5f4fda73f887ab0b8125c20d6dd0754ec163279f459b"
+      ],
+      "claim_hash": "51e62165ecfa065ab9bd72a8040d3992914b106220cd3d6c96b62013717a5147"
+    },
+    {
+      "id": "f3",
+      "claim": "typical reader halts before exhausting harder doubts (e.g., dream argument or evil deceiver)",
+      "alt_phrasings": [
+        "halts at dream argument",
+        "halts at sense deception",
+        "halts before deceiving God",
+        "gives up too early"
+      ],
+      "phrasing_hashes": [
+        "e12b4828e2ed75763502eabf4230245f16b0f57a8389c3c78e91c772367058d5",
+        "228a46c20ce066c36377dcb4bbd1875275796dfdff01058c4a1972cec50ce365",
+        "07112d5b2b70ec580473b9b4272e0307ef5fb2c3a66b9e7bf0d324d6d577a914",
+        "d3d8634e8c9a29511c0eff57365cf22befaac668f8da7826855f6eb23c3d741e",
+        "ca57873f991a4f4005bb36006c6535ca205ed92f4ecc30f62745fe36a9b45b22"
+      ],
+      "claim_hash": "e12b4828e2ed75763502eabf4230245f16b0f57a8389c3c78e91c772367058d5"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Input: any belief. Steps: ask if doubtable, suspend if yes, repeat. Output: undoubtable residue. Typical reader halts at the dream argument and stops short of the deceiver hypothesis where the cogito actually emerges.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Descartes thinks therefore he is.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Doubt every belief, the residue is the cogito. Reader stops at dream argument when they should push to the evil deceiver.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T09:22:08.823Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "rater_a": null,
   "rater_b": null,
   "agreement": null,
-  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+  "notes": "D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters."
 }

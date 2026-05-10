@@ -47,49 +47,64 @@ function _readGoldenItems(topic) {
 }
 
 function _computeKappa(items) {
-  // Filter to items with both raters' verdicts
-  const both = items.filter(it =>
-    it.rater_a && it.rater_b &&
-    VALID_VERDICTS.has(it.rater_a.verdict) &&
-    VALID_VERDICTS.has(it.rater_b.verdict)
-  );
+  // D3.1 — κ now computed over per-candidate per-feature binary cells.
+  // Each (item, candidate, feature) triple yields two binary labels (rater_a hit / rater_b hit).
+  // Cohen's κ over the full binary cell set.
 
-  if (both.length < 2) {
+  const cells = []; // {a: 0|1, b: 0|1}
+  let itemsWithBothRaters = 0;
+
+  for (const item of items) {
+    const ra = item.rater_a;
+    const rb = item.rater_b;
+    if (!ra || !rb || !ra.ratings || !rb.ratings) continue;
+    const cands = item.candidate_responses || [];
+    const features = item.answer_features || [];
+    if (cands.length === 0 || features.length === 0) continue;
+
+    let participated = false;
+    for (const cand of cands) {
+      const a = ra.ratings[cand.id];
+      const b = rb.ratings[cand.id];
+      if (!a || !b || !Array.isArray(a.features_hit) || !Array.isArray(b.features_hit)) continue;
+      participated = true;
+      const aSet = new Set(a.features_hit);
+      const bSet = new Set(b.features_hit);
+      for (const f of features) {
+        cells.push({ a: aSet.has(f.id) ? 1 : 0, b: bSet.has(f.id) ? 1 : 0 });
+      }
+    }
+    if (participated) itemsWithBothRaters++;
+  }
+
+  if (cells.length < 4) {
     return {
       kappa: null,
-      reason: 'insufficient double-coded items (need >= 2)',
-      n: both.length,
+      reason: 'insufficient double-coded cells (need >= 4)',
+      n: cells.length,
     };
   }
 
-  const n = both.length;
+  const n = cells.length;
   let agree = 0;
-  for (const it of both) {
-    if (it.rater_a.verdict === it.rater_b.verdict) agree++;
+  let aPos = 0;
+  let bPos = 0;
+  for (const c of cells) {
+    if (c.a === c.b) agree++;
+    if (c.a === 1) aPos++;
+    if (c.b === 1) bPos++;
   }
   const P_o = agree / n;
 
-  // Marginal frequencies per rater
-  const marginalA = {};
-  const marginalB = {};
-  for (const v of VALID_VERDICTS) {
-    marginalA[v] = 0;
-    marginalB[v] = 0;
-  }
-  for (const it of both) {
-    marginalA[it.rater_a.verdict]++;
-    marginalB[it.rater_b.verdict]++;
-  }
-
-  let P_e = 0;
-  for (const v of VALID_VERDICTS) {
-    P_e += (marginalA[v] / n) * (marginalB[v] / n);
-  }
+  // Binary marginal: P(a=1)*P(b=1) + P(a=0)*P(b=0)
+  const pA1 = aPos / n;
+  const pB1 = bPos / n;
+  const P_e = pA1 * pB1 + (1 - pA1) * (1 - pB1);
 
   if (P_e >= 1.0) {
     return {
       kappa: null,
-      reason: 'P_e degenerate (single-verdict marginal)',
+      reason: 'P_e degenerate (single-class marginal)',
       n,
       P_o,
       P_e,
@@ -101,6 +116,7 @@ function _computeKappa(items) {
   return {
     kappa,
     n,
+    n_items_double_coded: itemsWithBothRaters,
     n_agreement: agree,
     n_disagreement: n - agree,
     P_o,

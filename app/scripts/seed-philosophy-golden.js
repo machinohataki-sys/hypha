@@ -1,16 +1,27 @@
-// V0.5 E0 — seed 12 philosophy golden candidates
+// V0.5 E0 D3.1 — feature-set seed for philosophy golden items
 //
-// Generates draft golden items for vault/.evaluator/golden/philosophy/.
-// Each item ships with `lifecycle: 'draft'` + null raters. User + 2nd rater fill
-// rater_a / rater_b verdicts via app/scripts/label-cli.js.
+// REWRITTEN 2026-05-10 after MEOW HALT-1/2/3/4 audit.
 //
-// Sequence anchored on MIT OCW 24.00 + Yale OYC PHIL 181 syllabus order — pre-Socratics
-// FIRST, then Socrates / Plato / Aristotle / Stoics / Descartes / Hume / Kant. Per memory
-// project_hypha_v021_failure_galileo (LLM training-frequency biased toward Galileo over
-// Thales; Layer 1 syllabus extraction = E0 launch blocker).
+// Schema change from D3:
+//   D3 (broken):    { answer_plaintext: "<80-300 word essay>", verification_channel: 'sealed_rubric' }
+//   D3.1 (working): { answer_features: [{id, claim, alt_phrasings}], k_threshold, candidate_responses: [{id, text, features_hit_truth}] }
 //
-// Run: node app/scripts/seed-philosophy-golden.js
-// Idempotent: skips items whose JSON already exists.
+// Why:
+//   D3 sealed-rubric channel required exact sha256 match on full-prose answer; ~100% of
+//   real learner responses fail. Per MEOW audit composite 0.625 < 0.70 ship gate.
+//   D3.1 decomposes each rubric into 3 atomic features with normalized alt_phrasings.
+//   Human rater (or deterministic substring check in 'code' channel) marks WHICH features
+//   the candidate hit. Pass = ≥k_threshold features hit. κ over feature-set agreement.
+//
+// Anchors fixed (HALT-4): replaced fabricated Yale OYC PHIL 181 / MIT OCW 24.00 wk1
+// references with canonical text refs (Diels-Kranz / Aristotle Bekker / Plato Stephanus
+// / Descartes Meditation / Hume Treatise / Kant A-B pagination). Per memory
+// project_hypha_v021_failure_galileo: no LLM-fabricated course attributions.
+//
+// Run:
+//   node app/scripts/seed-philosophy-golden.js                  # create new items only
+//   node app/scripts/seed-philosophy-golden.js --force-reseal   # regenerate all 12, even existing
+//   node app/scripts/seed-philosophy-golden.js --check-drift    # warn if existing hash != current
 
 'use strict';
 
@@ -23,115 +34,299 @@ const TARGET_DIR = path.join(__dirname, '..', '..', 'vault', '.evaluator', 'gold
 const ITEMS = [
   {
     id: 'philosophy-001',
-    syllabus_anchor: 'MIT OCW 24.00 wk1 — Pre-Socratic substance question',
-    instance: 'Thales claimed water is the first principle of all things. State the SINGLE structural feature of his claim that distinguishes it from a religious explanation, and give one observable phenomenon that would falsify it as a literal claim about substance.',
-    answer_plaintext: 'Reduction to one natural substrate (single material first principle, no appeal to gods); falsified by observing a thing that retains its identity through dehydration to zero water content.',
+    source_anchor: 'Diels-Kranz Fragment 11A12; SEP "Pre-Socratic Philosophy" §1',
+    instance: 'Thales claimed water is the first principle of all things. State the structural feature of his claim that distinguishes it from a religious explanation, and one observable phenomenon that would falsify it as a literal claim about substance.',
+    answer_features: [
+      { id: 'f1', claim: 'reduction to a single natural substrate', alt_phrasings: ['monism', 'one substance', 'single material first principle'] },
+      { id: 'f2', claim: 'naturalistic explanation without divine appeal', alt_phrasings: ['no gods', 'secular', 'natural-not-divine', 'not religious'] },
+      { id: 'f3', claim: 'falsifiable by observation of substance enduring without water', alt_phrasings: ['can be disproved by water-free thing', 'observable refutation', 'empirical test'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Thales said everything reduces to water — one substance, no gods needed. We could falsify by finding any matter that endures with zero water.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Water is the divine essence flowing through all things, holy and primordial.', features_hit_truth: [] },
+      { id: 'c3', text: 'It is monistic, but Thales never said how to test it.', features_hit_truth: ['f1'] },
+    ],
   },
   {
     id: 'philosophy-002',
-    syllabus_anchor: 'MIT OCW 24.00 wk1 — Heraclitus flux',
-    instance: 'Heraclitus says you cannot step into the same river twice. Restate this in modern terms by naming the conserved quantity (if any) and the variant quantity, then give one engineered system where this distinction is operationally tracked.',
-    answer_plaintext: 'Identity (form / pattern) is conserved as a continuous trajectory; matter (the water) is the variant. Engineered example: a hash-versioned database where row identity persists across edits while content mutates.',
+    source_anchor: 'Diels-Kranz Fragment 22B12 + 22B49a; SEP "Heraclitus" §2',
+    instance: 'Heraclitus says you cannot step into the same river twice. Restate this in modern terms by naming the conserved quantity (if any) and the variant quantity, and give one engineered system where this distinction is operationally tracked.',
+    answer_features: [
+      { id: 'f1', claim: 'identity or pattern is conserved as continuous trajectory', alt_phrasings: ['form persists', 'pattern conserved', 'identity is continuous'] },
+      { id: 'f2', claim: 'matter or content is the variant quantity', alt_phrasings: ['content changes', 'matter is variant', 'substance flows'] },
+      { id: 'f3', claim: 'engineered analog tracks identity across content edits', alt_phrasings: ['hash-versioned', 'append-only log', 'event sourcing', 'git', 'database row identity'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Identity persists, content flows. A git repository tracks the same file across edits.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Heraclitus is just being poetic; everything just changes.', features_hit_truth: [] },
+      { id: 'c3', text: 'Pattern is conserved, water is variant — the same trick a database row uses with id columns.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
   },
   {
     id: 'philosophy-003',
-    syllabus_anchor: 'Yale OYC PHIL 181 — Parmenides on being',
-    instance: 'Parmenides argued that change is impossible because what-is cannot become what-is-not. Construct one analogy from physics or computer science where his deductive structure holds, and one where it fails. Explain which premise breaks in the failing case.',
-    answer_plaintext: 'Holds in conservation of mass-energy in a closed system. Fails in branch prediction misspeculation where state computed but discarded counts as having existed and not-existed; the breaking premise is treating what-is as a static binary rather than a function over time.',
+    source_anchor: 'Parmenides "On Nature" Fragment 8; SEP "Parmenides" §3',
+    instance: 'Parmenides argued change is impossible because what-is cannot become what-is-not. Construct one analogy from physics or computer science where his deductive structure holds, and one where it fails. Identify the breaking premise.',
+    answer_features: [
+      { id: 'f1', claim: 'analog where deduction holds (closed-system conservation)', alt_phrasings: ['conservation of mass-energy', 'closed system', 'static identity'] },
+      { id: 'f2', claim: 'analog where deduction fails (transient or rolled-back state)', alt_phrasings: ['branch prediction misspeculation', 'rolled-back transaction', 'speculative state', 'discarded computation'] },
+      { id: 'f3', claim: 'breaking premise: treating what-is as static binary not function over time', alt_phrasings: ['premise breaks because identity is time-dependent', 'temporal becoming is allowed', 'state can exist transiently'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Holds in mass-energy conservation. Fails in branch prediction where speculative state is computed then discarded — the breaking premise is treating existence as static.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Parmenides was just wrong because change happens.', features_hit_truth: [] },
+      { id: 'c3', text: 'In thermodynamics it holds. The problem is Parmenides treats being as binary.', features_hit_truth: ['f1', 'f3'] },
+    ],
   },
   {
     id: 'philosophy-004',
-    syllabus_anchor: 'MIT OCW 24.00 wk2 — Socratic elenchus',
-    instance: 'In Plato Euthyphro, Socrates derives a contradiction from Euthyphro definition of piety. Reconstruct the elenchus in three steps without using the word "pious" in your reconstruction; substitute a generic predicate P. State the form of the contradiction.',
-    answer_plaintext: 'Step 1 Euthyphro asserts P-things are P because the gods love them. Step 2 Socrates asks whether the gods love them because they are P, or whether they are P because the gods love them. Step 3 both horns yield contradiction: the first horn makes P prior to god-love (collapsing the definition); the second horn makes P arbitrary (failing the demand for an essence). The form is dilemma horn-collapse.',
+    source_anchor: 'Plato Euthyphro 9e-11b (Stephanus); SEP "Plato\'s Ethics" §3.2',
+    instance: 'In Plato\'s Euthyphro, Socrates derives a contradiction from Euthyphro\'s definition of piety. Reconstruct the elenchus in three steps using a generic predicate P. State the form of the contradiction.',
+    answer_features: [
+      { id: 'f1', claim: 'step 1 establishes the original definition (gods love P-things because they are P or vice versa)', alt_phrasings: ['initial claim', 'gods love P-things', 'definition stated'] },
+      { id: 'f2', claim: 'step 2 forces dilemma between two horns', alt_phrasings: ['horns of dilemma', 'either-or split', 'two readings'] },
+      { id: 'f3', claim: 'each horn yields contradiction (one collapses definition, other makes P arbitrary)', alt_phrasings: ['both horns fail', 'horn-collapse', 'circularity or arbitrariness', 'first horn circular second arbitrary'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Step 1: define P-things as those gods love. Step 2: ask whether gods love them because P or whether they are P because gods love them. Step 3: first horn means P is prior so the definition collapses; second horn makes P arbitrary. Form is dilemma horn-collapse.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Socrates was just being annoying and Euthyphro gives up.', features_hit_truth: [] },
+      { id: 'c3', text: 'Two horns; one is circular, the other is arbitrary. Both fail.', features_hit_truth: ['f2', 'f3'] },
+    ],
   },
   {
     id: 'philosophy-005',
-    syllabus_anchor: 'MIT OCW 24.00 wk3 — Plato Forms',
-    instance: 'Plato theory of Forms claims that particulars participate in universal Forms. Specify one observable consequence of this theory that would distinguish it from nominalism (the view that universals are names only), and explain why two thousand years of debate has not settled the question.',
-    answer_plaintext: 'Predicted consequence: discovery of intrinsic structure unifying disparate instances (e.g., a mathematical law that holds across observed cases without exception, suggesting non-physical constraint). The debate persists because both theories make identical empirical predictions; the disagreement is metaphysical, not falsifiable by current methods.',
+    source_anchor: 'Plato Republic 507b-509b (Stephanus); SEP "Plato on Forms" §1',
+    instance: 'Plato\'s theory of Forms claims particulars participate in universal Forms. Specify one observable consequence of this theory that would distinguish it from nominalism, and explain why two thousand years of debate has not settled the question.',
+    answer_features: [
+      { id: 'f1', claim: 'predicted consequence: discovery of intrinsic structure unifying disparate instances', alt_phrasings: ['mathematical universals hold across cases', 'non-physical pattern across instances', 'lawful structure'] },
+      { id: 'f2', claim: 'nominalism vs realism make identical empirical predictions', alt_phrasings: ['empirically indistinguishable', 'no observable difference', 'same predictions'] },
+      { id: 'f3', claim: 'unsettled because the disagreement is metaphysical not falsifiable', alt_phrasings: ['metaphysical not empirical', 'cannot be tested by current methods', 'underdetermined by data'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'A predicted consequence: laws of nature unify cases without exception, suggesting non-physical structure. Both views make identical empirical predictions, so the debate is metaphysical, not falsifiable.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Plato was right because we can imagine forms.', features_hit_truth: [] },
+      { id: 'c3', text: 'Nominalism predicts the same observations, so the debate cannot be settled empirically.', features_hit_truth: ['f2', 'f3'] },
+    ],
   },
   {
     id: 'philosophy-006',
-    syllabus_anchor: 'Yale OYC PHIL 181 — Aristotle four causes',
-    instance: 'Apply Aristotle four causes (material, formal, efficient, final) to a software function. For a recursive Fibonacci implementation, state each cause concretely. Then identify which cause modern engineering treats as decorative and why.',
-    answer_plaintext: 'Material bytes / instructions on the stack. Formal recursive structure F(n)=F(n-1)+F(n-2). Efficient the call site that invokes the function. Final producing the n-th Fibonacci number. Modern engineering treats final cause as decorative because functions are reused for different purposes; teleology is supplied by the caller, not embedded in the function.',
+    source_anchor: 'Aristotle Physics II.3 (194b-195a Bekker); Metaphysics V.2 (1013a-b)',
+    instance: 'Apply Aristotle\'s four causes (material, formal, efficient, final) to a recursive Fibonacci function. Then identify which cause modern engineering treats as decorative and why.',
+    answer_features: [
+      { id: 'f1', claim: 'four causes mapped concretely to function (bytes / recursive structure / call-site / output goal)', alt_phrasings: ['material is bytes or stack', 'formal is recursion structure', 'efficient is caller', 'final is the output'] },
+      { id: 'f2', claim: 'final cause identified as decorative in modern engineering', alt_phrasings: ['final cause is decoration', 'teleology is dropped', 'final is decorative', 'goal not embedded'] },
+      { id: 'f3', claim: 'reason is reuse: function purpose comes from caller not function itself', alt_phrasings: ['function reused for many purposes', 'caller supplies teleology', 'no embedded goal'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Material is the bytes. Formal is F(n)=F(n-1)+F(n-2). Efficient is the caller. Final is the n-th Fibonacci. Modern engineering treats final cause as decoration because functions are reused for different purposes.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Aristotle is outdated, we just have functions.', features_hit_truth: [] },
+      { id: 'c3', text: 'Final cause drops out because the function is called for many reasons, the caller decides.', features_hit_truth: ['f2', 'f3'] },
+    ],
   },
   {
     id: 'philosophy-007',
-    syllabus_anchor: 'MIT OCW 24.00 wk5 — Aristotelian virtue ethics',
-    instance: 'Aristotle locates virtue as a mean between two vices (e.g., courage between cowardice and rashness). Pick one professional virtue specific to a software engineer (NOT a generic virtue), name the two flanking vices precisely, and give one decision boundary observable in code review where both vices manifest.',
-    answer_plaintext: 'Virtue appropriate skepticism of language-model output. Vice 1 (deficiency) credulity, accepting generated code without reading it. Vice 2 (excess) paranoia, refusing to use any generated code regardless of how it is verified. Decision boundary the code reviewer who pastes generated output into production without running tests displays vice 1; the reviewer who rewrites every generated line by hand to feel safe displays vice 2.',
+    source_anchor: 'Aristotle Nicomachean Ethics II.6 (1106b Bekker); SEP "Aristotle\'s Ethics" §6',
+    instance: 'Aristotle locates virtue as a mean between two vices. Pick one professional virtue specific to a software engineer (NOT a generic virtue), name the two flanking vices precisely, and give one decision boundary observable in code review where both vices manifest.',
+    answer_features: [
+      { id: 'f1', claim: 'virtue is software-specific (not generic courage / honesty)', alt_phrasings: ['specific professional virtue', 'engineering-specific', 'tied to software practice'] },
+      { id: 'f2', claim: 'two flanking vices named precisely with deficiency / excess structure', alt_phrasings: ['vice of deficiency', 'vice of excess', 'both extremes'] },
+      { id: 'f3', claim: 'concrete decision boundary in code review where each vice manifests', alt_phrasings: ['observable in review', 'concrete behavior', 'review pattern'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Virtue: appropriate skepticism of generated code. Vice 1 (deficiency): credulity, accepting code without reading it. Vice 2 (excess): paranoia, refusing all generated code. Boundary: in review, vice 1 pastes without testing; vice 2 rewrites everything by hand.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Be brave in code review.', features_hit_truth: [] },
+      { id: 'c3', text: 'Test discipline — vice 1 skips tests, vice 2 obsessively over-tests. In review you see this in test count.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
   },
   {
     id: 'philosophy-008',
-    syllabus_anchor: 'MIT OCW 24.00 wk7 — Stoic distinction',
-    instance: 'Epictetus distinguishes what is up to us (prohairesis) from what is not. State this distinction in one line, then apply it to a software incident: a service goes down because an upstream provider had a regional outage. Identify, with a sentence each, the engineer prohairetic responsibilities and the categories that fall outside them.',
-    answer_plaintext: 'Up to us judgments, intentions, the use we make of impressions; not up to us outcomes that depend on external causes. In the incident: the engineer prohairetic responsibilities are how they communicate, what monitoring they had set up beforehand, what they choose to do next; outside: the upstream outage itself, the customer reaction, the timing.',
+    source_anchor: 'Epictetus Enchiridion §1; Discourses I.1; SEP "Epictetus" §3',
+    instance: 'Epictetus distinguishes what is up to us (prohairesis) from what is not. State the distinction in one line, then apply to a software incident: a service goes down due to upstream provider regional outage. Identify the engineer\'s prohairetic responsibilities and what falls outside.',
+    answer_features: [
+      { id: 'f1', claim: 'distinction stated: judgments and intentions are up to us; outcomes that depend on externals are not', alt_phrasings: ['internal judgments vs external outcomes', 'opinions and choices versus events', 'what we control versus what we do not'] },
+      { id: 'f2', claim: 'prohairetic responsibilities applied: communication, prior monitoring, response choice', alt_phrasings: ['how we communicate', 'monitoring set up beforehand', 'what we choose to do'] },
+      { id: 'f3', claim: 'externals identified: upstream outage, customer reaction, timing', alt_phrasings: ['outage itself', 'customer feelings', 'timing of incident'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Up to us are our judgments and intentions; not up to us are outcomes from external causes. Engineer controls: communication, prior monitoring, response. Outside: the outage, customer reaction, timing.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Stoicism means accepting outages calmly.', features_hit_truth: [] },
+      { id: 'c3', text: 'Engineer can choose communication and prior monitoring. The outage and customer feelings are outside their control.', features_hit_truth: ['f2', 'f3'] },
+    ],
   },
   {
     id: 'philosophy-009',
-    syllabus_anchor: 'Yale OYC PHIL 181 wk7 — Descartes method',
-    instance: 'Descartes Meditations 1 produces the cogito after applying methodical doubt. Reconstruct the doubt as a formal procedure: input, transformation steps, output. State at which step a typical reader incorrectly halts and why that halt fails Descartes own standard.',
-    answer_plaintext: 'Input: any belief. Step 1 ask, can this belief be doubted? Step 2 if yes, suspend it. Step 3 repeat across all beliefs of the same kind. Output: the residue of beliefs not doubtable by any of the methods deployed. Typical reader halts at the dream argument (step 2 of senses), accepting that the external world might be illusion. This fails because Descartes standard requires pushing further (the deceiver hypothesis), and the cogito only emerges after exhausting harder doubts.',
+    source_anchor: 'Descartes Meditation 1 (AT VII 17-23); SEP "Descartes\' Method" §2',
+    instance: 'Descartes\' Meditations 1 produces the cogito after methodical doubt. Reconstruct the doubt as a formal procedure: input, transformation steps, output. State at which step a typical reader incorrectly halts and why.',
+    answer_features: [
+      { id: 'f1', claim: 'procedure formalized: input is any belief, steps test doubtability and suspend', alt_phrasings: ['input belief', 'iterate doubt test', 'suspend doubtable'] },
+      { id: 'f2', claim: 'cogito emerges as residue of beliefs not doubtable', alt_phrasings: ['residue of certainty', 'output is undoubtable', 'cogito appears'] },
+      { id: 'f3', claim: 'typical reader halts before exhausting harder doubts (e.g., dream argument or evil deceiver)', alt_phrasings: ['halts at dream argument', 'halts at sense deception', 'halts before deceiving God', 'gives up too early'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Input: any belief. Steps: ask if doubtable, suspend if yes, repeat. Output: undoubtable residue. Typical reader halts at the dream argument and stops short of the deceiver hypothesis where the cogito actually emerges.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Descartes thinks therefore he is.', features_hit_truth: [] },
+      { id: 'c3', text: 'Doubt every belief, the residue is the cogito. Reader stops at dream argument when they should push to the evil deceiver.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
   },
   {
     id: 'philosophy-010',
-    syllabus_anchor: 'MIT OCW 24.00 wk9 — Hume induction',
-    instance: 'Hume argues that induction (inferring from past observed regularities to future cases) cannot be justified non-circularly. Construct the circular argument explicitly. Then state how a working scientist responds in practice and why that response is not a refutation of Hume.',
-    answer_plaintext: 'Circular argument to justify induction we cite that it has worked in the past, but THAT inference is itself inductive; we are using the principle to justify itself. Working scientist response they treat induction as a methodological commitment, not a proven theorem; they accept Hume point philosophically and proceed pragmatically. This is not a refutation because Hume never claimed induction does not work; he claimed it cannot be justified deductively; the scientist concedes the latter while continuing to use the former.',
+    source_anchor: 'Hume Treatise Book I Part III §6; Enquiry §IV',
+    instance: 'Hume argues induction cannot be justified non-circularly. Construct the circular argument explicitly. State how a working scientist responds in practice and why that response is not a refutation of Hume.',
+    answer_features: [
+      { id: 'f1', claim: 'circular argument: induction has worked before, but THAT inference is itself inductive', alt_phrasings: ['justification uses induction itself', 'circularity stated', 'self-referential justification'] },
+      { id: 'f2', claim: 'scientist response: methodological commitment, not proven theorem', alt_phrasings: ['pragmatic acceptance', 'methodological not proven', 'works in practice'] },
+      { id: 'f3', claim: 'not a refutation: Hume conceded induction works, only denied deductive justification', alt_phrasings: ['Hume did not deny effectiveness', 'concedes one denies the other', 'addresses different question'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Circular: to justify induction we cite that it worked, but THAT itself is inductive. Scientists treat induction as methodological commitment, not proven theorem. This is not refutation because Hume only denied deductive justification, never effectiveness.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Hume was a skeptic and science still works.', features_hit_truth: [] },
+      { id: 'c3', text: 'The justification is circular. Scientists pragmatically accept it. They are addressing a different question than Hume.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
   },
   {
     id: 'philosophy-011',
-    syllabus_anchor: 'MIT OCW 24.00 wk10 — Kant a priori',
-    instance: 'Kant distinguishes a priori from a posteriori knowledge, and analytic from synthetic propositions, yielding four combinations. State why the synthetic a priori is the philosophically important category, and give one mathematical proposition Kant claims is synthetic a priori. Note one reason a 21st century reader may disagree with the example.',
-    answer_plaintext: 'Synthetic a priori is important because it is knowledge that is both informative (synthetic, the predicate adds something new) AND independent of experience (a priori), which would be a third source of knowledge beyond pure logic and pure observation. Kant example: 7+5=12 is synthetic because the concept of 12 is not contained in 7 or 5 or +; it is a priori because we know it without empirical verification. A 21st century reader may disagree because Frege/Russell logicism reduces arithmetic to logic, making it analytic, not synthetic.',
+    source_anchor: 'Kant Critique of Pure Reason A6-10/B10-14; Prolegomena §2',
+    instance: 'Kant distinguishes a priori from a posteriori knowledge and analytic from synthetic propositions, yielding four combinations. State why synthetic a priori is the philosophically important category and give one mathematical proposition Kant claims is synthetic a priori. Note one reason a 21st-century reader may disagree.',
+    answer_features: [
+      { id: 'f1', claim: 'synthetic a priori is a third source of knowledge beyond pure logic and pure observation', alt_phrasings: ['informative AND independent of experience', 'beyond logic and observation', 'third knowledge source'] },
+      { id: 'f2', claim: 'example: 7+5=12 (or similar arithmetic) treated as synthetic a priori', alt_phrasings: ['7 plus 5 equals 12', 'arithmetic example', 'mathematical proposition'] },
+      { id: 'f3', claim: 'Frege/Russell logicism would reduce arithmetic to logic, making it analytic', alt_phrasings: ['logicism reduces math to logic', 'Frege Russell objection', 'arithmetic might be analytic'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Synthetic a priori would be a third knowledge source beyond logic and observation. Kant says 7+5=12 is one. A modern reader may disagree because Frege and Russell reduce arithmetic to logic, making it analytic.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Kant is hard to read.', features_hit_truth: [] },
+      { id: 'c3', text: 'It is the category that is informative AND independent of experience. 7+5=12. But logicism challenges that.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
   },
   {
     id: 'philosophy-012',
-    syllabus_anchor: 'MIT OCW 24.00 wk11 — Kant ethics',
-    instance: 'Kant categorical imperative tests a maxim by universalizing it. Apply this test to the maxim I will deceive my evaluator about my work to gain credit. Walk through the universalization step concretely, identify the contradiction (in conception OR in will), and explain why this maxim fails by Kant standard.',
-    answer_plaintext: 'Universalization step imagine a world where every learner deceives every evaluator about their work. Contradiction in conception the institution of evaluation presupposes truthful reporting of work; if all learners deceive, the institution dissolves; the maxim cannot even be conceived as a universal law without self-undermining. (This is a contradiction in conception, the stronger of Kant two failure modes.) The maxim fails because it depends parasitically on most learners being truthful; it cannot be universally adopted.',
+    source_anchor: 'Kant Groundwork of the Metaphysic of Morals §II (4:421-4:424); SEP "Kant\'s Moral Philosophy" §6',
+    instance: 'Kant\'s categorical imperative tests a maxim by universalizing it. Apply this test to "I will deceive my evaluator about my work to gain credit." Walk through universalization, identify the contradiction (in conception or in will), explain why this maxim fails by Kant\'s standard.',
+    answer_features: [
+      { id: 'f1', claim: 'universalization step performed: imagine all learners deceiving all evaluators', alt_phrasings: ['imagine universal adoption', 'every learner does this', 'as universal law'] },
+      { id: 'f2', claim: 'contradiction in conception: institution of evaluation dissolves under universal deception', alt_phrasings: ['institution collapses', 'cannot even be conceived', 'self-undermining', 'evaluation cannot exist'] },
+      { id: 'f3', claim: 'failure mode: maxim depends parasitically on most being truthful', alt_phrasings: ['parasitic on truthfulness of others', 'free-rider', 'cannot be universally adopted'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Universalize: every learner deceives every evaluator. Contradiction in conception: the institution of evaluation presupposes truthful reporting; if all deceive, the institution dissolves. The maxim is parasitic on most being truthful, so it cannot be universally adopted.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Kant says do not lie.', features_hit_truth: [] },
+      { id: 'c3', text: 'If universalized, evaluation as institution becomes impossible. The maxim depends on others not adopting it.', features_hit_truth: ['f2', 'f3'] },
+    ],
   },
 ];
 
-function main() {
+function _sealItem(seed) {
+  const features = seed.answer_features.map(f => {
+    const phrases = [f.claim, ...(f.alt_phrasings || [])];
+    return {
+      id: f.id,
+      claim: f.claim,
+      alt_phrasings: f.alt_phrasings || [],
+      phrasing_hashes: phrases.map(p => sealed.lockAnswerKey(p).sealed_hash),
+      claim_hash: sealed.lockAnswerKey(f.claim).sealed_hash,
+    };
+  });
+  return {
+    id: seed.id,
+    topic: 'philosophy',
+    lifecycle: 'draft',
+    source_anchor: seed.source_anchor,
+    instance: seed.instance,
+    verification_channel: 'sealed_rubric',
+    schema_version: '0.5.D3.1',
+    answer_features: features,
+    k_threshold: seed.k_threshold,
+    candidate_responses: seed.candidate_responses,
+    sealed_at: new Date().toISOString(),
+    sealed_algorithm: 'sha256',
+    sealed_normalization: 'trim+collapse-whitespace+lowercase',
+    rater_a: null,
+    rater_b: null,
+    agreement: null,
+    notes: 'D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters.',
+  };
+}
+
+function _itemFingerprint(item) {
+  const featureFingerprint = item.answer_features.map(f => f.claim_hash).join('|');
+  return featureFingerprint;
+}
+
+function main(argv) {
+  argv = argv || process.argv;
+  const forceReseal = argv.includes('--force-reseal');
+  const checkDrift = argv.includes('--check-drift');
+
   if (!fs.existsSync(TARGET_DIR)) {
     fs.mkdirSync(TARGET_DIR, { recursive: true });
   }
 
   let written = 0;
   let skipped = 0;
+  let drifted = 0;
+
   for (const seed of ITEMS) {
     const filePath = path.join(TARGET_DIR, `${seed.id}.json`);
+    const candidate = _sealItem(seed);
+    const candidateFingerprint = _itemFingerprint(candidate);
+
     if (fs.existsSync(filePath)) {
-      skipped++;
-      continue;
+      let existing = null;
+      try { existing = JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch (_e) { /* fall through to overwrite */ }
+
+      const existingFingerprint = existing && existing.answer_features
+        ? existing.answer_features.map(f => f.claim_hash).filter(Boolean).join('|')
+        : null;
+
+      const drift = existingFingerprint !== candidateFingerprint;
+
+      if (checkDrift) {
+        if (drift) {
+          console.warn(`[seed-philosophy] DRIFT: ${seed.id} feature claims changed since seal. Existing fp: ${existingFingerprint && existingFingerprint.slice(0, 32)}... vs candidate: ${candidateFingerprint.slice(0, 32)}...`);
+          drifted++;
+        }
+        continue;
+      }
+
+      if (!forceReseal) {
+        if (drift) {
+          console.warn(`[seed-philosophy] WARN: ${seed.id} drifted but --force-reseal not set; SKIPPING (would silently lose edits without this warning). Re-run with --force-reseal to update.`);
+          drifted++;
+        } else {
+          skipped++;
+        }
+        continue;
+      }
+
+      // force-reseal: preserve existing rater_a / rater_b if any
+      candidate.rater_a = existing && existing.rater_a || null;
+      candidate.rater_b = existing && existing.rater_b || null;
+      candidate.agreement = existing && existing.agreement || null;
     }
-    const lock = sealed.lockAnswerKey(seed.answer_plaintext);
-    const item = {
-      id: seed.id,
-      topic: 'philosophy',
-      lifecycle: 'draft',
-      syllabus_anchor: seed.syllabus_anchor,
-      instance: seed.instance,
-      verification_channel: 'sealed_rubric',
-      answer_key_hash: lock.sealed_hash,
-      sealed_at: lock.locked_at,
-      sealed_algorithm: lock.algorithm,
-      sealed_normalization: lock.normalization,
-      rater_a: null,
-      rater_b: null,
-      agreement: null,
-      notes: 'Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches.',
-    };
-    fs.writeFileSync(filePath, JSON.stringify(item, null, 2) + '\n', 'utf8');
+
+    fs.writeFileSync(filePath, JSON.stringify(candidate, null, 2) + '\n', 'utf8');
     written++;
   }
-  console.log(`[seed-philosophy] wrote ${written} new item(s), skipped ${skipped} existing`);
+
+  console.log(`[seed-philosophy] wrote ${written} item(s), skipped ${skipped} unchanged, ${drifted} drifted`);
   console.log(`[seed-philosophy] dir: ${TARGET_DIR}`);
+  if (drifted > 0 && !forceReseal && !checkDrift) {
+    console.warn(`[seed-philosophy] ${drifted} item(s) drifted. Re-run with --force-reseal to apply changes.`);
+    process.exit(1);
+  }
 }
 
 if (require.main === module) main();
 
-module.exports = { ITEMS, main };
+module.exports = { ITEMS, main, _sealItem, _itemFingerprint };

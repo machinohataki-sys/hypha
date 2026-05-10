@@ -2,15 +2,91 @@
   "id": "philosophy-010",
   "topic": "philosophy",
   "lifecycle": "draft",
-  "syllabus_anchor": "MIT OCW 24.00 wk9 — Hume induction",
-  "instance": "Hume argues that induction (inferring from past observed regularities to future cases) cannot be justified non-circularly. Construct the circular argument explicitly. Then state how a working scientist responds in practice and why that response is not a refutation of Hume.",
+  "source_anchor": "Hume Treatise Book I Part III §6; Enquiry §IV",
+  "instance": "Hume argues induction cannot be justified non-circularly. Construct the circular argument explicitly. State how a working scientist responds in practice and why that response is not a refutation of Hume.",
   "verification_channel": "sealed_rubric",
-  "answer_key_hash": "cdad47f25a2c0716f9f80677010c56802cd2a58576ec6b9999a8a95e32083b9b",
-  "sealed_at": "2026-05-10T08:27:33.820Z",
+  "schema_version": "0.5.D3.1",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "circular argument: induction has worked before, but THAT inference is itself inductive",
+      "alt_phrasings": [
+        "justification uses induction itself",
+        "circularity stated",
+        "self-referential justification"
+      ],
+      "phrasing_hashes": [
+        "c9adc7e6e86194331c2c5a636750c84f51c72ec30631e9079bed51708e5bff00",
+        "2f355412a2843c52efa79005a90c5aa332a075d404af61ecec61bcc559eb6e95",
+        "be65e8d6b4aca35414dca986b40e77e6e3600a628a78b18cfbd38d666da16717",
+        "1efed2d08f1f3ac02957fddbbf76fee54fe48a4cba25061d996f55bff8bd85cd"
+      ],
+      "claim_hash": "c9adc7e6e86194331c2c5a636750c84f51c72ec30631e9079bed51708e5bff00"
+    },
+    {
+      "id": "f2",
+      "claim": "scientist response: methodological commitment, not proven theorem",
+      "alt_phrasings": [
+        "pragmatic acceptance",
+        "methodological not proven",
+        "works in practice"
+      ],
+      "phrasing_hashes": [
+        "077e7789cfbc4a66ded31aa21f788534a3b9539c31765115cf774257fd85ea79",
+        "f52fc1d51b9ca48ec8de12551ddd8340f565a88eceb84f5eae18cce61647e9e6",
+        "a68fd99fb3925fad5ff8a2e73f2ad99f19093a3a93293876fea764103c79ad21",
+        "e081ee37f66a0fc5dff4c88673633b45a5165ccbfbffc97f38e196089b930238"
+      ],
+      "claim_hash": "077e7789cfbc4a66ded31aa21f788534a3b9539c31765115cf774257fd85ea79"
+    },
+    {
+      "id": "f3",
+      "claim": "not a refutation: Hume conceded induction works, only denied deductive justification",
+      "alt_phrasings": [
+        "Hume did not deny effectiveness",
+        "concedes one denies the other",
+        "addresses different question"
+      ],
+      "phrasing_hashes": [
+        "66fffc32750e85734d057dbbc47262d5f2ae6dffafcb43589b86c9b399f5a618",
+        "73b6a0af4bc01bff20c24884a201c91fa5597892f445f03add8cd97f11e433dd",
+        "c0ee7b3db271ffd4f6b8e0e97972430eb491676de2065032b886de832a62f52a",
+        "0b4dd15e6d1db491fad1b620a0e2c220144c37d5cce66890e133b62eeacd38a7"
+      ],
+      "claim_hash": "66fffc32750e85734d057dbbc47262d5f2ae6dffafcb43589b86c9b399f5a618"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Circular: to justify induction we cite that it worked, but THAT itself is inductive. Scientists treat induction as methodological commitment, not proven theorem. This is not refutation because Hume only denied deductive justification, never effectiveness.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Hume was a skeptic and science still works.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "The justification is circular. Scientists pragmatically accept it. They are addressing a different question than Hume.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T09:22:09.016Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "rater_a": null,
   "rater_b": null,
   "agreement": null,
-  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+  "notes": "D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters."
 }

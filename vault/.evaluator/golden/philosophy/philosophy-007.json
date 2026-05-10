@@ -2,15 +2,91 @@
   "id": "philosophy-007",
   "topic": "philosophy",
   "lifecycle": "draft",
-  "syllabus_anchor": "MIT OCW 24.00 wk5 — Aristotelian virtue ethics",
-  "instance": "Aristotle locates virtue as a mean between two vices (e.g., courage between cowardice and rashness). Pick one professional virtue specific to a software engineer (NOT a generic virtue), name the two flanking vices precisely, and give one decision boundary observable in code review where both vices manifest.",
+  "source_anchor": "Aristotle Nicomachean Ethics II.6 (1106b Bekker); SEP \"Aristotle's Ethics\" §6",
+  "instance": "Aristotle locates virtue as a mean between two vices. Pick one professional virtue specific to a software engineer (NOT a generic virtue), name the two flanking vices precisely, and give one decision boundary observable in code review where both vices manifest.",
   "verification_channel": "sealed_rubric",
-  "answer_key_hash": "004ffda76def238dbe5e02e96359438b9632a42fbb9990e9d651fa9b09e829bc",
-  "sealed_at": "2026-05-10T08:27:33.741Z",
+  "schema_version": "0.5.D3.1",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "virtue is software-specific (not generic courage / honesty)",
+      "alt_phrasings": [
+        "specific professional virtue",
+        "engineering-specific",
+        "tied to software practice"
+      ],
+      "phrasing_hashes": [
+        "e837b70ffd262ce68a085856e781ed300cbdb6797b57f6526303d20a359df2e2",
+        "4e2e03435e6c5e24f99ef4088f8aba60e8b384b063732b89a250759f390c4748",
+        "82328277732704207f5bcaf1a323ec03ca6299101416ae8a650576e6d5685872",
+        "d684a3c2fc80aa3fdae1a69c20e1fae1cc54dfdfeed2ba9594ec7d3f624858ae"
+      ],
+      "claim_hash": "e837b70ffd262ce68a085856e781ed300cbdb6797b57f6526303d20a359df2e2"
+    },
+    {
+      "id": "f2",
+      "claim": "two flanking vices named precisely with deficiency / excess structure",
+      "alt_phrasings": [
+        "vice of deficiency",
+        "vice of excess",
+        "both extremes"
+      ],
+      "phrasing_hashes": [
+        "325a36c13cfcb73fe0f018a2a83043bdd7345e8bc04d8026aa222ab012a65ee3",
+        "46143968c2197c6819d60f22fab2105476c3a61db07d1bd1410689b7f2681f74",
+        "77b53ab81815babeea010d2cac31d91ee07eb589180030b3878aec9db1ebcdee",
+        "ca79a600c02fa693924d496323d798d2951839c5a887c168412d993998048b74"
+      ],
+      "claim_hash": "325a36c13cfcb73fe0f018a2a83043bdd7345e8bc04d8026aa222ab012a65ee3"
+    },
+    {
+      "id": "f3",
+      "claim": "concrete decision boundary in code review where each vice manifests",
+      "alt_phrasings": [
+        "observable in review",
+        "concrete behavior",
+        "review pattern"
+      ],
+      "phrasing_hashes": [
+        "8ffd8fd86fb2533ae53d6cec57e38251658054e59ecca9547ffff20d8e022032",
+        "827f424f810bfe104c894bda3d9e23ce571becd95c0a0d33c4bda51bd70b6a80",
+        "e9cee6a20dda288d4cca57c40ffb5617d387fcc1c24a86d51a761f2e56ee2873",
+        "ab8a0c2b5e979b15d468491c911b11354f9908eec1be91452a4f7de601e86d0b"
+      ],
+      "claim_hash": "8ffd8fd86fb2533ae53d6cec57e38251658054e59ecca9547ffff20d8e022032"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Virtue: appropriate skepticism of generated code. Vice 1 (deficiency): credulity, accepting code without reading it. Vice 2 (excess): paranoia, refusing all generated code. Boundary: in review, vice 1 pastes without testing; vice 2 rewrites everything by hand.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Be brave in code review.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Test discipline — vice 1 skips tests, vice 2 obsessively over-tests. In review you see this in test count.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T09:22:08.438Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "rater_a": null,
   "rater_b": null,
   "agreement": null,
-  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+  "notes": "D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters."
 }

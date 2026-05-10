@@ -2,15 +2,92 @@
   "id": "philosophy-003",
   "topic": "philosophy",
   "lifecycle": "draft",
-  "syllabus_anchor": "Yale OYC PHIL 181 — Parmenides on being",
-  "instance": "Parmenides argued that change is impossible because what-is cannot become what-is-not. Construct one analogy from physics or computer science where his deductive structure holds, and one where it fails. Explain which premise breaks in the failing case.",
+  "source_anchor": "Parmenides \"On Nature\" Fragment 8; SEP \"Parmenides\" §3",
+  "instance": "Parmenides argued change is impossible because what-is cannot become what-is-not. Construct one analogy from physics or computer science where his deductive structure holds, and one where it fails. Identify the breaking premise.",
   "verification_channel": "sealed_rubric",
-  "answer_key_hash": "42dfb19ef3e51ffaf85ec0afda7ee5fc8d77ae13932a117e9cc68a59c0d05622",
-  "sealed_at": "2026-05-10T08:27:33.637Z",
+  "schema_version": "0.5.D3.1",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "analog where deduction holds (closed-system conservation)",
+      "alt_phrasings": [
+        "conservation of mass-energy",
+        "closed system",
+        "static identity"
+      ],
+      "phrasing_hashes": [
+        "d4565d112c7a414c7aa086ac664d67f9666854fdcabe6fbb48849a25a235168d",
+        "1f070a5f1ef38907b7cfbd029afaae96053b044a3c02a619451fe304f759a593",
+        "9d577d0ddedcc79bf1592b686c87bbefdf109c1bff4cadf2c266b18deee57018",
+        "a2a0a4146cf7256d6b72e9b9478ec6f86f33bc6b2fbe851f0c2608700cdc0e12"
+      ],
+      "claim_hash": "d4565d112c7a414c7aa086ac664d67f9666854fdcabe6fbb48849a25a235168d"
+    },
+    {
+      "id": "f2",
+      "claim": "analog where deduction fails (transient or rolled-back state)",
+      "alt_phrasings": [
+        "branch prediction misspeculation",
+        "rolled-back transaction",
+        "speculative state",
+        "discarded computation"
+      ],
+      "phrasing_hashes": [
+        "e5559a972f5ec3e5177d0afb64b5d7e74a9d685a4d4878d7578120119e4225b4",
+        "26a6b9097028f1c9554f62a7415499286f426843001102044f367e0d365b8e04",
+        "f39ce3d57822f496da72caa735803e327540f7a80d1295730886fb2ace4158f9",
+        "65dfaa612a960192d55819fec636016758b716b62acf50bdbb9fa9e075e28920",
+        "47734179f6f3aff75e12e0686bd1c01459263c4f64df0f995b2991bdca42f393"
+      ],
+      "claim_hash": "e5559a972f5ec3e5177d0afb64b5d7e74a9d685a4d4878d7578120119e4225b4"
+    },
+    {
+      "id": "f3",
+      "claim": "breaking premise: treating what-is as static binary not function over time",
+      "alt_phrasings": [
+        "premise breaks because identity is time-dependent",
+        "temporal becoming is allowed",
+        "state can exist transiently"
+      ],
+      "phrasing_hashes": [
+        "c3d25a60482f3d69e0060b371254c234cbaeb72c5b79fd8f30dc0437dece6215",
+        "204fbe70ea56f7d9b5357924cc7455d05f294afdf4da1712722e445c2eb676a7",
+        "2edcb01d09997166341bcaa642e5059506e543b30a2d7085cace8a27b1f35be1",
+        "d0f8054e3fef6a4fe55b7e505ded6ae68aebecdf4bea5863ab5b91d7e9851664"
+      ],
+      "claim_hash": "c3d25a60482f3d69e0060b371254c234cbaeb72c5b79fd8f30dc0437dece6215"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Holds in mass-energy conservation. Fails in branch prediction where speculative state is computed then discarded — the breaking premise is treating existence as static.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Parmenides was just wrong because change happens.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "In thermodynamics it holds. The problem is Parmenides treats being as binary.",
+      "features_hit_truth": [
+        "f1",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T09:22:02.133Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "rater_a": null,
   "rater_b": null,
   "agreement": null,
-  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+  "notes": "D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters."
 }

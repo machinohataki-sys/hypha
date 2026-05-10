@@ -2,15 +2,92 @@
   "id": "philosophy-012",
   "topic": "philosophy",
   "lifecycle": "draft",
-  "syllabus_anchor": "MIT OCW 24.00 wk11 — Kant ethics",
-  "instance": "Kant categorical imperative tests a maxim by universalizing it. Apply this test to the maxim I will deceive my evaluator about my work to gain credit. Walk through the universalization step concretely, identify the contradiction (in conception OR in will), and explain why this maxim fails by Kant standard.",
+  "source_anchor": "Kant Groundwork of the Metaphysic of Morals §II (4:421-4:424); SEP \"Kant's Moral Philosophy\" §6",
+  "instance": "Kant's categorical imperative tests a maxim by universalizing it. Apply this test to \"I will deceive my evaluator about my work to gain credit.\" Walk through universalization, identify the contradiction (in conception or in will), explain why this maxim fails by Kant's standard.",
   "verification_channel": "sealed_rubric",
-  "answer_key_hash": "bee4e325feb14b4b2f628579fec059bfffbbadf8024a33526aa5659ea669423c",
-  "sealed_at": "2026-05-10T08:27:33.872Z",
+  "schema_version": "0.5.D3.1",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "universalization step performed: imagine all learners deceiving all evaluators",
+      "alt_phrasings": [
+        "imagine universal adoption",
+        "every learner does this",
+        "as universal law"
+      ],
+      "phrasing_hashes": [
+        "141dce2e621a212bdf52e8695b04e5aabd459b3beeb18a22563a0d626b21946a",
+        "83384d0802d164da1acc3bac899de3d1534cec81512958db5dc768c9b8ca108c",
+        "0d7cbbccae5b9bbe5806be3100a31fd2af1fa2010cb3bc53f3301fbd2a25a339",
+        "e5d3ee81abd68a3eab511fd9aa6a9d22d48b798c99bbc6246c0abaeff69a12b3"
+      ],
+      "claim_hash": "141dce2e621a212bdf52e8695b04e5aabd459b3beeb18a22563a0d626b21946a"
+    },
+    {
+      "id": "f2",
+      "claim": "contradiction in conception: institution of evaluation dissolves under universal deception",
+      "alt_phrasings": [
+        "institution collapses",
+        "cannot even be conceived",
+        "self-undermining",
+        "evaluation cannot exist"
+      ],
+      "phrasing_hashes": [
+        "52dac56bb0eed320b7cbc807a72be4f1a273571cba71ea385896954651b85c1c",
+        "2f8582b8feb8b6dc0f7250d6c1f487f56769eba5ebd26733b1b82fc0698a63c9",
+        "c4246b1ffc2c9f9037cef8b1789a68642fe1670662791fe00f497188dcda5f79",
+        "c76c17a046b1ef4287d60622e0080b1b8697aa15c7bb0615b7dbbd6dbc422f60",
+        "10e3d9525a81df70d6694bb48a98001167720074f40681ddeb3f98b45bd73a7c"
+      ],
+      "claim_hash": "52dac56bb0eed320b7cbc807a72be4f1a273571cba71ea385896954651b85c1c"
+    },
+    {
+      "id": "f3",
+      "claim": "failure mode: maxim depends parasitically on most being truthful",
+      "alt_phrasings": [
+        "parasitic on truthfulness of others",
+        "free-rider",
+        "cannot be universally adopted"
+      ],
+      "phrasing_hashes": [
+        "2c035bdbddca59c8053f68e9214f1351f0f2441c9193f7884cf1fe29ebae1144",
+        "b010498c08794cadd1afe2aae92a7371d896ac76dcdf716e466c8b23d8c8e1a0",
+        "4c5c880e37271f14ee22076f1ea29e82202edc2de278a08295ff2b35507203a5",
+        "2a7225c3fe9028dbd59845d0f388f3f711be170fad92973b4b43c26d04fb6b91"
+      ],
+      "claim_hash": "2c035bdbddca59c8053f68e9214f1351f0f2441c9193f7884cf1fe29ebae1144"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Universalize: every learner deceives every evaluator. Contradiction in conception: the institution of evaluation presupposes truthful reporting; if all deceive, the institution dissolves. The maxim is parasitic on most being truthful, so it cannot be universally adopted.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Kant says do not lie.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "If universalized, evaluation as institution becomes impossible. The maxim depends on others not adopting it.",
+      "features_hit_truth": [
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T09:22:09.595Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
   "rater_a": null,
   "rater_b": null,
   "agreement": null,
-  "notes": "Draft. Plaintext intentionally NOT stored in this file (sealed); plaintext lives in seed-philosophy-golden.js. Two raters must independently judge whether a candidate response matches."
+  "notes": "D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters."
 }
