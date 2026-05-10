@@ -17,6 +17,7 @@
 // require human gate (per AMD-1) and ship in v0.2+.
 
 const { executeChat, LLMProviderError } = require('./llm');
+const sqliteDb = require('../db/sqlite');
 
 const SCORING_SYSTEM_PROMPT = `You are a HYPHA evidence classifier. Given a Micro Proof stimulus + expected_signal pattern + user response, output ONE JSON object:
 
@@ -240,6 +241,7 @@ Classify evidence type, run baseline check, output JSON.`;
   ];
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const _t0 = Date.now();
     const dispatch = await executeChat(capability, {
       messages,
       json: true,
@@ -247,6 +249,17 @@ Classify evidence type, run baseline check, output JSON.`;
       maxTokens: 800,
       timeoutMs: 60_000,
     });
+    // V0.5 E0 D11-D14 Phase 1 — record cost-estimate row for scoring call.
+    // Wrapped: recordChatCallEstimate must never break Micro Proof scoring.
+    try {
+      sqliteDb.recordChatCallEstimate(dispatch, 'scoring', {
+        latency_ms: Date.now() - _t0,
+        tuple_id: null,
+        success: true,
+      });
+    } catch (err) {
+      console.warn('[recordChatCallEstimate] scoring err=', err && err.message);
+    }
     const result = dispatch.result;
 
     const errors = validateScoreResult(result);

@@ -749,6 +749,7 @@ async function extractPrerequisiteChain(lectureSequence, syllabusText, opts) {
       + `Syllabus excerpt:\n${syllabusText.slice(0, 2400)}\n\n`
       + `Extract concept prerequisite edges. Each edge: which earlier lecture must be known to follow which later lecture.`;
 
+    const _t0 = Date.now();
     const res = await llm.executeChat('T3_MID', {
       messages: [
         { role: 'system', content: sys },
@@ -758,6 +759,18 @@ async function extractPrerequisiteChain(lectureSequence, syllabusText, opts) {
       maxTokens: 800,
       temperature: 0,
     });
+    // V0.5 E0 D11-D14 Phase 1 — record cost-estimate row for layer1Canonical call.
+    // Wrapped: recordChatCallEstimate must never break syllabus extraction.
+    try {
+      const sqliteDb = require('../../db/sqlite');
+      sqliteDb.recordChatCallEstimate(res, 'layer1Canonical', {
+        latency_ms: Date.now() - _t0,
+        tuple_id: null,
+        success: true,
+      });
+    } catch (err) {
+      console.warn('[recordChatCallEstimate] layer1Canonical err=', err && err.message);
+    }
 
     // executeChat returns { result, providerId, model, capability, attempts }
     // result shape varies per provider — accept content / text / message.content

@@ -1,0 +1,43 @@
+{
+  "id": "llm-systems-003",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Su et al. 2023 \"RoFormer: Enhanced Transformer with Rotary Position Embedding\" §2.2; arXiv:2104.09864",
+  "prompt_text": "Rotary position embedding angle theta = pos / base^(2*dim_idx/D) for pos=10, dim_idx=4, D=64, base=10000. Print theta to 6 decimal places.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D11",
+  "exec_cell": {
+    "language": "node",
+    "code": "const pos=10,dim_idx=4,D=64,base=10000; const angle=pos/Math.pow(base,(2*dim_idx)/D); console.log(angle.toFixed(6));",
+    "expected_stdout_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "const pos=10,dim_idx=4,D=64,base=10000; console.log((pos/Math.pow(base,(2*dim_idx)/D)).toFixed(6));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "console.log(10/10000);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "console.log(\"3.162278\");",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:19:43.661Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "dc93b801c5e6eeabaaf57b78d5194ed437cccab96b033712efb2c02b187f0d0c",
+  "code_hash": "7497afbe67088dfbc23f22397ca866fa766568fdfc6d706d9005f1b7573814eb",
+  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+}

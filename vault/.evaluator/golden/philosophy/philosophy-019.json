@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-019",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Kant Groundwork (Ak 4:421-429) + Critique of Pure Reason B19-B24 (synthetic a priori); SEP \"Kant's Moral Philosophy\" §6 + \"Kant's Critique of Pure Reason\" §3",
+  "instance": "Kant offers two formulations of the categorical imperative: universal law (FUL) and humanity as an end in itself (FH). Apply BOTH to \"I will use a colleague's draft work as my own to meet a deadline\" and explain whether they reach the same verdict by the same reason or different reasons.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "FUL applied: universalize and find contradiction in conception or in will",
+      "alt_phrasings": [
+        "universalize the maxim",
+        "imagine all do this",
+        "as universal law",
+        "contradiction in conception or will",
+        "institution of authorship dissolves",
+        "unable to be universally adopted",
+        "universalize then check contradiction"
+      ],
+      "phrasing_hashes": [
+        "a7fe4ea08a0dc2311533085d3bb614ed6b5a848a09009cc9e4477675a6a13cfe",
+        "70bb18549e0e1f848ffe1f68c12589ed1618e6090ec6a74f824f0ffdc5a73d81",
+        "6895957ea2030800341c268f6a975827fbc48150a2b51e38e55a1751d03d0ea6",
+        "e5d3ee81abd68a3eab511fd9aa6a9d22d48b798c99bbc6246c0abaeff69a12b3",
+        "8341eb8f6caab95c0ef4641f08d92ae641b538391d16d396afd74ddc86a87fda",
+        "f929e563ec0ad67c5720aabd37e82649a79f1dc0ddcd2c384db1fbd072fb13d8",
+        "1675ad716ca18c5bf39c5fa218e3a36a3fea5f3c6a0c57c40cffd3c7ad9a5ca9",
+        "849aaa21318042ed3b279d7a013e7c064ee6b406a78c0418f1f3c727d22f7dac"
+      ],
+      "claim_hash": "a7fe4ea08a0dc2311533085d3bb614ed6b5a848a09009cc9e4477675a6a13cfe"
+    },
+    {
+      "id": "f2",
+      "claim": "FH applied: colleague treated merely as means to the agent's deadline",
+      "alt_phrasings": [
+        "humanity treated merely as means",
+        "colleague reduced to instrument",
+        "fails the end-in-itself formulation",
+        "rational agent used merely as a tool",
+        "colleague's consent bypassed",
+        "instrumentalized rational agent",
+        "merely as means not also as end"
+      ],
+      "phrasing_hashes": [
+        "bdf0ee948d11b4e666d536d1658f6d077def1335d4cf595db57c9a622c65682f",
+        "f838b2a19719056fab5a54f243fae4f82bf8e8adf2b1c1f74961bfa902298f2f",
+        "f4aaea70fa6889c777323275d0b02711f1a28dd5010b91a401155cd3ae468f22",
+        "8465c680b3d002d994da403c5656ede44cd34fd999ec42004186c979d29ca33f",
+        "adcdaf64d0db8ad5c9588378da38954ddb84b2af0e06d445b270ad556cf59391",
+        "a33aa0b8e17400cd282c01845636364126826f5ad12401650b4b340294bf9962",
+        "cdab6db3b0f2e3e247ddd2794461f79a9139b5538dc7d84a0a48ac3c8f830249",
+        "96110f0e232a66a037462054e87d0df7722eabbf339c63e0abd80db0456e7dd7"
+      ],
+      "claim_hash": "bdf0ee948d11b4e666d536d1658f6d077def1335d4cf595db57c9a622c65682f"
+    },
+    {
+      "id": "f3",
+      "claim": "reaches same verdict, but reasons differ: FUL = systemic contradiction; FH = local violation of dignity",
+      "alt_phrasings": [
+        "same verdict different ground",
+        "systemic vs interpersonal ground",
+        "one is universalizability the other is dignity",
+        "both forbid but for different reasons",
+        "two complementary not redundant tests",
+        "two formulations converge on verdict different on ground",
+        "agreement in verdict not in reason"
+      ],
+      "phrasing_hashes": [
+        "3d897b737b09a3f3437e53bb8ac56697c0d92b456035e9bb965df809f2d5f283",
+        "7eeb318970951daa5cc322a6045c9f32f7a40d400e3a6bb2b86b10bc6874b1f9",
+        "22285ab6bfcf310cc72374a6b51839aa23111e92ceba4413c404566053f7094b",
+        "95498fa8fe445710e329c06debe009d25fb3025909f7e1cdf2f1926045d528e4",
+        "74e443f4e08bd38e551af39ce60fb9b226c513700d8e18d7f3ecc73488b07d7d",
+        "8b25821fc93396f2b4e92326ac02c0c38d698908319af6fa3758c5b5b298b4bd",
+        "92d91003268351bca7a74b158d5344d4c98955a1abf58f43bdd4f81f4e7415f4",
+        "21e147863e351234c721dcee8316df96a166d9023e0aea08f8aefb0bb0b9a47c"
+      ],
+      "claim_hash": "3d897b737b09a3f3437e53bb8ac56697c0d92b456035e9bb965df809f2d5f283"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "FUL: universalize \"I will pass off others' work as mine to make deadlines\" — authorship as institution dissolves under universal adoption, so contradiction in conception. FH: the colleague is treated merely as a means to my deadline, never also as an end. Both verdicts converge (impermissible) but the grounds differ: FUL is systemic, FH is interpersonal dignity.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Kant says do not cheat.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Universalized, the practice of authorship breaks. The colleague is also reduced to a means. Same verdict, different reasons.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:18:15.118Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

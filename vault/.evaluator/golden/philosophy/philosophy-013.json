@@ -1,0 +1,112 @@
+{
+  "id": "philosophy-013",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Aristotle Physics II.3 + II.7 (194b16-195a3 / 198a14-b9 Bekker); Nicomachean Ethics II.1 (1103a14-b25); SEP \"Aristotle's Natural Philosophy\" §6",
+  "instance": "Aristotle organizes change under the four causes (material / formal / efficient / final) and grounds virtue in habituated activity (energeia) directed at a telos. Apply both frameworks to a single concrete artifact — a beginner runner training for a marathon — and identify the precise place where Aristotle's account of moral virtue diverges from a purely consequentialist redescription.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "four causes mapped concretely to the runner case (body / training pattern / coach or self / health or completion)",
+      "alt_phrasings": [
+        "material is the body",
+        "formal is the training pattern",
+        "efficient is the coach or runner herself",
+        "final is finishing the marathon",
+        "four causes applied to runner",
+        "matter form efficient end mapped",
+        "all four causes assigned"
+      ],
+      "phrasing_hashes": [
+        "2783004fe5e901f26ea0a68b40349013e12763823573c919e03d41ddd50a8c31",
+        "8120b13bfef4c0c90d4dcd7b90ae2dafffa9c7f2d7cef90778e9b2c563d59c3e",
+        "d922b4d6fe72d012b14b5c86d4fe784d7ebe416ef141d3d773acd31a300f5e7e",
+        "15df01ad1eab5f9074185498828b391dadb8138bdeb11c4a50c12aa68b4abbfb",
+        "e34654aa6ec70980032edb3d948197c3bc733cbf2729c5057e136336a5b51376",
+        "363e21ca5c7f451b12d5a83b5e35d66d43f8e088a708306778b311f6915f24c8",
+        "244338571ad5e6a8aa8af8bd918f2d6419f0b81211b84032079290f65a71bf64",
+        "912b53ad3d5aba4290abf176769c6b2e2d34b1a50ae05c17e274b657be9d04f0"
+      ],
+      "claim_hash": "2783004fe5e901f26ea0a68b40349013e12763823573c919e03d41ddd50a8c31"
+    },
+    {
+      "id": "f2",
+      "claim": "virtue formed by habituated activity (hexis) not by single acts or outcomes",
+      "alt_phrasings": [
+        "virtue is a stable disposition",
+        "hexis through repeated practice",
+        "habituation builds character",
+        "state of character not single act",
+        "we are what we repeatedly do",
+        "character through habit",
+        "habit shapes hexis"
+      ],
+      "phrasing_hashes": [
+        "d7af5e4f74d8609f2d214e6c1e472a042e5c2a8b75a992fbe3df7f55fe75f684",
+        "6812a8020b906dc771ce8921658767dcddff3ee0ca99e0f15b79676039004ddb",
+        "8420c990ef47c73eb45bad85d02e999dc230e3e7619d82b69467c059dc716fee",
+        "9fdae630e73e7fd15071188ec5dc756c30b19b189cda949d4f838a87df2bb711",
+        "502d2b87bf1c4f0276ff1b4730e300930a6164ab8bfc8eee236467ca993be06d",
+        "27a37fc84194427e4ce7d4d3b98f5e97a76dc9f374594f5fcddb12a10ea842a6",
+        "0b4024fdce6e7e99f8d2d2a8d9f7869354cefb4cecbe20e373df2c58b84862bb",
+        "8a36873a135216f43b7f9c1b7b2a718a4a68ca70246d780058c92a0008f71f6e"
+      ],
+      "claim_hash": "d7af5e4f74d8609f2d214e6c1e472a042e5c2a8b75a992fbe3df7f55fe75f684"
+    },
+    {
+      "id": "f3",
+      "claim": "divergence from consequentialism: act done from the right state of character, not merely by outcome",
+      "alt_phrasings": [
+        "act flows from character not just outcome",
+        "consequentialism collapses motive",
+        "Aristotle requires the right hexis",
+        "how-done matters not only what-done",
+        "virtue is in the agent not in the result",
+        "manner of action constitutes virtue",
+        "inner state required not just outcome"
+      ],
+      "phrasing_hashes": [
+        "105cb086ecdef068ba0fea09b7c6440462e2940cf0746d64b4b6f24ac50de350",
+        "49eb9cabad0a45bbe81471b2fa33b7800773e97a5b69992bdc28c61e3f4e6f75",
+        "8b40ba892becb53347051d0fd11f4635871bc58ec987812fe06722521b676146",
+        "7a54f0023185f2025176527036cbdc075e4b1b0678f9a47a88bbd36342727bfa",
+        "2e02a461a1f03611dcff4959c38bc5ba3ab308fcdc19531f440c3466ac449a49",
+        "e4a3a8f8d6197508ad7145dfe1fc1ec9d6ebaab840ab766a562020a5f0050cb1",
+        "6198b4f4ad07aff5c46e91fe077a2b1520a8f3902f6863f5ed14408375967a65",
+        "7b8fc1bf2d2f401fb53adb39ebef1a5392cd7c5269f9e28a840b1f54ea1bff31"
+      ],
+      "claim_hash": "105cb086ecdef068ba0fea09b7c6440462e2940cf0746d64b4b6f24ac50de350"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Material is the runner's body, formal is the training program, efficient is the coach, final is completing the marathon. Virtue is a hexis built by repeated training acts, not by a one-off finish. Aristotle diverges from consequentialism because virtue lives in the stable character from which the act flows, not only in the outcome.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Aristotle just means practice makes perfect.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Habit builds the hexis. The act must come from the right state of character — outcome alone is not enough for Aristotle.",
+      "features_hit_truth": [
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:18:14.948Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

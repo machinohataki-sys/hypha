@@ -1,0 +1,43 @@
+{
+  "id": "llm-systems-007",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Sennrich Haddow Birch 2016 \"Neural Machine Translation of Rare Words with Subword Units\" §3 BPE; Touvron et al. 2023 LLaMA §2 tokenizer",
+  "prompt_text": "For the simple whitespace-split tokenizer applied to \"the quick brown fox jumps over the lazy dog\", compute average bytes per token = utf8_byte_length / token_count. Print to 4 decimal places.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D11",
+  "exec_cell": {
+    "language": "node",
+    "code": "const text='the quick brown fox jumps over the lazy dog'; const tokens=text.split(/\\s+/); const bytes=text.length; const avg=bytes/tokens.length; console.log(avg.toFixed(4));",
+    "expected_stdout_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "const t='the quick brown fox jumps over the lazy dog'; console.log((t.length/t.split(/\\s+/).length).toFixed(4));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "console.log(5);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "console.log(\"4.7778\");",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:19:48.138Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "257a08087d069debc2d4bcce9568c0efc0a1a8cf1f953da16e85a19401530855",
+  "code_hash": "5e4e897f008e4ed70b970185d490b77f8e4b8a458bc17b169aab2935fe6d9e00",
+  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+}

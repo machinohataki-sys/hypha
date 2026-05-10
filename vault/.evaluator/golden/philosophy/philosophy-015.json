@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-015",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Augustine Confessions VII.3-7, VIII.5; On Free Choice of the Will (De libero arbitrio) II.20, III.17; SEP \"Saint Augustine\" §6",
+  "instance": "Augustine's account of evil treats it as a privation of good (privatio boni) and grounds responsibility in voluntary turning of the will. Reconstruct the privation move in three steps, then state how it constrains what counts as a coherent question of the form \"why is there X evil in the world.\"",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "privation move: evil is not a positive substance but the absence or disorder of due good",
+      "alt_phrasings": [
+        "evil is privation not substance",
+        "absence of due good",
+        "no positive ontology of evil",
+        "privatio boni",
+        "evil is a lack",
+        "disordered absence of good",
+        "evil has no substance only deficit"
+      ],
+      "phrasing_hashes": [
+        "4965f84f31570c026f2dc7cd4127001da1e046982e181427878facf834ca8dfe",
+        "deddfcf92364d635186e2224cb0ec23ecd4e41cb95aa36cf029afe87dbcca905",
+        "fcf927880f3d8cf9c7db08b1c7e85186c51e13a851cf053fbbd9b94bf028dc2b",
+        "b119c54733fc0deff4e91f4e86eb07a937b291747fb55244cab03b2395331ac5",
+        "e661a8facaa7869dc24f31eb978151389d79a1186fb27c77d89643d99f18bace",
+        "c989c0ef17a1c136875f860f118deed4019dcf58e37f3ee50a7d17efc398172d",
+        "6276e7d8538f95bc73f9b14991b7029e2837abd69cd26d1eff4ae852377e1e8a",
+        "49bcad06afa7371f8e04f3c9aadb4f591c029d63983226df7da6ea815c335f90"
+      ],
+      "claim_hash": "4965f84f31570c026f2dc7cd4127001da1e046982e181427878facf834ca8dfe"
+    },
+    {
+      "id": "f2",
+      "claim": "grounding in will: voluntary turning away from higher to lower good",
+      "alt_phrasings": [
+        "will turns toward lesser good",
+        "voluntary aversion from God",
+        "free will misuses created good",
+        "will is the locus of moral evil",
+        "willed disordering of loves",
+        "aversio a deo conversio ad creaturas",
+        "misuse of free choice"
+      ],
+      "phrasing_hashes": [
+        "1ae131cf6ed6681b5302fb405e32138a953c51abeb124f29b429669e5ae82d67",
+        "5c8202d8acd02da3753cc32843711039067e6d8625be6043426b294d6b86a9b3",
+        "3fc45a1312424b6c2db319293f3310ffddb4d6ac86d367d0690eea18dcbc581b",
+        "8440c152e429d31839783ab7ad7072efcc4c09a2f559bba4352070a1544937b2",
+        "04350a1214660f871a6772a9b40c062ecf27be6b2fed07293f96a7d2c168e310",
+        "b6f1e45270479495f020b8711e88fa9f6f872e982442e16667e6a596ed800372",
+        "b97191f5e72733d11776bc59ede7349ae8cbceb43dd55ce6690d6e761c811873",
+        "86f1973cc557b7da870a132150b87d85747ce283513aff897a31e830bba7a2af"
+      ],
+      "claim_hash": "1ae131cf6ed6681b5302fb405e32138a953c51abeb124f29b429669e5ae82d67"
+    },
+    {
+      "id": "f3",
+      "claim": "constraint: the question \"why does X (a thing-evil) exist\" mistakes a deficit for a substance",
+      "alt_phrasings": [
+        "question presupposes positive evil",
+        "reframes as why is good missing here",
+        "category mistake about evil",
+        "asks of nothing as if something",
+        "reformulates question to absence of good",
+        "why is X-good absent here",
+        "evil is not a thing to explain"
+      ],
+      "phrasing_hashes": [
+        "6821e99b75ef072b34da3acbbf758889307b644ade657fa43f760a632f8bae52",
+        "20d4517141e8a484de99dc1b2d6bc2a38d26a13c4b897be8a6f67ef5649c5d0d",
+        "0013c2a3941b43efcc52500192d4f11e1a81faa49539bc1aa4195c92d5a58180",
+        "ef5163148ac8232e3e5b717dfc8c343f4e184513242f315dde04e64298f8dc4f",
+        "bb0803f0f560620a7af3dad7442ffc9751d00e9f63947c2e675949dfb527d166",
+        "cf75c1185ec6f65d02f454e86378c5848e33005044024b922aff2f0cab41f69f",
+        "7031eb61ab47eb763b4aca80cdb041c1d0fafe60b405d80379607f52e6563a0c",
+        "3f887eaaf7785c6abc111877d7e4f555a30f27b427794a726da59e122ede5ee0"
+      ],
+      "claim_hash": "6821e99b75ef072b34da3acbbf758889307b644ade657fa43f760a632f8bae52"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Step 1: evil is privatio boni — not a thing, only a lack of due good. Step 2: moral evil grounds in the will turning from a higher good to a lower one. Step 3: asking why a positive thing-evil exists is a category mistake; the only coherent form is why a particular good is missing or disordered here.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Augustine says everything is God's plan.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Evil is privation, will turns wrongly. So the question must be reframed as why is the proper good absent, not why an evil-thing is present.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:18:15.015Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

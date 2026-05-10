@@ -6439,6 +6439,256 @@ ipcMain.handle('curriculum:restore', (_e, { trashName } = {}) => {
   return { ok: true, rel: r.rel };
 });
 
+// V0.5 E0 D11-D14 Phase 1 — evaluator IPC cluster.
+//
+// Single-verb IPCs that wrap the substrate libraries shipped in D1-D10:
+//   - golden-loader.loadTopic(topic) — items + sidecar-merged ratings + kappa
+//   - sealed-rubric.verifyFeatures(responseText, item) — feature-substring channel
+//   - exec-cell.runCell(code, opts) — Node child-process channel
+//   - f1-harness.runHarness(topic, opts) — F1 + IRR-gated rater mode
+//   - events.write(slug, event) — typed event log writer (validates schema)
+//   - sqlite.recordLessonOutcome(row) — per-response outcome row
+//
+// Surfaces consumed by app/design/screen-tuple-substrate.jsx (col-3 substrate
+// view). Bridges live in app/preload.js under window.ptor.evaluator.{...}.
+// IRR-before-F1 rule (constitution): kappa >= 0.7 must precede any F1 number.
+const _evaluatorGoldenLoader = require('./lib/evaluator/golden-loader');
+const _evaluatorSealedRubric = require('./lib/evaluator/verification-channels/sealed-rubric');
+const _evaluatorExecCell     = require('./lib/evaluator/verification-channels/exec-cell');
+const _evaluatorF1Harness    = require('./lib/evaluator/f1-harness');
+const _evaluatorEvents       = require('./lib/events');
+let _evaluatorSqlite = null;
+function _evaluatorDb() {
+  if (_evaluatorSqlite !== null) return _evaluatorSqlite;
+  try { _evaluatorSqlite = require('./db/sqlite'); }
+  catch (err) {
+    console.warn('[evaluator] sqlite unavailable — outcome rows will be skipped:', err && err.message);
+    _evaluatorSqlite = false;
+  }
+  return _evaluatorSqlite || null;
+}
+
+// Locate item by id by walking loadAllTopics. Returns {topic, item} or null.
+// 50-item set; full walk is cheap. Cached per-process for the session lifetime
+// of the IPC call only (no module-level cache; sidecars change at runtime).
+function _evaluatorFindItem(itemId) {
+  if (!itemId || typeof itemId !== 'string') return null;
+  const all = _evaluatorGoldenLoader.loadAllTopics();
+  if (!all || !Array.isArray(all.topics)) return null;
+  for (const ledger of all.topics) {
+    if (!ledger || !Array.isArray(ledger.items)) continue;
+    const found = ledger.items.find(it => it && it.id === itemId);
+    if (found) return { topic: ledger.topic, item: found };
+  }
+  return null;
+}
+
+// nextInstance — walk items × candidates for the given topic, return the first
+// pair where rater_a (the founder) has not yet rated this candidate. Sidecar-
+// driven: rater_a sidecar absent OR present but missing this candidate id =>
+// instance is unrated.
+ipcMain.handle('evaluator:nextInstance', (_e, topic) => {
+  if (!topic || typeof topic !== 'string') {
+    return { ok: false, error: 'topic required (string)' };
+  }
+  let ledger;
+  try {
+    ledger = _evaluatorGoldenLoader.loadTopic(topic);
+  } catch (err) {
+    console.warn('[evaluator:nextInstance] loadTopic threw:', err && err.message);
+    return { ok: false, error: `loadTopic threw: ${err && err.message}` };
+  }
+  if (!ledger || !Array.isArray(ledger.items)) {
+    return { ok: false, error: ledger && ledger.reason ? ledger.reason : 'no items' };
+  }
+  const items = ledger.items;
+  for (const item of items) {
+    const cands = Array.isArray(item.candidate_responses) ? item.candidate_responses : [];
+    if (cands.length === 0) continue;
+    const ratingsA = (item.rater_a && item.rater_a.ratings) || null;
+    for (const cand of cands) {
+      const rated = ratingsA && ratingsA[cand.id];
+      if (!rated) {
+        return { ok: true, item, candidate: cand, topic };
+      }
+    }
+  }
+  return { ok: true, item: null, candidate: null, exhausted: true, topic };
+});
+
+// submitResponse — per-response verification + outcome recording. Dispatches
+// on item.verification_channel: 'sealed_rubric' => sealed-rubric.verifyFeatures
+// (sync), 'code' => exec-cell.runCell(item.exec_cell.code) (async). Writes
+// events.jsonl row + sqlite lesson_outcomes row. No silent-catch — every
+// failure path either returns an error envelope or writes a quarantine event.
+ipcMain.handle('evaluator:submitResponse', async (_e, itemId, candidateId, responseText) => {
+  if (!itemId || typeof itemId !== 'string') {
+    return { ok: false, error: 'itemId required (string)' };
+  }
+  if (!candidateId || typeof candidateId !== 'string') {
+    return { ok: false, error: 'candidateId required (string)' };
+  }
+  if (typeof responseText !== 'string') {
+    return { ok: false, error: 'responseText required (string)' };
+  }
+  const located = _evaluatorFindItem(itemId);
+  if (!located) {
+    return { ok: false, error: `item not found: ${itemId}` };
+  }
+  const { topic, item } = located;
+  const channel = item.verification_channel || 'sealed_rubric';
+
+  let verified = null;
+  let exec_result = null;
+  const t0 = Date.now();
+
+  if (channel === 'code') {
+    const cell = item.exec_cell || {};
+    const code = typeof cell.code === 'string' ? cell.code : '';
+    const timeoutMs = Number.isFinite(cell.timeout_ms) ? cell.timeout_ms : undefined;
+    try {
+      exec_result = await _evaluatorExecCell.runCell(code, { timeoutMs });
+    } catch (err) {
+      console.warn('[evaluator:submitResponse] exec-cell threw:', err && err.message);
+      exec_result = { pass: false, reason: 'exec_threw', stderr_excerpt: err && err.message };
+    }
+    if (cell.expected_stdout_hash && exec_result && exec_result.stdout_hash) {
+      exec_result.hash_match = exec_result.stdout_hash === cell.expected_stdout_hash;
+      exec_result.pass = !!exec_result.pass && exec_result.hash_match === true;
+    }
+    verified = {
+      channel: 'code',
+      predicted_pass: !!(exec_result && exec_result.pass),
+      features_hit: [],
+      per_feature: [],
+    };
+  } else {
+    // Default: sealed_rubric / feature_substring channel. verifyFeatures is sync.
+    try {
+      const v = _evaluatorSealedRubric.verifyFeatures(responseText, item);
+      verified = {
+        channel: v.channel || 'feature_substring',
+        predicted_pass: !!v.predicted_pass,
+        features_hit: Array.isArray(v.features_hit) ? v.features_hit : [],
+        per_feature: Array.isArray(v.per_feature) ? v.per_feature : [],
+        threshold: v.threshold,
+        reason: v.reason || null,
+      };
+    } catch (err) {
+      console.warn('[evaluator:submitResponse] verifyFeatures threw:', err && err.message);
+      verified = {
+        channel: 'feature_substring',
+        predicted_pass: false,
+        features_hit: [],
+        per_feature: [],
+        reason: `verifyFeatures threw: ${err && err.message}`,
+      };
+    }
+  }
+
+  const duration_ms = Date.now() - t0;
+  const verdict = verified.predicted_pass ? 'pass' : 'fail';
+
+  // Typed event row. events.write enriches with ts + lifecycle defaults and
+  // validates against events-schema.json; failures land in .events-quarantine.
+  let event_recorded = false;
+  try {
+    const eventPayload = {
+      type: 'eval_response',
+      tuple_id: itemId,
+      candidate_id: candidateId,
+      verification_channel: channel === 'code' ? 'code' : 'sealed_rubric',
+      predicted_pass: verified.predicted_pass,
+      features_hit: verified.features_hit,
+      duration_ms,
+    };
+    if (exec_result) eventPayload.exec_result = {
+      pass: !!exec_result.pass,
+      stdout_hash: exec_result.stdout_hash || null,
+      runtime_ms: Number.isFinite(exec_result.runtime_ms) ? exec_result.runtime_ms : null,
+      stderr_excerpt: exec_result.stderr_excerpt || null,
+      reason: exec_result.reason || null,
+      hash_match: exec_result.hash_match == null ? null : !!exec_result.hash_match,
+    };
+    const r = _evaluatorEvents.write(topic, eventPayload);
+    event_recorded = !!(r && r.ok);
+  } catch (err) {
+    console.warn('[evaluator:submitResponse] events.write threw:', err && err.message);
+  }
+
+  // Per-response sqlite outcome row. recordLessonOutcome upserts on tuple_id;
+  // composite key (item, candidate) is encoded as `${itemId}::${candidateId}`
+  // so multiple candidates per item don't collide.
+  let outcome_recorded = false;
+  const db = _evaluatorDb();
+  if (db && typeof db.recordLessonOutcome === 'function') {
+    try {
+      db.recordLessonOutcome({
+        tuple_id: `${itemId}::${candidateId}`,
+        goal_topic: topic,
+        verification_channel: channel === 'code' ? 'code' : 'sealed_rubric',
+        verdict,
+        exec_result_pass: exec_result ? !!exec_result.pass : null,
+        duration_ms,
+      });
+      outcome_recorded = true;
+    } catch (err) {
+      console.warn('[evaluator:submitResponse] recordLessonOutcome threw:', err && err.message);
+    }
+  }
+
+  return {
+    ok: true,
+    verified,
+    exec_result,
+    recorded: { events: event_recorded, sqlite: outcome_recorded },
+    duration_ms,
+    topic,
+  };
+});
+
+// f1Run — wraps f1-harness.runHarness. opts pass-through ({ truth_source:
+// 'rater' | 'ground' }). Default truth_source='rater' enforces kappa >= 0.7
+// gate; 'ground' bypasses for development/calibration.
+ipcMain.handle('evaluator:f1Run', async (_e, topic, opts) => {
+  if (!topic || typeof topic !== 'string') {
+    return { ok: false, error: 'topic required (string)' };
+  }
+  try {
+    const result = await _evaluatorF1Harness.runHarness(topic, opts || {});
+    return { ok: true, result };
+  } catch (err) {
+    console.warn('[evaluator:f1Run] runHarness threw:', err && err.message);
+    return { ok: false, error: `runHarness threw: ${err && err.message}` };
+  }
+});
+
+// irrCompute — thin wrapper over golden-loader.loadTopic that returns just the
+// kappa fields (omits items array to keep IPC payload small).
+ipcMain.handle('evaluator:irrCompute', (_e, topic) => {
+  if (!topic || typeof topic !== 'string') {
+    return { ok: false, error: 'topic required (string)' };
+  }
+  let ledger;
+  try {
+    ledger = _evaluatorGoldenLoader.loadTopic(topic);
+  } catch (err) {
+    console.warn('[evaluator:irrCompute] loadTopic threw:', err && err.message);
+    return { ok: false, error: `loadTopic threw: ${err && err.message}` };
+  }
+  if (!ledger) return { ok: false, error: 'loadTopic returned nothing' };
+  return {
+    ok: true,
+    topic,
+    kappa: ledger.kappa,
+    kappa_n: ledger.kappa_n || null,
+    kappa_interpretation: ledger.kappa_interpretation || null,
+    kappa_reason: ledger.kappa_reason || null,
+    n_items: ledger.n_items || 0,
+    n_double_coded: ledger.n_double_coded || 0,
+  };
+});
+
 // v0.5.2 — Frontier Cron IPCs. Single-verb start/stop (NOT cron-toggle).
 // Backend = app/scripts/frontier-cron.js. Persists `frontierCronEnabled` +
 // `frontierCronInterval` into settings.app so the choice survives restart.

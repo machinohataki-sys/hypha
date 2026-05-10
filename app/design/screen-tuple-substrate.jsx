@@ -1,7 +1,8 @@
-// V0.5 E0 D5 — TupleSubstrateView (kernel swap, live IPC)
-// Replaces chat metaphor with Instance / Response / Verdict layout when
-// state.json declares verification_channel. D5 = live IPC; D6 ships the
-// preload.js/main.js bridge + HYPHA.html script tag.
+// V0.5 E0 D11-D14 Phase 1 — TupleSubstrateView (real evaluator IPC consumer)
+// Replaces chat metaphor with Instance / Response / Verdict layout.
+// D5 = live IPC scaffold (slug/lessonIdx contract). D11 swap to per-topic
+// evaluator IPC: nextInstance(topic) → {item, candidate}; submitResponse
+// (itemId, candidateId, responseText) → {verified, exec_result, recorded}.
 // Manuscript register (inline only): cream paper, brass hairlines, italic
 // Garamond labels, oxblood verdict-fail, brass-bright verdict-pass. No emoji.
 
@@ -44,8 +45,20 @@ const S = {
   fail: { borderTopColor: 'var(--terracotta-2)', borderBottomColor: 'var(--terracotta-2)' },
   flag: { fontFamily: SERIF, fontStyle: 'italic', fontSize: 16, letterSpacing: '.06em' },
   channel: { fontFamily: MONO, fontSize: 11, color: 'var(--ink-3)', letterSpacing: '.06em' },
-  hashes: { fontFamily: MONO, fontSize: 11, color: 'var(--ink-2)', lineHeight: 1.6 },
   reason: { fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 },
+  // Per-feature breakdown — italic claim with brass-bright (hit) / oxblood
+  // (miss) feature id flag. Sealed-rubric channel only; code-cell items leave
+  // per_feature empty so the block renders nothing.
+  featureList: { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 },
+  featureRow: {
+    display: 'grid', gridTemplateColumns: '40px 1fr', gap: 10, alignItems: 'baseline',
+    fontFamily: SERIF, fontSize: 13, lineHeight: 1.5,
+  },
+  featureFlagHit: { fontFamily: MONO, fontSize: 11, color: BRASS, letterSpacing: '.04em' },
+  featureFlagMiss: { fontFamily: MONO, fontSize: 11, color: 'var(--terracotta-2)', letterSpacing: '.04em' },
+  featureClaim: { fontStyle: 'italic', color: 'var(--ink-2)' },
+  featureClaimMiss: { fontStyle: 'italic', color: 'var(--ink-3)', textDecoration: 'line-through solid var(--rule-soft)' },
+  hits: { fontFamily: MONO, fontSize: 11, color: 'var(--ink-2)', letterSpacing: '.04em', marginTop: 6 },
 };
 
 const InstanceColumn = ({ instance, syllabusAnchor }) => (
@@ -80,8 +93,13 @@ const ResponseColumn = ({ value, onChange, onSubmit, disabled }) => {
   );
 };
 
-const VerdictColumn = ({ verdict, channel, hashUser, hashExpected }) => {
-  if (!verdict) {
+// VerdictColumn — renders the structured `verified` payload from
+// evaluator:submitResponse. Two channels arrive in distinct shapes:
+//   sealed_rubric / feature_substring: per_feature[] populated, exec_result null
+//   code:                              per_feature empty, exec_result populated
+// Both share predicted_pass + channel; rendering branches on what is present.
+const VerdictColumn = ({ verified, exec_result }) => {
+  if (!verified) {
     // intentional-placeholder: empty-state is the manuscript-register
     // equivalent of an awaiting slot, not a TODO.
     return (
@@ -91,34 +109,81 @@ const VerdictColumn = ({ verdict, channel, hashUser, hashExpected }) => {
       </div>
     );
   }
-  const tint = verdict.pass ? S.pass : S.fail;
-  const flagColor = verdict.pass ? BRASS : 'var(--terracotta-2)';
+  const tint = verified.predicted_pass ? S.pass : S.fail;
+  const flagColor = verified.predicted_pass ? BRASS : 'var(--terracotta-2)';
+  const channelLabel = verified.channel || 'unknown';
+  const featureRows = Array.isArray(verified.per_feature) ? verified.per_feature : [];
+  const featuresHit = Array.isArray(verified.features_hit) ? verified.features_hit : [];
+  const threshold = verified.threshold;
+
   return (
     <div style={{ ...S.col, ...tint }}>
       <div style={S.label}>Verdict</div>
-      <div style={{ ...S.flag, color: flagColor }}>{verdict.pass ? 'pass' : 'fail'}</div>
-      <div style={S.channel}>channel: {channel || '—'}</div>
-      {hashUser && (
-        <div style={S.hashes}>
-          <div>hash_user: <code>{String(hashUser).slice(0, 16)}…</code></div>
-          {hashExpected && <div>hash_expected: <code>{String(hashExpected).slice(0, 16)}…</code></div>}
-          <div>match: {hashUser === hashExpected ? 'yes' : 'no'}</div>
+      <div style={{ ...S.flag, color: flagColor }}>
+        {verified.predicted_pass ? 'pass' : 'fail'}
+      </div>
+      <div style={S.channel}>channel: {channelLabel}</div>
+
+      {featureRows.length > 0 && (
+        <div style={S.featureList}>
+          {featureRows.map((f) => (
+            <div key={f.id} style={S.featureRow}>
+              <span style={f.hit ? S.featureFlagHit : S.featureFlagMiss}>
+                {f.id} {f.hit ? 'hit' : 'miss'}
+              </span>
+              <span style={f.hit ? S.featureClaim : S.featureClaimMiss}>
+                {(f.statement || f.claim || f.matched_phrasing || '').toString()}
+              </span>
+            </div>
+          ))}
         </div>
       )}
-      {verdict.reason && <div style={S.reason}>{verdict.reason}</div>}
+
+      {featureRows.length > 0 && (
+        <div style={S.hits}>
+          {featuresHit.length}/{featureRows.length} features hit
+          {threshold != null ? ` · threshold ${threshold}` : ''}
+        </div>
+      )}
+
+      {exec_result && (
+        <div style={S.hits}>
+          exit {exec_result.exit_code != null ? exec_result.exit_code : '—'}
+          {Number.isFinite(exec_result.runtime_ms) ? ` · ${exec_result.runtime_ms}ms` : ''}
+          {exec_result.hash_match != null ? ` · hash ${exec_result.hash_match ? 'match' : 'mismatch'}` : ''}
+        </div>
+      )}
+      {exec_result && exec_result.stderr_excerpt && (
+        <div style={S.reason}>{exec_result.stderr_excerpt}</div>
+      )}
+
+      {verified.reason && <div style={S.reason}>{verified.reason}</div>}
     </div>
   );
 };
 
 // Self-contained: fetches its own instance + manages its own verdict state.
-// Expected IPC (D6 main.js wiring):
-//   nextInstance(slug, lessonIdx) → { ok, item: { id, instance,
-//     syllabus_anchor?, verification_channel, answer_key_hash? }, exhausted? }
-//   submitResponse(slug, lessonIdx, itemId, responseText) → { ok,
-//     verdict: { pass, hash_user?, reason? } }
-const TupleSubstrateView = ({ slug, lessonIdx }) => {
+//
+// IPC contract (window.ptor.evaluator):
+//   nextInstance(topic) → {ok, item, candidate, exhausted?, error?}
+//     item        = full golden-set item (id, instance, verification_channel,
+//                   answer_features, syllabus_anchor, etc.)
+//     candidate   = single candidate_response object {id, text, ...}
+//     exhausted   = true when no unrated (item, candidate) pair remains
+//   submitResponse(itemId, candidateId, responseText) →
+//     {ok, verified: {channel, predicted_pass, features_hit, per_feature,
+//                     threshold, reason?}, exec_result, recorded, error?}
+//
+// Topic source: the `topic` prop is canonical. For backward-compat with the
+// D5 contract that passed (slug, lessonIdx), `slug` is accepted as a fallback
+// and treated as the topic identifier.
+const TupleSubstrateView = ({ topic, slug, lessonIdx }) => {
+  const effectiveTopic = topic || slug || null;
+
   const [item, setItem] = useState(null);
-  const [verdict, setVerdict] = useState(null);
+  const [candidate, setCandidate] = useState(null);
+  const [verified, setVerified] = useState(null);
+  const [execResult, setExecResult] = useState(null);
   const [response, setResponse] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [bridgeMissing, setBridgeMissing] = useState(false);
@@ -126,42 +191,72 @@ const TupleSubstrateView = ({ slug, lessonIdx }) => {
   const [loadError, setLoadError] = useState(null);
 
   const fetchNext = useCallback(async () => {
+    setLoadError(null);
     const evaluator = window.ptor && window.ptor.evaluator;
     const next = evaluator && evaluator.nextInstance;
     if (typeof next !== 'function') { setBridgeMissing(true); return; }
+    if (!effectiveTopic) {
+      setLoadError('no topic provided');
+      return;
+    }
     try {
-      const r = await next(slug, lessonIdx);
-      if (r && r.ok && r.item) {
-        setItem(r.item); setVerdict(null); setResponse(''); setExhausted(false);
-      } else if (r && r.exhausted) {
-        setItem(null); setExhausted(true);
+      const r = await next(effectiveTopic);
+      if (r && r.ok && r.item && r.candidate) {
+        setItem(r.item);
+        setCandidate(r.candidate);
+        setResponse('');
+        setVerified(null);
+        setExecResult(null);
+        setExhausted(false);
+      } else if (r && r.ok && r.exhausted) {
+        setItem(null);
+        setCandidate(null);
+        setExhausted(true);
       } else {
         setItem(null);
+        setCandidate(null);
         setLoadError((r && r.error) || 'no instance returned');
       }
     } catch (err) {
       console.warn('[tuple-substrate] nextInstance failed:', err && err.message);
       setLoadError(err && err.message ? err.message : 'fetch failed');
     }
-  }, [slug, lessonIdx]);
+  }, [effectiveTopic]);
 
   useEffect(() => {
-    if (slug == null || lessonIdx == null) return;
+    if (!effectiveTopic) return;
     fetchNext();
-  }, [slug, lessonIdx, fetchNext]);
+  }, [effectiveTopic, fetchNext]);
 
   const handleSubmit = async () => {
-    if (!response || !response.trim() || !item) return;
-    const submit = window.ptor && window.ptor.evaluator && window.ptor.evaluator.submitResponse;
+    if (!response || !response.trim() || !item || !candidate) return;
+    const evaluator = window.ptor && window.ptor.evaluator;
+    const submit = evaluator && evaluator.submitResponse;
     if (typeof submit !== 'function') { setBridgeMissing(true); return; }
     setSubmitting(true);
     try {
-      const r = await submit(slug, lessonIdx, item.id, response);
-      if (r && r.ok && r.verdict) setVerdict(r.verdict);
-      else setVerdict({ pass: false, reason: (r && r.error) || 'evaluator returned no verdict' });
+      const r = await submit(item.id, candidate.id, response);
+      if (r && r.ok && r.verified) {
+        setVerified(r.verified);
+        setExecResult(r.exec_result || null);
+      } else {
+        setVerified({
+          channel: 'unknown',
+          predicted_pass: false,
+          features_hit: [],
+          per_feature: [],
+          reason: (r && r.error) || 'evaluator returned no verdict',
+        });
+      }
     } catch (err) {
       console.warn('[tuple-substrate] submitResponse failed:', err && err.message);
-      setVerdict({ pass: false, reason: err && err.message ? err.message : 'submission failed' });
+      setVerified({
+        channel: 'unknown',
+        predicted_pass: false,
+        features_hit: [],
+        per_feature: [],
+        reason: err && err.message ? err.message : 'submission failed',
+      });
     } finally {
       setSubmitting(false);
     }
@@ -175,26 +270,32 @@ const TupleSubstrateView = ({ slug, lessonIdx }) => {
     );
   }
   if (loadError) return <div style={S.empty}>Could not load next instance: <code>{loadError}</code>.</div>;
-  if (exhausted) return <div style={S.empty}>All instances verified for this lesson.</div>;
-  if (!item) {
+  if (exhausted) return <div style={S.empty}>All instances rated for this topic.</div>;
+  if (!item || !candidate) {
     return (
       <div style={S.empty}>
-        Loading next instance for <code>{slug || '<slug>'}</code> · lesson {lessonIdx ?? '?'} ...
+        Loading next instance for <code>{effectiveTopic || '<topic>'}</code>
+        {lessonIdx != null ? <> · lesson {lessonIdx}</> : null} ...
       </div>
     );
   }
 
   return (
-    <div style={S.substrate} data-slug={slug || ''} data-lesson-idx={lessonIdx != null ? lessonIdx : ''}>
+    <div
+      style={S.substrate}
+      data-topic={effectiveTopic || ''}
+      data-item-id={item.id || ''}
+      data-candidate-id={candidate.id || ''}
+    >
       <InstanceColumn instance={item.instance} syllabusAnchor={item.syllabus_anchor} />
-      <ResponseColumn value={response} onChange={setResponse} onSubmit={handleSubmit} disabled={submitting || !!verdict} />
-      <VerdictColumn
-        verdict={verdict}
-        channel={item.verification_channel}
-        hashUser={verdict && verdict.hash_user}
-        hashExpected={item.answer_key_hash}
+      <ResponseColumn
+        value={response}
+        onChange={setResponse}
+        onSubmit={handleSubmit}
+        disabled={submitting || !!verified}
       />
-      {verdict && (
+      <VerdictColumn verified={verified} exec_result={execResult} />
+      {verified && (
         <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
           <button style={S.submit} onClick={fetchNext}>Next instance</button>
         </div>

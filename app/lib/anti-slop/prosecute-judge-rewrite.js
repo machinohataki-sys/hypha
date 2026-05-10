@@ -24,6 +24,7 @@
 const { executeChat, LLMProviderError } = require('../llm');
 const { loadContract, renderContractAsPrompt } = require('../agent-character/contract-loader');
 const { validateBody } = require('../lesson-generator');
+const sqliteDb = require('../../db/sqlite');
 
 const CHARGE_TYPES = ['unsupported_claim', 'skipped_hard_part', 'fake_completion', 'overconfident_abstraction', 'concept_drift', 'evidence_gap', 'reasoning_action_gap', 'manipulative_style', 'hidden_assumption'];
 const SEVERITY_LEVELS = ['low', 'medium', 'high'];
@@ -93,7 +94,19 @@ async function prosecuteLessonBody({ plan, body, contract, capability = 'T4_JUDG
   ];
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const _t0 = Date.now();
     const dispatch = await executeChat(capability, { messages, json: true, temperature: 0.4, maxTokens: 1500, timeoutMs: 90_000 });
+    // V0.5 E0 D11-D14 Phase 1 — record cost-estimate row for prosecuteAttack call.
+    // Wrapped: recordChatCallEstimate must never break the prosecute pass.
+    try {
+      sqliteDb.recordChatCallEstimate(dispatch, 'prosecuteAttack', {
+        latency_ms: Date.now() - _t0,
+        tuple_id: (plan && plan.lesson_slug) || null,
+        success: true,
+      });
+    } catch (err) {
+      console.warn('[recordChatCallEstimate] prosecuteAttack slug=', (plan && plan.lesson_slug) || '_unknown', 'err=', err && err.message);
+    }
     const result = dispatch.result;
     const errors = validateChargesPayload(result);
     if (errors.length === 0) {
@@ -169,7 +182,19 @@ async function judgeLessonProsecution({ plan, body, charges, contract, capabilit
   ];
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const _t0 = Date.now();
     const dispatch = await executeChat(capability, { messages, json: true, temperature: 0.3, maxTokens: 1500, timeoutMs: 90_000 });
+    // V0.5 E0 D11-D14 Phase 1 — record cost-estimate row for judgeRule call.
+    // Wrapped: recordChatCallEstimate must never break the judge pass.
+    try {
+      sqliteDb.recordChatCallEstimate(dispatch, 'judgeRule', {
+        latency_ms: Date.now() - _t0,
+        tuple_id: (plan && plan.lesson_slug) || null,
+        success: true,
+      });
+    } catch (err) {
+      console.warn('[recordChatCallEstimate] judgeRule slug=', (plan && plan.lesson_slug) || '_unknown', 'err=', err && err.message);
+    }
     const result = dispatch.result;
     const errors = validateRulingsPayload(result, charges.length);
     if (errors.length === 0) {
@@ -252,7 +277,19 @@ async function rewriteLessonBody({ plan, body, upheldCharges, contract, capabili
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     // NOTE: we do NOT request json:true here because output must be JSON + a trailing log line.
+    const _t0 = Date.now();
     const dispatch = await executeChat(capability, { messages, json: false, temperature: 0.3, maxTokens: 3000, timeoutMs: 120_000 });
+    // V0.5 E0 D11-D14 Phase 1 — record cost-estimate row for rewriteFix call.
+    // Wrapped: recordChatCallEstimate must never break the rewrite pass.
+    try {
+      sqliteDb.recordChatCallEstimate(dispatch, 'rewriteFix', {
+        latency_ms: Date.now() - _t0,
+        tuple_id: (plan && plan.lesson_slug) || null,
+        success: true,
+      });
+    } catch (err) {
+      console.warn('[recordChatCallEstimate] rewriteFix slug=', (plan && plan.lesson_slug) || '_unknown', 'err=', err && err.message);
+    }
     const text = dispatch.result;
     const parsed = _parseRewriteOutput(text);
     if (parsed.ok) {

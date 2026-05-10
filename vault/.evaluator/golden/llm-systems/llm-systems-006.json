@@ -1,0 +1,43 @@
+{
+  "id": "llm-systems-006",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Jelinek et al. 1977 \"Perplexity — a measure of difficulty of speech recognition tasks\"; Brown et al. 1992 \"An Estimate of an Upper Bound for the Entropy of English\"",
+  "prompt_text": "Given per-token cross-entropy losses [2.1, 1.8, 2.3, 1.9, 2.0] (natural log base), compute perplexity = exp(mean(losses)). Print to 4 decimal places.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D11",
+  "exec_cell": {
+    "language": "node",
+    "code": "const losses=[2.1,1.8,2.3,1.9,2.0]; const mean=losses.reduce((a,b)=>a+b,0)/losses.length; const ppl=Math.exp(mean); console.log(ppl.toFixed(4));",
+    "expected_stdout_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "const L=[2.1,1.8,2.3,1.9,2.0]; const m=L.reduce((a,b)=>a+b)/L.length; console.log(Math.exp(m).toFixed(4));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "console.log(2.02);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "console.log(\"7.5383\");",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:19:46.762Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "3a52bced5de6aa5b9dda8a3b483fcb3ee5fee5984dd6b84e318c8d74c4d29a7f",
+  "code_hash": "45ec452093fcc1784e814d7cba198de1fbd480e238b2695237a6ef7dae1f9fc0",
+  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+}

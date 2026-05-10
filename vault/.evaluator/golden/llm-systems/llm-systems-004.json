@@ -1,0 +1,43 @@
+{
+  "id": "llm-systems-004",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Ba, Kiros, Hinton 2016 \"Layer Normalization\" §3; Ioffe Szegedy 2015 \"Batch Normalization\" §2 (contrast)",
+  "prompt_text": "Apply layer normalization to feature vector [1, 2, 3, 4]: subtract mean, divide by population stddev (N divisor), 4-decimal precision. Print the result as a JSON array of 4-decimal strings.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D11",
+  "exec_cell": {
+    "language": "node",
+    "code": "const x=[1,2,3,4]; const mean=x.reduce((a,b)=>a+b,0)/x.length; const v=x.reduce((a,b)=>a+(b-mean)*(b-mean),0)/x.length; const std=Math.sqrt(v); const ln=x.map(xi=>((xi-mean)/std).toFixed(4)); console.log(JSON.stringify(ln));",
+    "expected_stdout_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "const x=[1,2,3,4]; const m=x.reduce((a,b)=>a+b)/x.length; const s=Math.sqrt(x.reduce((a,b)=>a+(b-m)**2,0)/x.length); console.log(JSON.stringify(x.map(xi=>((xi-m)/s).toFixed(4))));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "console.log([1,2,3,4]);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "console.log(\"[\\\"-1.3416\\\",\\\"-0.4472\\\",\\\"0.4472\\\",\\\"1.3416\\\"]\");",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:19:44.045Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "9058ea5476986da1d493d3fa00f79de5f0c01df02bfd3a8f7d0563f3c81750b7",
+  "code_hash": "3c4e0e2a3ab19e000290b8c4c61192f7bc070b9635ca504710b74e0e615f16f7",
+  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+}

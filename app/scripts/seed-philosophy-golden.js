@@ -224,6 +224,220 @@ const ITEMS = [
       { id: 'c3', text: 'If universalized, evaluation as institution becomes impossible. The maxim depends on others not adopting it.', features_hit_truth: ['f2', 'f3'] },
     ],
   },
+  // ---- D11 Group beta extension: items 013-025 (MIT OCW 24.00 + Yale OYC PHIL 181 syllabus order)
+  // Anchor sourcing rule: canonical primary citations (Bekker / Stephanus / AT / Ak / KSA / §)
+  // where I am confident; fall back to SEP article when a precise primary locator is not
+  // independently verifiable. Per project memory project_hypha_v021_failure_galileo /
+  // MEOW R2 HALT-4: no fabricated section numbers. Where a Bekker / Stephanus / Ak number
+  // is given below, it appears in the standard concordances of the cited treatise.
+  {
+    id: 'philosophy-013',
+    source_anchor: 'Aristotle Physics II.3 + II.7 (194b16-195a3 / 198a14-b9 Bekker); Nicomachean Ethics II.1 (1103a14-b25); SEP "Aristotle\'s Natural Philosophy" §6',
+    instance: 'Aristotle organizes change under the four causes (material / formal / efficient / final) and grounds virtue in habituated activity (energeia) directed at a telos. Apply both frameworks to a single concrete artifact — a beginner runner training for a marathon — and identify the precise place where Aristotle\'s account of moral virtue diverges from a purely consequentialist redescription.',
+    answer_features: [
+      { id: 'f1', claim: 'four causes mapped concretely to the runner case (body / training pattern / coach or self / health or completion)', alt_phrasings: ['material is the body', 'formal is the training pattern', 'efficient is the coach or runner herself', 'final is finishing the marathon', 'four causes applied to runner', 'matter form efficient end mapped', 'all four causes assigned'] },
+      { id: 'f2', claim: 'virtue formed by habituated activity (hexis) not by single acts or outcomes', alt_phrasings: ['virtue is a stable disposition', 'hexis through repeated practice', 'habituation builds character', 'state of character not single act', 'we are what we repeatedly do', 'character through habit', 'habit shapes hexis'] },
+      { id: 'f3', claim: 'divergence from consequentialism: act done from the right state of character, not merely by outcome', alt_phrasings: ['act flows from character not just outcome', 'consequentialism collapses motive', 'Aristotle requires the right hexis', 'how-done matters not only what-done', 'virtue is in the agent not in the result', 'manner of action constitutes virtue', 'inner state required not just outcome'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Material is the runner\'s body, formal is the training program, efficient is the coach, final is completing the marathon. Virtue is a hexis built by repeated training acts, not by a one-off finish. Aristotle diverges from consequentialism because virtue lives in the stable character from which the act flows, not only in the outcome.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Aristotle just means practice makes perfect.', features_hit_truth: [] },
+      { id: 'c3', text: 'Habit builds the hexis. The act must come from the right state of character — outcome alone is not enough for Aristotle.', features_hit_truth: ['f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-014',
+    source_anchor: 'Plato Republic VI 507b-509c + VII 514a-517a (Stephanus); SEP "Plato\'s Middle Period Metaphysics and Epistemology" §3',
+    instance: 'In the divided line and cave allegory, Plato distinguishes images, sensible things, mathematical objects, and Forms, with the Form of the Good as the source of intelligibility. State what changes between the cave-bound prisoner and the philosopher returning to the cave, and identify one cognitive operation modern epistemology still treats as analogous to "ascent" out of mere appearance.',
+    answer_features: [
+      { id: 'f1', claim: 'ascent reorders the subject\'s relation to evidence (from appearances to structural causes)', alt_phrasings: ['from shadow to source', 'from appearance to structure', 'reorientation toward causes', 'turn of the soul toward the real', 'periagoge', 'climb from appearance to principle', 'shift from image to ground'] },
+      { id: 'f2', claim: 'returning philosopher loses fluency in shadow-talk yet sees its causes', alt_phrasings: ['returner is mocked in cave', 'sees shadows for what they are', 'fluent above blind below', 'cave-blindness on return', 'pays the cost of clearer sight', 'returning sees the shadows as shadows', 'momentary loss of cave-fluency'] },
+      { id: 'f3', claim: 'modern analog: model-building or theoretical inference replacing pattern-matching on raw data', alt_phrasings: ['theory replaces pure data fitting', 'causal model behind correlations', 'mechanistic interpretability over surface accuracy', 'first-principles model', 'inference to underlying structure', 'building a model not just matching patterns', 'going beyond surface statistics'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'The prisoner is reoriented away from shadows toward their causes — periagoge. On return the philosopher sees shadows as shadows, but loses fluency in shadow-talk and is mocked. The modern analog is moving from surface pattern-matching to a causal model of underlying structure.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'The cave is an allegory for ignorance, the sun is the truth.', features_hit_truth: [] },
+      { id: 'c3', text: 'It is a turn of the soul from appearance to structure. The returner momentarily loses the cave-fluency of those still bound.', features_hit_truth: ['f1', 'f2'] },
+    ],
+  },
+  {
+    id: 'philosophy-015',
+    source_anchor: 'Augustine Confessions VII.3-7, VIII.5; On Free Choice of the Will (De libero arbitrio) II.20, III.17; SEP "Saint Augustine" §6',
+    instance: 'Augustine\'s account of evil treats it as a privation of good (privatio boni) and grounds responsibility in voluntary turning of the will. Reconstruct the privation move in three steps, then state how it constrains what counts as a coherent question of the form "why is there X evil in the world."',
+    answer_features: [
+      { id: 'f1', claim: 'privation move: evil is not a positive substance but the absence or disorder of due good', alt_phrasings: ['evil is privation not substance', 'absence of due good', 'no positive ontology of evil', 'privatio boni', 'evil is a lack', 'disordered absence of good', 'evil has no substance only deficit'] },
+      { id: 'f2', claim: 'grounding in will: voluntary turning away from higher to lower good', alt_phrasings: ['will turns toward lesser good', 'voluntary aversion from God', 'free will misuses created good', 'will is the locus of moral evil', 'willed disordering of loves', 'aversio a deo conversio ad creaturas', 'misuse of free choice'] },
+      { id: 'f3', claim: 'constraint: the question "why does X (a thing-evil) exist" mistakes a deficit for a substance', alt_phrasings: ['question presupposes positive evil', 'reframes as why is good missing here', 'category mistake about evil', 'asks of nothing as if something', 'reformulates question to absence of good', 'why is X-good absent here', 'evil is not a thing to explain'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Step 1: evil is privatio boni — not a thing, only a lack of due good. Step 2: moral evil grounds in the will turning from a higher good to a lower one. Step 3: asking why a positive thing-evil exists is a category mistake; the only coherent form is why a particular good is missing or disordered here.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Augustine says everything is God\'s plan.', features_hit_truth: [] },
+      { id: 'c3', text: 'Evil is privation, will turns wrongly. So the question must be reframed as why is the proper good absent, not why an evil-thing is present.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-016',
+    source_anchor: 'Thomas Aquinas Summa Theologiae I q.2 a.3 (Five Ways); I-II q.94 a.2 (natural law); SEP "Aquinas\'s Moral, Political, and Legal Philosophy" §1-2',
+    instance: 'Aquinas\'s Five Ways argue from observable features of the world to a first cause, and his natural law derives moral norms from rational apprehension of human goods. Pick ONE of the Five Ways, state it as a numbered argument with explicit premises and conclusion, and identify the most common modern objection to that specific way.',
+    answer_features: [
+      { id: 'f1', claim: 'the chosen way reconstructed with premises and conclusion (not paraphrased loosely)', alt_phrasings: ['premise 1', 'premise 2', 'conclusion', 'argument structure', 'numbered premises', 'reconstructed deductively', 'inferential structure'] },
+      { id: 'f2', claim: 'identifies the move from observed regularity to a first or necessary being', alt_phrasings: ['from motion to first mover', 'from contingency to necessary being', 'from causes to first cause', 'from order to designer', 'from gradation to maximum', 'inference to first principle', 'climb to first cause'] },
+      { id: 'f3', claim: 'standard modern objection (e.g., infinite regress is acceptable; quantifier shift; from each-cause to a-cause)', alt_phrasings: ['quantifier shift fallacy', 'from each contingent to all contingent', 'infinite regress is harmless', 'modern cosmology objection', 'why first not just earlier', 'no need for terminator', 'composition or quantifier objection'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Third Way (from contingency). Premise 1: some things are contingent (could not exist). Premise 2: if all things were contingent, at some past time nothing existed. Premise 3: from nothing, nothing comes. Conclusion: there must be a necessary being. Modern objection: this commits a quantifier shift — from "each thing is contingent" we cannot infer "there is a time at which all are non-existent simultaneously."', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Aquinas proves God exists in five ways.', features_hit_truth: [] },
+      { id: 'c3', text: 'First Way climbs from motion to a first mover. The standard objection is that an infinite regress of movers is acceptable, so we never need a first.', features_hit_truth: ['f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-017',
+    source_anchor: 'Spinoza Ethics Part I prop.14 + def.6; Part III preface; Part V prop.42; SEP "Spinoza" §3',
+    instance: 'Spinoza\'s monism (substance monism) and parallelism (one substance under attributes of thought and extension) deny mind-body causal interaction in the Cartesian sense. State the structural reason why parallelism follows from monism, and identify one consequence for the question of free will.',
+    answer_features: [
+      { id: 'f1', claim: 'substance monism: only one substance (Deus sive Natura), modes are modifications of it', alt_phrasings: ['only one substance', 'God or Nature', 'Deus sive Natura', 'monistic substance', 'all is one substance', 'modes are modifications', 'substance is unique'] },
+      { id: 'f2', claim: 'parallelism: thought and extension are attributes of the same substance, ordered identically', alt_phrasings: ['order of ideas equals order of things', 'thought and extension are two attributes', 'same order in both attributes', 'ordo et connexio idearum', 'parallel attributes', 'mind and body express same modification', 'attributes track each other'] },
+      { id: 'f3', claim: 'consequence: free will as causal autonomy is illusory; freedom is adequate understanding', alt_phrasings: ['no contracausal freedom', 'free will reduces to ignorance of causes', 'freedom is understanding necessity', 'no exemption from determination', 'freedom is adequate ideas', 'every act is causally determined', 'libertarian free will rejected'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Monism: one substance, Deus sive Natura, with infinite attributes; modes are its modifications. Parallelism: thought and extension are two of those attributes, expressing the same order of modifications. Consequence: free will as Cartesian causal autonomy collapses; what Spinoza calls freedom is adequate understanding of one\'s own determination.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Spinoza is a pantheist.', features_hit_truth: [] },
+      { id: 'c3', text: 'One substance, two attributes ordered identically; therefore mind cannot causally push body. Freedom in Spinoza is reframed as understanding necessity, not exemption from it.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-018',
+    source_anchor: 'Hume Treatise of Human Nature III.1.1 (is-ought passage); Enquiry §IV-V (induction); SEP "David Hume" §4-5',
+    instance: 'Hume isolates two distinct gaps: from "is" to "ought" (Treatise III.1.1) and from "past constant conjunction" to "future continuation" (Enquiry IV). Show why these are STRUCTURALLY different gaps, and give one machine-learning practice that respects each gap.',
+    answer_features: [
+      { id: 'f1', claim: 'is-ought is a normative gap: descriptive premises do not entail prescriptive conclusions', alt_phrasings: ['descriptive does not imply normative', 'no ought from is alone', 'normative gap', 'cannot derive value from fact alone', 'evaluative conclusion needs evaluative premise', 'fact-value gap', 'ought never lies in is alone'] },
+      { id: 'f2', claim: 'induction is an epistemic gap: past regularity does not deductively entail future continuation', alt_phrasings: ['no deductive bridge from past to future', 'uniformity of nature is assumed', 'past regularity does not entail future', 'inductive justification is not deductive', 'epistemic gap', 'observed past does not prove unobserved future', 'gap between observed and projected'] },
+      { id: 'f3', claim: 'ml practices: explicit value alignment / loss specification (is-ought); held-out test or distribution-shift monitoring (induction)', alt_phrasings: ['explicit reward function for ought', 'loss function makes ought-choice explicit', 'held-out evaluation respects induction gap', 'distribution shift detection', 'covariate shift monitoring', 'value specification for normative side', 'ood evaluation for inductive side'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Is-ought is normative: descriptive premises alone cannot entail a prescription. Induction is epistemic: past constant conjunction does not deductively entail future continuation. In ML, we respect the first by stating the loss / value alignment explicitly, and the second by held-out test sets and distribution-shift monitoring.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Hume was a skeptic about everything.', features_hit_truth: [] },
+      { id: 'c3', text: 'Is-ought is a normative gap; induction is an epistemic gap. They are addressed differently.', features_hit_truth: ['f1', 'f2'] },
+    ],
+  },
+  {
+    id: 'philosophy-019',
+    source_anchor: 'Kant Groundwork (Ak 4:421-429) + Critique of Pure Reason B19-B24 (synthetic a priori); SEP "Kant\'s Moral Philosophy" §6 + "Kant\'s Critique of Pure Reason" §3',
+    instance: 'Kant offers two formulations of the categorical imperative: universal law (FUL) and humanity as an end in itself (FH). Apply BOTH to "I will use a colleague\'s draft work as my own to meet a deadline" and explain whether they reach the same verdict by the same reason or different reasons.',
+    answer_features: [
+      { id: 'f1', claim: 'FUL applied: universalize and find contradiction in conception or in will', alt_phrasings: ['universalize the maxim', 'imagine all do this', 'as universal law', 'contradiction in conception or will', 'institution of authorship dissolves', 'unable to be universally adopted', 'universalize then check contradiction'] },
+      { id: 'f2', claim: 'FH applied: colleague treated merely as means to the agent\'s deadline', alt_phrasings: ['humanity treated merely as means', 'colleague reduced to instrument', 'fails the end-in-itself formulation', 'rational agent used merely as a tool', 'colleague\'s consent bypassed', 'instrumentalized rational agent', 'merely as means not also as end'] },
+      { id: 'f3', claim: 'reaches same verdict, but reasons differ: FUL = systemic contradiction; FH = local violation of dignity', alt_phrasings: ['same verdict different ground', 'systemic vs interpersonal ground', 'one is universalizability the other is dignity', 'both forbid but for different reasons', 'two complementary not redundant tests', 'two formulations converge on verdict different on ground', 'agreement in verdict not in reason'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'FUL: universalize "I will pass off others\' work as mine to make deadlines" — authorship as institution dissolves under universal adoption, so contradiction in conception. FH: the colleague is treated merely as a means to my deadline, never also as an end. Both verdicts converge (impermissible) but the grounds differ: FUL is systemic, FH is interpersonal dignity.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Kant says do not cheat.', features_hit_truth: [] },
+      { id: 'c3', text: 'Universalized, the practice of authorship breaks. The colleague is also reduced to a means. Same verdict, different reasons.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-020',
+    source_anchor: 'Hegel Phenomenology of Spirit §178-§196 (Lordship and Bondage); SEP "Hegel\'s Dialectics" §3',
+    instance: 'In the master-slave dialectic, recognition between two self-consciousnesses passes through asymmetric struggle and reverses through labor on the world. Reconstruct the reversal in three steps and identify the structural reason the master\'s position is unstable.',
+    answer_features: [
+      { id: 'f1', claim: 'asymmetric recognition: master demands recognition from a being he refuses to recognize as equal', alt_phrasings: ['unequal recognition demanded', 'recognized only by an unrecognized other', 'asymmetric mutual recognition', 'one-sided recognition', 'master needs recognition from a non-equal', 'demands what he refuses to grant', 'asymmetry of acknowledgment'] },
+      { id: 'f2', claim: 'labor on the world: the bondsman shapes the object and finds himself in his work', alt_phrasings: ['bondsman shapes the world through labor', 'work objectifies the self', 'forms the object and is formed by it', 'finds himself in his product', 'labor as self-formation', 'bondsman recognized in his shaped world', 'productive labor as self-recognition'] },
+      { id: 'f3', claim: 'master\'s instability: recognition he receives is from one whose recognition he has dismissed as worthless', alt_phrasings: ['master\'s recognition is hollow', 'recognition from a deemed-inferior is empty', 'self-undermining recognition demand', 'master\'s position cannot satisfy itself', 'cannot get the recognition he sought', 'recognition collapses into nothing', 'demands valuable recognition from a discounted source'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Step 1: master demands recognition from a self-consciousness he denies as equal — asymmetric. Step 2: the bondsman labors on the object, shapes it, and recognizes himself in his work. Step 3: the master\'s recognition is hollow because it comes from one whose recognition he has already dismissed as worthless. The position is structurally self-undermining.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'It is about class struggle and Marx took it from Hegel.', features_hit_truth: [] },
+      { id: 'c3', text: 'The recognition asked for is asymmetric. The bondsman finds himself in his shaped world while the master cannot find himself in worthless recognition.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-021',
+    source_anchor: 'J.S. Mill Utilitarianism ch. II + ch. IV; On Liberty ch. I (harm principle); SEP "John Stuart Mill" §3-4',
+    instance: 'Mill\'s utilitarianism (greatest happiness principle) and harm principle (only self-regarding actions are immune from coercion) can pull in different directions. Construct one realistic case where they diverge in verdict, and identify which Mill ranks above the other in his own architecture.',
+    answer_features: [
+      { id: 'f1', claim: 'utility framing: maximization of aggregate happiness or pleasure', alt_phrasings: ['greatest happiness principle', 'aggregate utility', 'maximize pleasure minimize pain', 'sum of welfare', 'aggregate happiness criterion', 'utilitarian calculus', 'overall happiness goal'] },
+      { id: 'f2', claim: 'harm-principle framing: coercion only justified to prevent harm to others', alt_phrasings: ['only prevent harm to others', 'self-regarding actions immune from coercion', 'liberty constraint', 'no paternalism over self-regarding choices', 'harm to others as sole ground of intervention', 'self-regarding sphere protected', 'liberty principle'] },
+      { id: 'f3', claim: 'in Mill\'s architecture liberty is treated as a high-order utility, so harm principle is a precommitment that protects long-run utility', alt_phrasings: ['liberty as long-run utility', 'harm principle is precommitment', 'rule-utility shape', 'long-run aggregate served by liberty rule', 'rule-level safeguard for utility', 'liberty rule serves higher-order utility', 'precommitment to liberty for long-run welfare'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Diverging case: a society could increase aggregate happiness by paternalistically restricting a self-regarding choice (say, recreational risk-taking). Pure utility says permit the restriction; harm principle says forbid the restriction. Mill resolves this by treating liberty itself as a high-order utility — the harm principle is a rule-level precommitment that maximizes long-run aggregate happiness.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Mill is a hedonist.', features_hit_truth: [] },
+      { id: 'c3', text: 'Aggregate utility could justify paternalism; the harm principle blocks it. Mill subordinates the apparent utility verdict to a liberty rule that itself serves long-run utility.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-022',
+    source_anchor: 'Nietzsche On the Genealogy of Morals essay I §§7-10 + essay II §§16-18; Beyond Good and Evil §§259-260; SEP "Friedrich Nietzsche" §6-7',
+    instance: 'Nietzsche\'s genealogical method explains "good" and "evil" as values that arose under specific historical conditions, with master-morality and slave-morality as opposing valuation patterns. State the structural inversion the slave-revolt performs, and identify one common misreading that conflates "genealogy of X" with "refutation of X."',
+    answer_features: [
+      { id: 'f1', claim: 'master-morality starts from self-affirmation: noble = good, low = bad (descriptive contrast)', alt_phrasings: ['noble first calls itself good', 'good starts as self-affirmation', 'noble vs base contrast', 'master starts from yes-saying', 'good originates in the noble', 'self-valuing nobility', 'good as self-affirmation of the strong'] },
+      { id: 'f2', claim: 'slave-revolt inverts the order: starts from negation of the noble, calls it evil, then derives good as its negation', alt_phrasings: ['inverted valuation', 'starts with negation of master', 'evil is primary good is derivative', 'reactive valuation', 'ressentiment-driven inversion', 'slave morality is reactive', 'no first then yes'] },
+      { id: 'f3', claim: 'genetic fallacy misreading: tracing the origin of X is not refutation of X', alt_phrasings: ['genetic fallacy', 'origin is not refutation', 'genealogy explains not refutes', 'where it came from is not whether it is true', 'historical origin distinct from validity', 'genealogy ≠ argument against', 'tracing origin of X is not refuting X'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Master-morality starts from self-affirmation: noble = good, low = bad. The slave-revolt inverts this — it starts by negating the noble (calling it evil) and only derivatively defines its own good as the negation of evil. A common misreading treats genealogy as refutation, but tracing how a value arose is not a proof against it (genetic fallacy).', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Nietzsche says God is dead and morality is for the weak.', features_hit_truth: [] },
+      { id: 'c3', text: 'Master starts from yes; slave starts from no. To say a value has a genealogy is not to refute it.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-023',
+    source_anchor: 'Wittgenstein Philosophical Investigations §§43, 65-71 (language-games, family resemblance), §§243-271 (private language); SEP "Ludwig Wittgenstein" §3.5',
+    instance: 'Wittgenstein\'s private-language argument denies that a strictly private rule for naming a sensation can be coherent. Reconstruct the argument as a constraint on what counts as following a rule, and identify the precise step at which the would-be private linguist loses the right to call any later use a correct application.',
+    answer_features: [
+      { id: 'f1', claim: 'rule-following requires a normative criterion for correct vs incorrect application', alt_phrasings: ['need a criterion of correctness', 'normative standard for correctness', 'distinguishes seems-right from is-right', 'rule needs a check separate from impression', 'correctness condition', 'must have right vs wrong distinction', 'normativity of rule-following'] },
+      { id: 'f2', claim: 'in pure privacy "seems right" and "is right" collapse, no independent check exists', alt_phrasings: ['seems right collapses into is right', 'no independent check available', 'memory as sole criterion is circular', 'private check is no check', 'cannot distinguish appearance from reality of correct use', 'criterion collapses to impression', 'no external corrective'] },
+      { id: 'f3', claim: 'so the would-be private linguist loses the right to claim any later use is correct', alt_phrasings: ['cannot claim later application is correct', 'loses the right to call later use right', 'claim of correctness is empty', 'no fact of the matter about later applications', 'no warrant for later identification', 'subsequent use cannot be ratified', 'correctness claim becomes vacuous'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Rule-following needs a criterion of correctness independent of the user\'s current impression. In a strictly private setting, "seems right to me now" and "is right" collapse — there is no independent check. So at the first re-application of the supposed private name, the user has no warrant for calling that use correct rather than merely consistent-with-impression.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Wittgenstein says language is just a game.', features_hit_truth: [] },
+      { id: 'c3', text: 'The criterion of correctness collapses without a public check. So later uses cannot be ratified as correct.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-024',
+    source_anchor: 'Rawls A Theory of Justice §§3-4 (original position + veil of ignorance) + §§11-13 (two principles + difference principle); SEP "John Rawls" §3-4',
+    instance: 'Rawls\'s original position uses a veil of ignorance to derive two principles of justice, with the difference principle (inequalities permitted only if they benefit the least well-off). State why the veil is supposed to do justificatory work, and identify one structural objection to the move from "what would be chosen behind the veil" to "what is just."',
+    answer_features: [
+      { id: 'f1', claim: 'veil strips information about one\'s particular position, forcing a fairness-symmetric choice', alt_phrasings: ['removes knowledge of one\'s position', 'forces symmetric reasoning', 'no one knows their own social position', 'impartial choice procedure', 'strips identifying features', 'symmetry-forcing device', 'erases position-specific bias'] },
+      { id: 'f2', claim: 'difference principle: inequalities permitted only if they benefit the least advantaged', alt_phrasings: ['inequalities only if they help the worst off', 'benefit the least well-off', 'maximize the minimum', 'maximin shape', 'least-advantaged is the test', 'inequality justified only by benefit to bottom', 'tilted in favor of worst off'] },
+      { id: 'f3', claim: 'objection: hypothetical-consent does not bind actual people; or veil-modeling smuggles in risk-aversion assumptions', alt_phrasings: ['hypothetical consent is not actual consent', 'veil smuggles risk-aversion', 'maximin assumes specific risk attitude', 'no binding force from hypothetical agreement', 'why must actual people be bound by behind-veil agreement', 'risk-aversion assumption baked in', 'gap between hypothetical choice and actual obligation'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'The veil strips knowledge of one\'s particular position so the choice cannot be tilted by self-interest; this forces symmetric reasoning. The difference principle says inequalities are permissible only if they benefit the least advantaged. A standard objection is that hypothetical consent behind the veil does not by itself bind actual people, and that the maximin shape smuggles in a specific risk-aversion assumption.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Rawls is the most important political philosopher of the 20th century.', features_hit_truth: [] },
+      { id: 'c3', text: 'Veil forces symmetric reasoning, difference principle privileges the worst off. The standard worry is that hypothetical consent does not bind actual persons.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-025',
+    source_anchor: 'Foucault Discipline and Punish part III ch. 3 (panopticism, 1975) + "The Subject and Power" (1982); SEP "Michel Foucault" §3-4',
+    instance: 'Foucault\'s analysis of disciplinary power treats power as productive (not merely repressive) and dispersed through institutions of surveillance and normalization. Apply the panopticon model to a contemporary case (algorithmic content moderation OR workplace activity tracking — pick one) and identify the structural feature that makes the analogy hold and one that makes it diverge.',
+    answer_features: [
+      { id: 'f1', claim: 'power is productive: it shapes behavior and constitutes subjects, not only forbids', alt_phrasings: ['power produces conduct', 'shapes subjects not only restricts', 'productive not merely repressive', 'constitutes the self-monitoring subject', 'normalizing power produces behavior', 'not only negative power', 'power as productive of subjectivity'] },
+      { id: 'f2', claim: 'panoptic structure: visibility for the watched, opacity for the watcher, internalized self-monitoring', alt_phrasings: ['watched are visible watcher is opaque', 'asymmetric visibility', 'internalized surveillance', 'visibility is a trap', 'self-monitoring induced', 'one-way visibility', 'opacity of watcher visibility of watched'] },
+      { id: 'f3', claim: 'divergence in modern case (continuous data trail / algorithmic verdicts / no individual watcher)', alt_phrasings: ['no single watcher', 'continuous data record', 'algorithm replaces guard', 'machine pattern not human gaze', 'data trail is continuous and post-hoc', 'no architectural tower needed', 'distributed automated surveillance'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Power is productive — it shapes how people act, not only what is forbidden. The panopticon\'s asymmetric visibility (watched visible, watcher opaque) induces self-monitoring. Workplace activity tracking shares the asymmetry and the internalized self-monitoring, but diverges because there is no individual watcher in the tower; verdicts come from continuous data trails and algorithmic patterning.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Foucault is critical of prisons and modern society.', features_hit_truth: [] },
+      { id: 'c3', text: 'Power produces conduct rather than only restricting it. The panoptic asymmetry holds; the divergence is the absence of a single watcher and the continuous machine record.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
 ];
 
 function _sealItem(seed) {
@@ -289,8 +503,13 @@ function main(argv) {
       let existing = null;
       try { existing = JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch (_e) { /* fall through to overwrite */ }
 
-      const existingFingerprint = existing && existing.answer_features
-        ? existing.answer_features.map(f => f.claim_hash).filter(Boolean).join('|')
+      // D11 fix (Group beta): existing-fingerprint must use the SAME fields as
+      // _itemFingerprint (claim_hash + phrasing_hashes), otherwise every item
+      // sealed under D4 reads as drifted on every run because the existing
+      // branch joined only claim_hash. _itemFingerprint already accepts a fully
+      // sealed item shape, so reuse it for both sides.
+      const existingFingerprint = existing && Array.isArray(existing.answer_features)
+        ? _itemFingerprint(existing)
         : null;
 
       const drift = existingFingerprint !== candidateFingerprint;

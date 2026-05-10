@@ -13,6 +13,7 @@
 
 const { executeChat, LLMProviderError } = require('../llm');
 const { renderContractAsPrompt } = require('../agent-character/contract-loader');
+const sqliteDb = require('../../db/sqlite');
 
 const CONFESSION_SYSTEM_PROMPT_TEMPLATE = (contractText) => `${contractText}
 
@@ -93,6 +94,7 @@ async function generateConfession({ plan, body, transcript, characterContract, c
   ];
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const _t0 = Date.now();
     const dispatch = await executeChat(capability, {
       messages,
       json: true,
@@ -100,6 +102,17 @@ async function generateConfession({ plan, body, transcript, characterContract, c
       maxTokens: 1000,
       timeoutMs: 60_000,
     });
+    // V0.5 E0 D11-D14 Phase 1 — record cost-estimate row for confession call.
+    // Wrapped: recordChatCallEstimate must never break the confession pass.
+    try {
+      sqliteDb.recordChatCallEstimate(dispatch, 'confession', {
+        latency_ms: Date.now() - _t0,
+        tuple_id: (plan && plan.lesson_slug) || null,
+        success: true,
+      });
+    } catch (err) {
+      console.warn('[recordChatCallEstimate] confession slug=', (plan && plan.lesson_slug) || '_unknown', 'err=', err && err.message);
+    }
     const result = dispatch.result;
 
     const errors = validateConfession(result);

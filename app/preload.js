@@ -433,4 +433,17 @@ contextBridge.exposeInMainWorld('ptor', {
       return () => ipcRenderer.removeListener('curriculum:progress', handler);
     },
   },
+  // V0.5 E0 D11-D14 Phase 1 — evaluator substrate bridges. Consumed by
+  // app/design/screen-tuple-substrate.jsx (col-3 tuple substrate view).
+  // Single-verb IPCs over per-topic golden-set + per-response verification.
+  // nextInstance(topic) → {ok, item, candidate, exhausted?}
+  // submitResponse(itemId, candidateId, responseText) → {ok, verified, exec_result, recorded}
+  // f1Run(topic, opts) → {ok, result}     (opts.truth_source: 'rater' | 'ground')
+  // irrCompute(topic) → {ok, kappa, kappa_n, kappa_interpretation, n_items, n_double_coded}
+  evaluator: {
+    nextInstance:    (topic)                                  => ipcRenderer.invoke('evaluator:nextInstance', topic),
+    submitResponse:  (itemId, candidateId, responseText)      => ipcRenderer.invoke('evaluator:submitResponse', itemId, candidateId, responseText),
+    f1Run:           (topic, opts)                            => ipcRenderer.invoke('evaluator:f1Run', topic, opts || {}),
+    irrCompute:      (topic)                                  => ipcRenderer.invoke('evaluator:irrCompute', topic),
+  },
 });

@@ -27,6 +27,7 @@
 // Wall time: ~5-10s. Gated upstream behind settings.experiments.preLessonBody.
 
 const { executeChat } = require('./llm');
+const sqliteDb = require('../db/sqlite');
 
 // Lazy-load rankSourcesBM25 from agent.js to avoid circular require at boot.
 let _rankCached = null;
@@ -288,6 +289,17 @@ async function generateLessonBodyV2({
       timeoutMs,
     });
     const ms = Date.now() - t0;
+    // V0.5 E0 D11-D14 Phase 1 — record cost-estimate row for lessonBody call.
+    // Wrapped: recordChatCallEstimate must never break body generation.
+    try {
+      sqliteDb.recordChatCallEstimate(dispatch, 'lessonBody', {
+        latency_ms: ms,
+        tuple_id: lessonTitle || null,
+        success: true,
+      });
+    } catch (err) {
+      console.warn('[recordChatCallEstimate] lessonBody title=', lessonTitle || '_unknown', 'err=', err && err.message);
+    }
     const result = dispatch && dispatch.result;
     const errors = validateBodyV2(result);
     if (errors.length === 0) {

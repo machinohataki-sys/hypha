@@ -12,16 +12,17 @@ const OpenAI = require('openai');
 //
 // Cost recording (`sqliteDb.recordChatCallEstimate`) is wired at the
 // `designSkeletonOnly` executeChat call site (this file's only direct executeChat).
-// Other heavy executeChat-driven sites live OUTSIDE agent.js and remain UNWIRED in
-// this tranche (Machino-B file ownership = agent.js + db/sqlite.js only):
-//   - app/lib/lesson-body-generator.js:283  (T6_STRONG body gen)        [defer D7]
-//   - app/lib/scoring.js:243                 (scoreMicroProof judge)     [defer D7]
-//   - app/lib/anti-slop/prosecute-judge-rewrite.js:96/172/255 (3 calls)  [defer D7]
-//   - app/lib/anti-slop/confession.js:96     (confession layer)          [defer D7]
-//   - app/lib/harvest/layer1-canonical.js:752 (syllabus extract)         [defer D7]
-//   - app/scripts/wolf-rater.js:168          (offline judge)             [defer D7]
-// Wrapping those is a follow-up (D7+) — pattern is uniform: capture _t0, await
-// dispatch, call sqliteDb.recordChatCallEstimate(dispatch, '<taskType>', {latency_ms,...}).
+// Other heavy executeChat-driven sites live OUTSIDE agent.js. As of V0.5 E0
+// D11-D14 Phase 1 (Machino-γ tranche), 6 of 7 are now wrapped in their own
+// files via the same pattern (capture _t0, await dispatch,
+// sqliteDb.recordChatCallEstimate(dispatch, '<taskType>', {latency_ms,...})):
+//   - app/lib/lesson-body-generator.js:283   ('lessonBody')              [WIRED]
+//   - app/lib/scoring.js:243                  ('scoring')                 [WIRED]
+//   - app/lib/anti-slop/prosecute-judge-rewrite.js:96/172/255             [WIRED]
+//                                             ('prosecuteAttack' / 'judgeRule' / 'rewriteFix')
+//   - app/lib/anti-slop/confession.js:96      ('confession')              [WIRED]
+//   - app/lib/harvest/layer1-canonical.js:752 ('layer1Canonical')         [WIRED]
+//   - app/scripts/wolf-rater.js:168           (offline judge)             [defer — outside Machino-γ scope]
 const events = require('./lib/events');
 const sqliteDb = require('./db/sqlite');
 // Hypha Product Constitution — prepended to every LLM system prompt so output

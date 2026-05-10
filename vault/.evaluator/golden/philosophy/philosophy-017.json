@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-017",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Spinoza Ethics Part I prop.14 + def.6; Part III preface; Part V prop.42; SEP \"Spinoza\" §3",
+  "instance": "Spinoza's monism (substance monism) and parallelism (one substance under attributes of thought and extension) deny mind-body causal interaction in the Cartesian sense. State the structural reason why parallelism follows from monism, and identify one consequence for the question of free will.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "substance monism: only one substance (Deus sive Natura), modes are modifications of it",
+      "alt_phrasings": [
+        "only one substance",
+        "God or Nature",
+        "Deus sive Natura",
+        "monistic substance",
+        "all is one substance",
+        "modes are modifications",
+        "substance is unique"
+      ],
+      "phrasing_hashes": [
+        "3ea74cb2fe23b63bca995ad34d00322834a4fc54be622ce295c65e24137ea322",
+        "796c40b003e56b56a332e3e7e69683b4c1b9ce5753e4232a302bd88cb22b0048",
+        "5b0884721065925c7115bcf76da8ec2cd7aa5cab53c74a7333738c0b101b7d7a",
+        "66e0579ad16ee71e817cd0ec30ef12ed6843f3d87cf9875d00340bfd0e215882",
+        "87ba2340bab4cb9eec2ced723447c44c7b149ab78dcd3a892c5c0dbeb575a9f3",
+        "199b742f57a608c12a3fd96052340a03b7374966e04b96310ad4bf2ed75c886d",
+        "fe5a78531476901ec9d8b5670ecf69ca7f54db63b0101cd9cc17c7a17ca5f3b5",
+        "e0d8ecd880939109c990c6dd753f02aad5fc15c8fe335f69e35599629ac281f9"
+      ],
+      "claim_hash": "3ea74cb2fe23b63bca995ad34d00322834a4fc54be622ce295c65e24137ea322"
+    },
+    {
+      "id": "f2",
+      "claim": "parallelism: thought and extension are attributes of the same substance, ordered identically",
+      "alt_phrasings": [
+        "order of ideas equals order of things",
+        "thought and extension are two attributes",
+        "same order in both attributes",
+        "ordo et connexio idearum",
+        "parallel attributes",
+        "mind and body express same modification",
+        "attributes track each other"
+      ],
+      "phrasing_hashes": [
+        "1a86b2c7ce279a34c47595a441948d5d1db5875a545ebf0c6d07b2fb4480dd62",
+        "ba2ca81dfe3ee88cf7af87ab0708519e23d5681db78aeca37e03ad6e54502b86",
+        "a8fd2b5d60134db80f455bbc8946e664569f2295c9d28a773c84736ff0040f8f",
+        "9094441e6eabaf774d8f21acfcd70d2621b9763c0e0d604bb6367c67616b5a4a",
+        "07731ef97a8f2f3d0df4cdf1938d8b8792ae2a33152ae0e1f86759bfeb93e449",
+        "70c6839bbf8142653fb896f1030e067b2dc664e2fc6f4f041f5e8ef10ab17d1b",
+        "4da824b395fbe223c905b6438a68e722993c24033439534c60c1a506447b1eb1",
+        "26e56b765ab8a44d5920ef4ee4451cfe13ad51062eba5d53d2f196e59065f14d"
+      ],
+      "claim_hash": "1a86b2c7ce279a34c47595a441948d5d1db5875a545ebf0c6d07b2fb4480dd62"
+    },
+    {
+      "id": "f3",
+      "claim": "consequence: free will as causal autonomy is illusory; freedom is adequate understanding",
+      "alt_phrasings": [
+        "no contracausal freedom",
+        "free will reduces to ignorance of causes",
+        "freedom is understanding necessity",
+        "no exemption from determination",
+        "freedom is adequate ideas",
+        "every act is causally determined",
+        "libertarian free will rejected"
+      ],
+      "phrasing_hashes": [
+        "d85f69fa28aa6731a36c20d47c4531d96e94520087b5821e6265c484bd98cb07",
+        "9d6fb56e24e93abb355ddaeaceb5d1e77b58e295adbf5d0fbf05cd1ea8638410",
+        "3b07544038cce6c8f761762d5571bb4cf132531af139b97e106daa1ccef9bca9",
+        "136876b67dfe912fbf86452a9140c375b3193a96470616dee1d61c1d9aabd319",
+        "3a637b7530df32bbc0f8793d1c8c29eb845e4f4953b49c967ebe8f328fb9593c",
+        "439a38b14f8f14086ee053e8b36a4c42f97443a32da4e17b175653ec94bc649c",
+        "2749020d48b5bb295730bede8ef471b88c875b03584cfc10ddf16f3dfa5c356e",
+        "b6e8f67d2ca753aa3340e278f1a7c74a0163df760afede8c000655f328392894"
+      ],
+      "claim_hash": "d85f69fa28aa6731a36c20d47c4531d96e94520087b5821e6265c484bd98cb07"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Monism: one substance, Deus sive Natura, with infinite attributes; modes are its modifications. Parallelism: thought and extension are two of those attributes, expressing the same order of modifications. Consequence: free will as Cartesian causal autonomy collapses; what Spinoza calls freedom is adequate understanding of one's own determination.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Spinoza is a pantheist.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "One substance, two attributes ordered identically; therefore mind cannot causally push body. Freedom in Spinoza is reframed as understanding necessity, not exemption from it.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:18:15.067Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}
