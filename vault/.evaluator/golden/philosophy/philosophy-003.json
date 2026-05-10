@@ -5,7 +5,7 @@
   "source_anchor": "Parmenides \"On Nature\" Fragment 8; SEP \"Parmenides\" §3",
   "instance": "Parmenides argued change is impossible because what-is cannot become what-is-not. Construct one analogy from physics or computer science where his deductive structure holds, and one where it fails. Identify the breaking premise.",
   "verification_channel": "sealed_rubric",
-  "schema_version": "0.5.D3.1",
+  "schema_version": "0.5.D4",
   "answer_features": [
     {
       "id": "f1",
@@ -83,11 +83,8 @@
       ]
     }
   ],
-  "sealed_at": "2026-05-10T09:22:02.133Z",
+  "sealed_at": "2026-05-10T10:03:01.853Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
-  "rater_a": null,
-  "rater_b": null,
-  "agreement": null,
-  "notes": "D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters."
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
 }

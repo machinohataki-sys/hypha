@@ -5,7 +5,7 @@
   "source_anchor": "Epictetus Enchiridion §1; Discourses I.1; SEP \"Epictetus\" §3",
   "instance": "Epictetus distinguishes what is up to us (prohairesis) from what is not. State the distinction in one line, then apply to a software incident: a service goes down due to upstream provider regional outage. Identify the engineer's prohairetic responsibilities and what falls outside.",
   "verification_channel": "sealed_rubric",
-  "schema_version": "0.5.D3.1",
+  "schema_version": "0.5.D4",
   "answer_features": [
     {
       "id": "f1",
@@ -81,11 +81,8 @@
       ]
     }
   ],
-  "sealed_at": "2026-05-10T09:22:08.632Z",
+  "sealed_at": "2026-05-10T10:03:01.959Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
-  "rater_a": null,
-  "rater_b": null,
-  "agreement": null,
-  "notes": "D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters."
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
 }

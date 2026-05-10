@@ -21,12 +21,42 @@ function _vaultRoot() {
   return process.env.HYPHA_VAULT_DIR || path.join(__dirname, '..', '..', '..', 'vault');
 }
 
+// D4 (R1 fix per MEOW R2): rater work lives in sidecar files
+//   <id>.rater-a.json + <id>.rater-b.json
+// alongside the main item JSON. Eliminates the race condition where parallel
+// rater_a + rater_b writes to the same main JSON would silently overwrite.
+// Loader merges sidecars into item.rater_a / item.rater_b at read time so
+// downstream consumers (compute-kappa, f1-harness) see the merged shape.
+
+function _readSidecar(dir, itemId, raterId) {
+  const sidecarPath = path.join(dir, `${itemId}.rater-${raterId}.json`);
+  if (!fs.existsSync(sidecarPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(sidecarPath, 'utf8'));
+  } catch (err) {
+    console.warn(`[golden-loader] skip malformed sidecar ${itemId}.rater-${raterId}.json: ${err.message}`);
+    return null;
+  }
+}
+
+function _computeAgreementFromSidecars(item, sidecarA, sidecarB) {
+  if (!sidecarA || !sidecarB) return null;
+  const cands = item.candidate_responses || [];
+  const ratingsA = (sidecarA.ratings) || {};
+  const ratingsB = (sidecarB.ratings) || {};
+  const both = cands.every(c => ratingsA[c.id] && ratingsB[c.id]);
+  if (!both) return null;
+  return cands.every(c => ratingsA[c.id].verdict === ratingsB[c.id].verdict);
+}
+
 function _readGoldenItems(topic) {
   const dir = path.join(_vaultRoot(), '.evaluator', 'golden', topic);
   if (!fs.existsSync(dir)) {
     return { items: [], dir, missing: true };
   }
-  const files = fs.readdirSync(dir).filter(f => f.endsWith('.json') && !f.startsWith('_'));
+  const files = fs.readdirSync(dir).filter(f =>
+    f.endsWith('.json') && !f.startsWith('_') && !f.includes('.rater-')
+  );
   const items = [];
   const skipped = [];
   for (const f of files) {
@@ -38,6 +68,13 @@ function _readGoldenItems(topic) {
         skipped.push({ file: f, reason: 'missing id' });
         continue;
       }
+      // Merge sidecars into item.rater_a / item.rater_b (compatibility with
+      // _computeKappa + f1-harness which expect this shape on the item).
+      const sidecarA = _readSidecar(dir, obj.id, 'a');
+      const sidecarB = _readSidecar(dir, obj.id, 'b');
+      if (sidecarA) obj.rater_a = sidecarA;
+      if (sidecarB) obj.rater_b = sidecarB;
+      obj.agreement = _computeAgreementFromSidecars(obj, sidecarA, sidecarB);
       items.push(obj);
     } catch (err) {
       skipped.push({ file: f, reason: `parse error: ${err.message}` });

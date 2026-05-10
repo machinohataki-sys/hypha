@@ -5,7 +5,7 @@
   "source_anchor": "Aristotle Physics II.3 (194b-195a Bekker); Metaphysics V.2 (1013a-b)",
   "instance": "Apply Aristotle's four causes (material, formal, efficient, final) to a recursive Fibonacci function. Then identify which cause modern engineering treats as decorative and why.",
   "verification_channel": "sealed_rubric",
-  "schema_version": "0.5.D3.1",
+  "schema_version": "0.5.D4",
   "answer_features": [
     {
       "id": "f1",
@@ -85,11 +85,8 @@
       ]
     }
   ],
-  "sealed_at": "2026-05-10T09:22:06.711Z",
+  "sealed_at": "2026-05-10T10:03:01.917Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "trim+collapse-whitespace+lowercase",
-  "rater_a": null,
-  "rater_b": null,
-  "agreement": null,
-  "notes": "D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters."
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
 }

@@ -67,18 +67,45 @@ function _listItems(topic, itemFilter) {
     console.error(`[label-cli] golden directory missing: ${dir}`);
     return null;
   }
-  const files = fs.readdirSync(dir).filter(f => f.endsWith('.json') && !f.startsWith('_'));
+  const files = fs.readdirSync(dir).filter(f =>
+    f.endsWith('.json') && !f.startsWith('_') && !f.includes('.rater-')
+  );
   const items = [];
   for (const f of files) {
     try {
       const obj = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
       if (itemFilter && obj.id !== itemFilter) continue;
-      items.push({ fullPath: path.join(dir, f), obj });
+      items.push({ fullPath: path.join(dir, f), obj, dir });
     } catch (err) {
       console.warn(`[label-cli] skip malformed ${f}: ${err.message}`);
     }
   }
   return items;
+}
+
+// D4 R1 fix: rater work lives in sidecar files <id>.rater-<a|b>.json,
+// not on the main item JSON. Eliminates the race condition where parallel
+// rater_a + rater_b runs on the same item file overwrite each other.
+function _readSidecar(dir, itemId, raterId) {
+  const p = path.join(dir, `${itemId}.rater-${raterId}.json`);
+  if (!fs.existsSync(p)) return null;
+  try { return JSON.parse(fs.readFileSync(p, 'utf8')); }
+  catch (err) {
+    console.warn(`[label-cli] sidecar ${itemId}.rater-${raterId} parse error: ${err.message}; starting fresh`);
+    return null;
+  }
+}
+
+function _writeSidecar(dir, itemId, raterId, sidecar) {
+  const p = path.join(dir, `${itemId}.rater-${raterId}.json`);
+  // Atomic-rename write: write tempfile then rename, reduces risk of partial-write
+  // visible to a concurrent reader. Does not solve read-modify-write between
+  // the same rater on the same item (single-rater self-race), but the only
+  // explicit concurrency case (rater_a + rater_b parallel) is now disjoint
+  // because they target different files.
+  const tmp = `${p}.tmp.${process.pid}`;
+  fs.writeFileSync(tmp, JSON.stringify(sidecar, null, 2) + '\n', 'utf8');
+  fs.renameSync(tmp, p);
 }
 
 function _validFeatureIds(item) {
@@ -121,18 +148,20 @@ async function main() {
   if (!items) process.exit(2);
   if (items.length === 0) { console.error('[label-cli] no items found'); process.exit(2); }
 
-  const raterField = `rater_${args.rater}`;
   const limit = args.limit || Infinity;
 
-  // Build (item, candidate) pairs needing rating
+  // Build (item, candidate) pairs needing rating. D4 R1: read from sidecar
+  // <id>.rater-<a|b>.json instead of main JSON's rater_a/rater_b field.
   const pairs = [];
-  for (const { fullPath, obj } of items) {
+  const sidecarByItem = new Map();
+  for (const { fullPath, obj, dir } of items) {
+    const sidecar = _readSidecar(dir, obj.id, args.rater) || { rater_id: args.rater, name: null, ts: null, ratings: {} };
+    sidecarByItem.set(obj.id, { sidecar, dir, fullPath });
     const cands = obj.candidate_responses || [];
-    const rater = obj[raterField];
-    const ratings = rater && rater.ratings ? rater.ratings : {};
+    const ratings = (sidecar.ratings) || {};
     for (const c of cands) {
       if (ratings[c.id] && Array.isArray(ratings[c.id].features_hit)) continue;
-      pairs.push({ fullPath, obj, candidate: c });
+      pairs.push({ fullPath, obj, candidate: c, dir });
       if (pairs.length >= limit) break;
     }
     if (pairs.length >= limit) break;
@@ -152,44 +181,42 @@ async function main() {
   const raterName = ((await _promptOne(rl, `rater name (default ${defaultName}): `)).trim() || defaultName);
 
   let labeledCount = 0;
-  for (const { fullPath, obj, candidate } of pairs) {
+  for (const { obj, candidate, dir } of pairs) {
     console.log('---');
     console.log(`item: ${obj.id} (k_threshold=${obj.k_threshold})`);
     if (obj.source_anchor) console.log(`source: ${obj.source_anchor}`);
     console.log(`instance: ${obj.instance}`);
     console.log(`features:`);
     for (const f of obj.answer_features) {
-      const alts = (f.alt_phrasings || []).slice(0, 3).join(' / ');
+      const alts = (f.alt_phrasings || []).join(' / ');
       console.log(`  ${f.id}: ${f.claim}${alts ? ' [' + alts + ']' : ''}`);
     }
     console.log(`candidate ${candidate.id}: ${candidate.text}`);
 
     const validIds = _validFeatureIds(obj);
-    const raw = await _promptOne(rl, `features hit: `);
+    const raw = await _promptOne(rl, `features hit (e.g. f1,f2 or none or skip): `);
     const featuresHit = _parseFeaturesHit(raw, validIds);
     if (featuresHit === null) { console.log('[label-cli] skipped\n'); continue; }
     const justification = (await _promptOne(rl, `justification (optional): `)).trim();
     const verdict = featuresHit.length >= obj.k_threshold ? 'pass' : 'fail';
 
-    const rater = _ensureRaterShape(obj, raterField);
-    rater.name = raterName;
-    rater.ts = new Date().toISOString();
-    rater.ratings[candidate.id] = { features_hit: featuresHit, verdict, justification };
-
-    // agreement = both raters present + same verdict on every candidate
-    if (obj.rater_a && obj.rater_b) {
-      const ratingsA = (obj.rater_a.ratings) || {};
-      const ratingsB = (obj.rater_b.ratings) || {};
-      const cIds = (obj.candidate_responses || []).map(c => c.id);
-      const both = cIds.every(cid => ratingsA[cid] && ratingsB[cid]);
-      if (both) {
-        obj.agreement = cIds.every(cid => ratingsA[cid].verdict === ratingsB[cid].verdict);
-      }
-    }
-
-    fs.writeFileSync(fullPath, JSON.stringify(obj, null, 2) + '\n', 'utf8');
+    // D4 R1 fix: write to sidecar instead of main JSON. rater_a + rater_b
+    // touch DIFFERENT files; race eliminated structurally.
+    const entry = sidecarByItem.get(obj.id);
+    const sidecar = entry.sidecar;
+    sidecar.rater_id = args.rater;
+    sidecar.name = raterName;
+    sidecar.ts = new Date().toISOString();
+    sidecar.ratings = sidecar.ratings || {};
+    sidecar.ratings[candidate.id] = {
+      features_hit: featuresHit,
+      verdict,
+      justification,
+      ts: new Date().toISOString(),
+    };
+    _writeSidecar(dir, obj.id, args.rater, sidecar);
     labeledCount++;
-    console.log(`[label-cli] saved rater_${args.rater}.ratings.${candidate.id} = {features_hit: [${featuresHit.join(',')}], verdict: ${verdict}}\n`);
+    console.log(`[label-cli] saved <${obj.id}>.rater-${args.rater}.json :: ${candidate.id} = {features_hit: [${featuresHit.join(',')}], verdict: ${verdict}}\n`);
   }
 
   rl.close();

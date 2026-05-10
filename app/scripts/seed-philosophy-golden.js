@@ -244,23 +244,27 @@ function _sealItem(seed) {
     source_anchor: seed.source_anchor,
     instance: seed.instance,
     verification_channel: 'sealed_rubric',
-    schema_version: '0.5.D3.1',
+    schema_version: '0.5.D4',
     answer_features: features,
     k_threshold: seed.k_threshold,
     candidate_responses: seed.candidate_responses,
     sealed_at: new Date().toISOString(),
     sealed_algorithm: 'sha256',
     sealed_normalization: 'trim+collapse-whitespace+lowercase',
-    rater_a: null,
-    rater_b: null,
-    agreement: null,
-    notes: 'D3.1 schema. Each feature has phrasing_hashes (sealed sha256 of claim + alt_phrasings, normalized). Raters mark which feature ids the candidate response hits; pass = features_hit count >= k_threshold. κ over per-candidate per-feature agreement between raters.',
+    notes: 'D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically.',
   };
 }
 
+// D4 (R2 fix per MEOW R2): include phrasing_hashes alongside claim_hash so that
+// edits to alt_phrasings trigger drift detection. Prior implementation only
+// hashed claim_hash, missing phrasing edits silently.
 function _itemFingerprint(item) {
-  const featureFingerprint = item.answer_features.map(f => f.claim_hash).join('|');
-  return featureFingerprint;
+  const parts = [];
+  for (const f of item.answer_features || []) {
+    parts.push(f.claim_hash || '');
+    parts.push((f.phrasing_hashes || []).join(','));
+  }
+  return parts.join('|');
 }
 
 function main(argv) {
@@ -309,10 +313,9 @@ function main(argv) {
         continue;
       }
 
-      // force-reseal: preserve existing rater_a / rater_b if any
-      candidate.rater_a = existing && existing.rater_a || null;
-      candidate.rater_b = existing && existing.rater_b || null;
-      candidate.agreement = existing && existing.agreement || null;
+      // D4 R1: rater work lives in sidecars; do NOT carry rater_a / rater_b /
+      // agreement onto the main JSON. Sidecars at <id>.rater-{a|b}.json survive
+      // independently across reseals (they carry their own ts + ratings).
     }
 
     fs.writeFileSync(filePath, JSON.stringify(candidate, null, 2) + '\n', 'utf8');

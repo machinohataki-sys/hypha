@@ -78,8 +78,59 @@ function verifyMultipleKeys(userResponse, sealedHashList) {
   return { match: false, hash_user, matched_index: -1, total_keys: sealedHashList.length };
 }
 
+// V0.5 D3.1+ — feature-set verification (substring match w/ normalization)
+//
+// Per Council post-MEOW: full-prose sha256 match was structurally broken for
+// philosophy-style rubrics. Feature-set channel splits each rubric into atomic
+// claims; verifyFeatures runs deterministic substring match per phrasing.
+// LLM never grades. Auto-evaluator equals normalized substring containment,
+// nothing more.
+//
+// item shape (D3.1):
+//   { answer_features: [{id, claim, alt_phrasings, ...}], k_threshold }
+//
+// returns:
+//   { features_hit: ['f1', 'f3'], predicted_pass: bool, threshold: int, channel: 'feature_substring' }
+
+function verifyFeatures(responseText, item) {
+  const result = { features_hit: [], predicted_pass: false, channel: 'feature_substring', threshold: null, per_feature: [] };
+  if (typeof responseText !== 'string') {
+    result.reason = 'response must be string';
+    return result;
+  }
+  if (!item || !Array.isArray(item.answer_features) || item.answer_features.length === 0) {
+    result.reason = 'item missing answer_features';
+    return result;
+  }
+  const k = (typeof item.k_threshold === 'number') ? item.k_threshold : 1;
+  result.threshold = k;
+  const normalizedResponse = _normalize(responseText);
+  if (!normalizedResponse) {
+    return result;
+  }
+  for (const f of item.answer_features) {
+    if (!f || !f.id) continue;
+    const phrasings = [f.claim, ...((f.alt_phrasings) || [])].filter(p => typeof p === 'string' && p.trim());
+    let hit = false;
+    let matched_phrasing = null;
+    for (const p of phrasings) {
+      const np = _normalize(p);
+      if (np && normalizedResponse.includes(np)) {
+        hit = true;
+        matched_phrasing = p;
+        break;
+      }
+    }
+    result.per_feature.push({ id: f.id, hit, matched_phrasing });
+    if (hit) result.features_hit.push(f.id);
+  }
+  result.predicted_pass = result.features_hit.length >= k;
+  return result;
+}
+
 module.exports = {
   lockAnswerKey,
   verifyAgainstKey,
   verifyMultipleKeys,
+  verifyFeatures,
 };
