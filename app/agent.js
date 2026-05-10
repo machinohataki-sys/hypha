@@ -21,6 +21,33 @@ const anthropicAdapter = require('./lib/anthropic-adapter');
 // THEIR OWN PROFILE (settings.userProfile.name + .tutorName) are NEVER
 // flagged — those are intentional address. Hits write to events.jsonl.
 const PERSONA_LEAK_AGENT_NAMES = ['Lung', 'Leo', 'Yogo', 'Muse', 'MEOW', 'Wolf', 'Nancy', 'Ghost', 'TATA', 'SONCAR', 'QAQ'];
+// v0158n — Claude Code meta-cognition leak markers. These are concepts the
+// underlying Anthropic API model does NOT know about; they only appear when
+// the spawned `claude` CLI's base persona (or walk-up CLAUDE.md content)
+// bleeds into the tutor output. Hits trigger event log + console warning.
+const CLAUDE_CODE_META_MARKERS = [
+  /\bplan mode\b/i,
+  /\btutor roleplay\b/i,
+  /\bsystem[- ]?reminder\b/i,
+  /TodoWrite/,
+  /<command-(?:name|message)>/,
+  /\bbegin now\b.{0,40}\b(plan|tutor|conflict)\b/i,
+  /\bI need to clarify your intent\b/i,
+  // v0158o — explicit "/login" / "/logout" advice = Claude Code's auth-error
+  // escape hatch leaking into tutor output. With slash-dispatch shipping in
+  // v0158o the user CAN type these, so seeing them in tutor output should
+  // still be flagged as a leak (tutor shouldn't suggest CLI commands).
+  /(?:^|\s)\/login\b/,
+  /(?:^|\s)\/logout\b/,
+];
+function _detectClaudeCodeLeak(text) {
+  if (!text) return null;
+  for (const re of CLAUDE_CODE_META_MARKERS) {
+    const m = re.exec ? re.exec(text) : null;
+    if (m) return m[0];
+  }
+  return null;
+}
 function _buildPersonaLeakRE(settings) {
   const profile = settings && settings.userProfile;
   const userName = profile && profile.name && String(profile.name).trim();
@@ -34,8 +61,70 @@ function _buildPersonaLeakRE(settings) {
   if (candidates.length === 0) return null;
   return new RegExp('\\b(' + candidates.join('|') + ')\\b|用户(?!灵感)', 'i');
 }
+// v0.2 Surface Finishing Track A A1 — post-stream anti-ingratiation scan.
+// Runs after every tutor turn alongside _detectAndLogPersonaLeak. Pure
+// observation: scans accumulated text for slick / 隐性奉承 / 炫技 phrases
+// from app/lib/agent-character/anti-ingratiation.js. On hits, appends an
+// `ingratiation_flagged` event to events.jsonl (so trust-panel surface
+// can render "本节连贯 · ingratiation N次"). Does NOT mutate the streamed
+// text — scrubbing is deferred to v0.4 P1 prosecutor-judge-rewriter loop.
+function _detectAndLogIngratiation(text, settings, opts) {
+  if (!text || typeof text !== 'string') return;
+  let detector = null;
+  try { detector = require('./lib/agent-character/anti-ingratiation'); }
+  catch (_) { return; /* lib missing → silent no-op */ }
+  if (!detector || typeof detector.detectIngratiation !== 'function') return;
+
+  let hits = [];
+  try { hits = detector.detectIngratiation(text) || []; }
+  catch (_) { return; /* never break the call */ }
+  if (!Array.isArray(hits) || hits.length === 0) return;
+
+  try {
+    const vault = require('./lib/vault');
+    const phrases = hits.map(h => (h && h.match) ? String(h.match).slice(0, 80) : '').filter(Boolean);
+    vault.appendJSONL('events.jsonl', {
+      ts: new Date().toISOString(),
+      op: 'ingratiation_flagged',
+      provider: settings && settings.provider,
+      model: settings && settings.model,
+      count: hits.length,
+      phrases,
+      patterns: hits.slice(0, 6).map(h => h && h.pattern).filter(Boolean),
+      context: (opts && opts.context) || 'tutor_turn',
+      lesson_slug: (opts && opts.lesson_slug) || (settings && settings.lesson_slug) || null,
+      lesson_idx: (opts && Number.isFinite(opts.lesson_idx)) ? opts.lesson_idx : null,
+      turn_id: (opts && opts.turn_id) || null,
+    });
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn(`[ingratiation_flagged] count=${hits.length} phrases=`, phrases.slice(0, 3));
+    }
+  } catch (_) { /* swallow — flagging must never break the call */ }
+}
+
 function _detectAndLogPersonaLeak(text, settings, opts) {
   if (!text || typeof text !== 'string') return;
+  // v0158n — Claude Code meta-cognition leak (plan mode / TodoWrite / etc).
+  // Independent of agent-name leak; runs even when settings.userProfile is empty.
+  const ccLeak = _detectClaudeCodeLeak(text);
+  if (ccLeak) {
+    try {
+      const vault = require('./lib/vault');
+      const idx = text.search(new RegExp(ccLeak.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i'));
+      vault.appendJSONL('events.jsonl', {
+        ts: new Date().toISOString(),
+        op: 'claude_code_meta_leak',
+        provider: settings && settings.provider,
+        model: settings && settings.model,
+        hit: ccLeak,
+        snippet: text.slice(Math.max(0, idx - 40), idx + 120),
+        context: (opts && opts.context) || 'tutor_turn',
+        hint: 'CLI sandbox failed — CLAUDE.md walk-up or ~/.claude/ leak. Check _hyphaSandboxDir + CLAUDE_CONFIG_DIR/HOME env in spawn.',
+      });
+      console.warn('[claude_code_meta_leak] hit=', ccLeak, ' — sandbox may be misconfigured');
+    } catch (_) {}
+  }
+  // Original agent-name leak detector (Lung/Leo/Yogo/Muse/etc).
   const re = _buildPersonaLeakRE(settings);
   if (!re) return;
   const m = text.match(re);
@@ -62,9 +151,34 @@ const BANNED_DOMAINS = [
   'ustc.edu', 'nankai.edu', 'tongji.edu', 'csdn.net', 'cnblogs.com',
 ];
 
+// 2026-05-08 (v0.3 lesson-chat unblock): when user has provider env var set
+// but settings.apiKey blank, fall back to env. Mirrors the capability-class
+// router behavior in app/lib/llm/* so the legacy agent.js streamTurn path
+// works for users on Chinese providers without re-typing the key in Hypha
+// settings UI. The fallback ladder per provider id:
+//   glm       → GLM_API_KEY
+//   deepseek  → DEEPSEEK_API_KEY
+//   kimi      → KIMI_API_KEY
+//   openai    → OPENAI_API_KEY
+// sdk-anthropic + cli paths bypass this — they use their own auth chain.
+function _envApiKeyFor(providerId) {
+  if (!providerId) return null;
+  const map = {
+    glm: process.env.GLM_API_KEY,
+    deepseek: process.env.DEEPSEEK_API_KEY,
+    kimi: process.env.KIMI_API_KEY,
+    moonshot: process.env.KIMI_API_KEY,
+    openai: process.env.OPENAI_API_KEY,
+  };
+  const k = map[String(providerId).toLowerCase()];
+  return (k && typeof k === 'string') ? k.trim() : null;
+}
+
 function client(settings) {
+  const fromSettings = (settings && settings.apiKey && String(settings.apiKey).trim()) || null;
+  const fromEnv = !fromSettings ? _envApiKeyFor(settings && settings.provider) : null;
   return new OpenAI({
-    apiKey: settings.apiKey || 'missing',
+    apiKey: fromSettings || fromEnv || 'missing',
     baseURL: settings.baseURL || 'https://api.openai.com/v1',
   });
 }
@@ -93,6 +207,26 @@ function _composePromptFromMessages(messages) {
   return out;
 }
 
+// 2026-05-05 (Appendix C) — bare composer for cliPureMode. Strips the Hypha-
+// specific [YOU]/[TUTOR]/[YOUR REPLY AS TUTOR] role labels so claude-cli sees
+// only natural conversation text. For single-turn (1 user message) emits the
+// raw content. For multi-turn uses standard "User: / Assistant:" labels which
+// match Anthropic Messages-API conventions and don't bias the model into
+// Hypha's tutor frame.
+function _composeBareUserPrompt(messages) {
+  const filtered = (messages || []).filter(m => m && (m.role === 'user' || m.role === 'assistant'));
+  if (filtered.length === 0) return '';
+  if (filtered.length === 1 && filtered[0].role === 'user') {
+    return String(filtered[0].content || '');
+  }
+  const lines = [];
+  for (const m of filtered) {
+    const label = m.role === 'user' ? 'User' : 'Assistant';
+    lines.push(`${label}: ${m.content || ''}`);
+  }
+  return lines.join('\n\n') + '\n\n';
+}
+
 // 2026-05-02 — for CLIs that support a `--system-prompt` flag (Anthropic
 // claude CLI does, verified `claude --help`), extract system-role messages
 // and return them separately so they can be sent via the proper API system
@@ -105,6 +239,99 @@ function _composePromptFromMessages(messages) {
 // per Anthropic's API contract system >> user. Even with Claude Code's
 // CLAUDE.md walkup + agent registrations still loaded in context, the
 // custom system prompt dominates first-recall behavior.
+// v0158n — oil-capsule isolation for spawned CLI processes. Without these,
+// `claude` walks up from CWD to find E:\victor\CLAUDE.md (Victor's universe),
+// reads ~/.claude/CLAUDE.md (global memory), reads ~/.claude.json (settings).
+// All three pollute lesson tutor output with plan-mode meta-cognition,
+// agent-council names, etc. Per WebSearch 2026-05-04 (Issue #3833 +
+// dbreunig 2026-04 system-prompt build): even with --system-prompt (replace),
+// CLAUDE.md walk-up + global memory load runs through a SEPARATE injection
+// path that --system-prompt does NOT shadow. Only CWD + HOME + CLAUDE_CONFIG_DIR
+// redirection blocks those paths.
+//
+// _hyphaSandboxDir() returns an isolated path under userData where:
+//   - no CLAUDE.md walk-up exists (we ensure parent dirs are clean)
+//   - we plant an empty .claude/ to anchor walk-up (claude stops here)
+//   - CLAUDE_CONFIG_DIR points here (kills ~/.claude/ leak)
+//   - HOME points here (kills ~/.claude.json leak per Issue #3833)
+let _sandboxDirCache = null;
+function _hyphaSandboxDir() {
+  if (_sandboxDirCache) return _sandboxDirCache;
+  try {
+    const path = require('node:path');
+    const fs = require('node:fs');
+    const os = require('node:os');
+    const { app } = require('electron');
+    const base = (app && typeof app.getPath === 'function')
+      ? app.getPath('userData')
+      : path.join(os.tmpdir(), 'hypha-userData');
+    const dir = path.join(base, 'cli-sandbox');
+    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+    // Plant a CLAUDE.md sentinel that stops walk-up + emits no instructions.
+    // Empty file = walk-up halts here, no content injected.
+    const sentinel = path.join(dir, 'CLAUDE.md');
+    if (!fs.existsSync(sentinel)) {
+      fs.writeFileSync(sentinel,
+        '<!-- Hypha CLI sandbox — intentionally empty to halt CLAUDE.md walk-up. -->\n',
+        'utf8'
+      );
+    }
+    // Also plant empty global ~/.claude/CLAUDE.md inside this sandbox (the
+    // CLAUDE_CONFIG_DIR target) so claude doesn't fall through to user's real one.
+    const sandboxGlobal = path.join(dir, '.claude', 'CLAUDE.md');
+    if (!fs.existsSync(sandboxGlobal)) {
+      fs.writeFileSync(sandboxGlobal,
+        '<!-- Hypha CLI sandbox global memory — empty by design. -->\n',
+        'utf8'
+      );
+    }
+    _sandboxDirCache = dir;
+    return dir;
+  } catch (e) {
+    console.warn('[hypha-sandbox] init failed:', e.message);
+    return null;
+  }
+}
+
+// Build the env + cwd pair for spawning a sandboxed claude CLI. Used only when
+// provider.via === 'cli' AND binary === 'claude' (or claude-* variant). Other
+// CLIs (gemini, codex) keep current env path; they don't have the same
+// CLAUDE.md walk-up bug.
+function _hyphaSandboxedSpawnOpts(baseEnv, cfg, settings) {
+  const isClaude = cfg && cfg.binary && /^claude(\b|-)/i.test(cfg.binary);
+  if (!isClaude) {
+    return {
+      env: { ...baseEnv, GEMINI_CLI_TRUST_WORKSPACE: 'true' },
+      cwd: undefined,
+    };
+  }
+  const dir = _hyphaSandboxDir();
+  if (!dir) {
+    return {
+      env: { ...baseEnv, GEMINI_CLI_TRUST_WORKSPACE: 'true' },
+      cwd: undefined,
+    };
+  }
+  // v0158p — inject CLAUDE_CODE_OAUTH_TOKEN if user has pasted one via /token
+  // slash command. Anthropic-blessed headless auth path (Issue #22992): user
+  // runs `claude setup-token` in real terminal once, copies token, pastes into
+  // Hypha. This works in sandbox without TTY because token is provided
+  // directly, no OAuth browser flow required at runtime.
+  const oauthToken = settings && typeof settings.oauthToken === 'string'
+    ? settings.oauthToken.trim() : '';
+  const env = {
+    ...baseEnv,
+    GEMINI_CLI_TRUST_WORKSPACE: 'true',
+    // Redirect ~/.claude/ → sandbox/.claude/. Per Issue #3833 this is
+    // partial — ~/.claude.json still lives at $HOME. So also redirect HOME.
+    CLAUDE_CONFIG_DIR: require('node:path').join(dir, '.claude'),
+    HOME: dir,
+    USERPROFILE: dir, // Windows equivalent of HOME
+  };
+  if (oauthToken) env.CLAUDE_CODE_OAUTH_TOKEN = oauthToken;
+  return { env, cwd: dir };
+}
+
 function _splitSystemFromMessages(messages) {
   const systemParts = [];
   const others = [];
@@ -135,6 +362,17 @@ function _splitSystemFromMessages(messages) {
 async function _runCliOnce(messages, settings, opts = {}) {
   const cfg = _resolveProviderConfig(settings);
   if (!cfg.binary) throw new Error('cli provider missing binary name');
+  // 2026-05-05 (Appendix C) — pure passthrough mode. When opts.cliPureMode is
+  // set, drop ALL system messages so the CLI uses its own default Claude Code
+  // system rather than Hypha's tutor scaffolding. Sandbox env still applies,
+  // so Victor universe / global agents / ~/.claude.json stay blocked.
+  // Used by tutor speech path (streamTurn) when provider is claude-cli;
+  // user-facing dialog matches Terminal experience. JSON callers (llmJSON →
+  // here non-streaming) do NOT pass cliPureMode — they need --system-prompt
+  // to control schema, so their behavior is unchanged.
+  if (opts.cliPureMode && Array.isArray(messages)) {
+    messages = messages.filter(m => !(m && m.role === 'system'));
+  }
   const timeoutMs = opts.timeoutMs || 90_000;
   // 2026-05-02 — split system messages out so they can ride the CLI's
   // --system-prompt flag and reach the API's system field cleanly.
@@ -145,7 +383,11 @@ async function _runCliOnce(messages, settings, opts = {}) {
     systemPromptForFlag = split.systemPrompt;
     messagesToCompose = split.others;
   }
-  let prompt = _composePromptFromMessages(messagesToCompose);
+  // 2026-05-05 (Appendix C) — pure mode uses bare composer (no Hypha role
+  // labels). Otherwise legacy [YOU]/[TUTOR]/[YOUR REPLY AS TUTOR] composer.
+  let prompt = opts.cliPureMode
+    ? _composeBareUserPrompt(messagesToCompose)
+    : _composePromptFromMessages(messagesToCompose);
   // 2026-05-03 — Windows CMD has ~8192-char arg limit. planChain's system
   // prompt easily exceeds this. When too long, inline as [SYSTEM] block in
   // stdin instead of --system-prompt flag. Loses CLI system-field isolation
@@ -170,10 +412,13 @@ async function _runCliOnce(messages, settings, opts = {}) {
     let child;
     let killed = false;
     try {
+      // v0158n — sandbox claude CLI to block CLAUDE.md walk-up + ~/.claude/ leak.
+      const _sandbox = _hyphaSandboxedSpawnOpts(process.env, cfg, settings);
       child = _cliSpawn(cfg.binary, args, {
         shell: process.platform === 'win32',
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, GEMINI_CLI_TRUST_WORKSPACE: 'true' },
+        env: _sandbox.env,
+        cwd: _sandbox.cwd,
       });
     } catch (e) { return reject(new Error('spawn failed: ' + e.message)); }
     // Hard timeout — without this a stalled CLI binary (network hang, persona
@@ -207,6 +452,13 @@ async function _runCliOnce(messages, settings, opts = {}) {
 async function _runCliStream(messages, settings, onChunk, opts = {}) {
   const cfg = _resolveProviderConfig(settings);
   if (!cfg.binary) throw new Error('cli provider missing binary name');
+  // 2026-05-05 (Appendix C) — same pure passthrough as _runCliOnce. When
+  // opts.cliPureMode is set, drop system messages; CLI uses its default
+  // system. Set by streamTurn when the resolved binary is claude-* (user
+  // wants pure Terminal claude-cli experience for tutor turns).
+  if (opts.cliPureMode && Array.isArray(messages)) {
+    messages = messages.filter(m => !(m && m.role === 'system'));
+  }
   // 2026-05-02 — same split as _runCliOnce: system messages ride the
   // --system-prompt flag, others go via stdin. See _splitSystemFromMessages.
   let messagesToCompose = messages;
@@ -216,7 +468,9 @@ async function _runCliStream(messages, settings, onChunk, opts = {}) {
     systemPromptForFlag = split.systemPrompt;
     messagesToCompose = split.others;
   }
-  let prompt = _composePromptFromMessages(messagesToCompose);
+  let prompt = opts.cliPureMode
+    ? _composeBareUserPrompt(messagesToCompose)
+    : _composePromptFromMessages(messagesToCompose);
   // 2026-05-03 — Windows CMD has ~8192-char arg limit. planChain's system
   // prompt easily exceeds this. When too long, inline as [SYSTEM] block in
   // stdin instead of --system-prompt flag. Loses CLI system-field isolation
@@ -235,6 +489,14 @@ async function _runCliStream(messages, settings, onChunk, opts = {}) {
   if (cfg.systemPromptFlag && systemPromptForFlag) {
     args.push(cfg.systemPromptFlag, systemPromptForFlag);
   }
+  // 2026-05-05 (Appendix D) — claude-cli session continuity. When resumeSessionId
+  // is set, claude joins an existing session it knows from prior call's session_id.
+  // This eliminates the per-turn transcript replay (caller passes ONLY the current
+  // user message) — model has its own history. Approaches native Terminal claude
+  // experience. Only meaningful when binary supports --resume (claude-cli does).
+  if (opts.resumeSessionId && /^claude(\b|-)/i.test(cfg.binary)) {
+    args.push('--resume', String(opts.resumeSessionId));
+  }
   if (cfg.promptFlag) args.push(cfg.promptFlag);
   if (Array.isArray(cfg.streamFlag) && cfg.streamFlag.length) args.push(...cfg.streamFlag);
   if (Array.isArray(cfg.suffixArgs)) args.push(...cfg.suffixArgs);
@@ -242,11 +504,15 @@ async function _runCliStream(messages, settings, onChunk, opts = {}) {
   return new Promise((resolve, reject) => {
     let child;
     let aborted = false;
+    let _sessionIdReported = false;
     try {
+      // v0158n — same sandbox as _runCliOnce.
+      const _sandbox = _hyphaSandboxedSpawnOpts(process.env, cfg, settings);
       child = _cliSpawn(cfg.binary, args, {
         shell: process.platform === 'win32',
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, GEMINI_CLI_TRUST_WORKSPACE: 'true' },
+        env: _sandbox.env,
+        cwd: _sandbox.cwd,
       });
     } catch (e) { return reject(new Error('spawn failed: ' + e.message)); }
     // Wire optional abort signal — UI stop button → main.js IPC abort →
@@ -318,6 +584,18 @@ async function _runCliStream(messages, settings, onChunk, opts = {}) {
           if (!line.trim()) continue;
           try {
             const ev = JSON.parse(line);
+            // 2026-05-05 (Appendix D) — session_id capture for fresh-spawn case.
+            // claude-cli stream-json emits a `system` (or system_init / init)
+            // event near the start carrying session_id. Caller persists it for
+            // future --resume calls. Multi-field tolerance: schema across CLI
+            // versions varies, accept any of session_id / sessionId / id.
+            if (!_sessionIdReported && opts.onSessionId && !opts.resumeSessionId) {
+              const sid = (ev && (ev.session_id || ev.sessionId || (ev.session && ev.session.id) || (ev.type === 'system' && ev.id)));
+              if (sid && typeof sid === 'string' && sid.length > 0 && sid.length < 200) {
+                _sessionIdReported = true;
+                try { opts.onSessionId(sid); } catch (_) { /* swallow callback fail */ }
+              }
+            }
             const text = _extractTextFromEvent(ev);
             if (text) {
               onChunk(text);
@@ -687,6 +965,27 @@ async function _harvestOpenAlex(topic) {
 
 // Channel 6 — YouTube transcript. Lib-dependent (youtube-search-api +
 // youtube-transcript). Skip-on-fail per video. ~3-6s for 8 videos.
+// v0.4 — curated creators registry. Lazy-loaded once. Maps lowercased
+// channel name AND handle to creator entry for quick `channelName` match.
+let _curatedCreatorsMap = null;
+function _loadCuratedCreators() {
+  if (_curatedCreatorsMap) return _curatedCreatorsMap;
+  _curatedCreatorsMap = new Map();
+  try {
+    const cfg = require('./lib/curated-creators.json');
+    for (const c of (cfg.creators || [])) {
+      const keys = new Set();
+      if (c.name) keys.add(String(c.name).toLowerCase());
+      if (c.handle) keys.add(String(c.handle).toLowerCase());
+      // Strip "(NAME)" parenthetical so "3Blue1Brown (Grant Sanderson)" also matches "3blue1brown" alone
+      const stripped = String(c.name || '').toLowerCase().replace(/\s*\([^)]+\)\s*/g, '').trim();
+      if (stripped) keys.add(stripped);
+      for (const k of keys) _curatedCreatorsMap.set(k, c);
+    }
+  } catch (_) { /* file missing → empty map, _harvestYouTube falls back to generic */ }
+  return _curatedCreatorsMap;
+}
+
 async function _harvestYouTube(topic) {
   const q = String(topic).trim();
   if (!q) return [];
@@ -726,7 +1025,113 @@ async function _harvestYouTube(topic) {
       hasTranscript: !!transcript,
     });
   }));
+  // v0.4 — curated-creator boost. Tag results whose channelName matches a
+  // curated creator (3Blue1Brown, Karpathy, Veritasium, ...) with sourceType
+  // 'youtube-curated' and 1.5x stars boost so downstream BM25 ranks them up.
+  const curatedMap = _loadCuratedCreators();
+  if (curatedMap.size > 0) {
+    for (const item of out) {
+      if (!item.channelName) continue;
+      const cname = String(item.channelName).toLowerCase();
+      for (const [key, creator] of curatedMap.entries()) {
+        if (cname === key || cname.includes(key) || key.includes(cname)) {
+          item.sourceType = 'youtube-curated';
+          item.curatedCreatorId = creator.channelId;
+          item.curatedTeachingValue = creator.teaching_value;
+          item.stars = Math.round((item.stars || 0) * 1.5) + 1;
+          break;
+        }
+      }
+    }
+    // v0.4 — force-include top result from a curated creator whose
+    // specialization_keywords match the topic, IF none of the existing
+    // results already covers them. Closes the gap where generic YouTube
+    // search misses the canonical channel for this topic.
+    const qLower = q.toLowerCase();
+    let forced = null;
+    try {
+      const cfg = require('./lib/curated-creators.json');
+      for (const c of (cfg.creators || [])) {
+        for (const kw of (c.specialization_keywords || [])) {
+          if (qLower.includes(String(kw).toLowerCase())) { forced = c; break; }
+        }
+        if (forced) break;
+      }
+    } catch (_) {}
+    if (forced && !out.some(o => o.curatedCreatorId === forced.channelId)) {
+      try {
+        const r2 = await Promise.race([
+          YTSearch.GetListByKeyword(`${q} ${forced.name}`, false, 4, [{ type: 'video' }]),
+          new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 4000)),
+        ]);
+        const v2 = (r2 && r2.items) ? r2.items[0] : null;
+        if (v2 && v2.id && passesSourcePolicy(`https://www.youtube.com/watch?v=${v2.id}`)) {
+          out.unshift({
+            url: `https://www.youtube.com/watch?v=${v2.id}`,
+            title: String(v2.title || '').slice(0, 200),
+            excerpt: (v2.description || '').slice(0, 400),
+            sourceType: 'youtube-curated',
+            stars: 100,
+            channelName: v2.channelTitle || forced.name,
+            curatedCreatorId: forced.channelId,
+            curatedTeachingValue: forced.teaching_value,
+            forcedInclusion: true,
+          });
+        }
+      } catch (_) {}
+    }
+  }
   return out;
+}
+
+// Channel — Pinned Domains (L4 of v0.4 5-layer Course Source Stack). Tavily
+// multi-domain search over the curated lab-blog + framework-docs domains
+// declared in app/lib/pinned-sources.json. Archetype-routed: each domain
+// declares which archetypes it serves (e.g. openai.com ∈ TECH-CONCEPT, MINDSET;
+// vercel.com ∈ TECH-PROC). Returns sourceType 'lab_blog' or 'framework_docs'
+// per the matching pinned entry.
+async function _harvestPinnedDomains(topic, archetype, settings) {
+  const tavilyKey = (settings && settings.tavilyKey) || process.env.TAVILY_API_KEY || '';
+  if (!tavilyKey) return [];
+  const q = String(topic).trim();
+  if (!q) return [];
+  let cfg;
+  try { cfg = require('./lib/pinned-sources.json'); } catch (_) { return []; }
+  const arch = archetype || '_default';
+  const domains = (cfg.domains || [])
+    .filter(d => Array.isArray(d.archetype_routing) && d.archetype_routing.includes(arch))
+    .slice(0, 8);
+  if (domains.length === 0) return [];
+  const includeDomains = domains.map(d => d.domain);
+  const fetchFn = (typeof fetch !== 'undefined') ? fetch : require('node-fetch');
+  try {
+    const r = await fetchFn('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: tavilyKey, query: q, search_depth: 'basic', max_results: 6,
+        include_domains: includeDomains,
+      }),
+    });
+    if (!r.ok) return [];
+    const j = await r.json();
+    const out = [];
+    for (const item of (j.results || []).slice(0, 6)) {
+      const url = item.url || '';
+      if (!url) continue;
+      const matched = domains.find(d => url.includes(d.domain));
+      out.push({
+        url,
+        title: String(item.title || '').slice(0, 200),
+        excerpt: String(item.content || '').replace(/\s+/g, ' ').slice(0, 600),
+        sourceType: matched ? matched.source_type : 'lab_blog',
+        pinnedDomain: matched ? matched.domain : '',
+        pinnedAuthority: matched ? matched.authority : 0,
+        stars: 0,
+      });
+    }
+    return out;
+  } catch (_) { return []; }
 }
 
 // Channel 9 — Stanford Encyclopedia of Philosophy (gated to HUMANITIES).
@@ -777,6 +1182,188 @@ async function _harvestSEP(topic, settings) {
     } catch (_) {}
   }));
   return out;
+}
+
+// Channel — Canonical Curriculum (L1 of v0.4 5-layer Course Source Stack).
+// Hits top US-university open courseware: MIT OCW, Stanford (online + class
+// pages), Berkeley CS/EECS, CMU CS, Harvard CS50/HarvardX, OpenStax. Returns
+// syllabus-shaped results that designSequence treats as STRUCTURE PRIOR (peer-
+// institution sequencing) and designLesson treats as L1 grounding ("MIT 18.06
+// uses this example"). No HTML scrape — Tavily index covers .edu paths well.
+async function _harvestCourseware(topic, settings) {
+  const tavilyKey = (settings && settings.tavilyKey) || process.env.TAVILY_API_KEY || '';
+  if (!tavilyKey) return [];
+  const q = String(topic).trim();
+  if (!q) return [];
+  const fetchFn = (typeof fetch !== 'undefined') ? fetch : require('node-fetch');
+  const COURSEWARE_DOMAINS = [
+    'ocw.mit.edu',
+    'online.stanford.edu',
+    'web.stanford.edu',
+    'cs.berkeley.edu',
+    'eecs.berkeley.edu',
+    'cs.cmu.edu',
+    'cs50.harvard.edu',
+    'harvardx.harvard.edu',
+    'openstax.org',
+  ];
+  let results = [];
+  try {
+    const tRes = await fetchFn('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: tavilyKey,
+        query: `${q} syllabus OR course OR "lecture notes" OR "reading list"`,
+        search_depth: 'basic', max_results: 8,
+        include_domains: COURSEWARE_DOMAINS,
+      }),
+    });
+    if (!tRes.ok) return [];
+    const tj = await tRes.json();
+    results = tj.results || [];
+  } catch (_) { return []; }
+  const _institutionFor = (url) => {
+    if (/ocw\.mit\.edu/i.test(url)) return 'MIT';
+    if (/stanford\.edu/i.test(url)) return 'Stanford';
+    if (/berkeley\.edu/i.test(url)) return 'UC Berkeley';
+    if (/cs\.cmu\.edu/i.test(url)) return 'Carnegie Mellon';
+    if (/cs50\.harvard\.edu|harvardx\.harvard\.edu/i.test(url)) return 'Harvard';
+    if (/openstax\.org/i.test(url)) return 'OpenStax';
+    return 'university';
+  };
+  const _syllabusTypeFor = (url, title) => {
+    const blob = (url + ' ' + (title || '')).toLowerCase();
+    if (/syllabus|schedule/.test(blob)) return 'syllabus';
+    if (/lecture[-_ ]?note|\/notes\/|readings/.test(blob)) return 'lecture-notes';
+    if (/reading[-_ ]?list|textbook/.test(blob)) return 'reading-list';
+    if (/assignment|homework|problem[-_ ]?set|\bpset/.test(blob)) return 'assignment';
+    if (/exam|midterm|\bfinal\b/.test(blob)) return 'exam';
+    return 'syllabus';
+  };
+  const _courseCodeFor = (url) => {
+    const m = url.match(/(?:\/|=|-)((?:CS|EE|EECS|CSE|MATH|STAT|18|6|15)[-._ ]?\d{2,4}[A-Z]?)\b/i);
+    return m ? m[1].replace(/[-._ ]/g, '').toUpperCase() : '';
+  };
+  const out = [];
+  for (const r of (results || []).slice(0, 6)) {
+    const url = r.url || '';
+    const title = String(r.title || '').slice(0, 200);
+    const excerpt = String(r.content || '').replace(/\s+/g, ' ').slice(0, 600);
+    if (!url || !title) continue;
+    out.push({
+      url, title, excerpt,
+      sourceType: 'courseware',
+      institution: _institutionFor(url),
+      courseCode: _courseCodeFor(url),
+      syllabusType: _syllabusTypeFor(url, title),
+      stars: 0,
+    });
+  }
+  return out;
+}
+
+// Channel — OpenReview (L3 of v0.4 5-layer). ICLR / NeurIPS / ICML / COLM /
+// COLT submissions + reviews. API v2 search at api2.openreview.net. Returns
+// peer-reviewed frontier papers with venue tag (! arxiv preprint, ! benchmark).
+// Auth-free for public-readable notes; 5s timeout, graceful drop on failure.
+async function _harvestOpenReview(topic, _settings) {
+  const q = String(topic).trim();
+  if (!q) return [];
+  const fetchFn = (typeof fetch !== 'undefined') ? fetch : require('node-fetch');
+  try {
+    const url = `https://api2.openreview.net/notes/search?term=${encodeURIComponent(q)}&type=note&content=all&limit=10`;
+    const r = await Promise.race([
+      fetchFn(url, { headers: { 'User-Agent': 'Hypha/0.4' } }),
+      new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 5000)),
+    ]);
+    if (!r.ok) return [];
+    const j = await r.json();
+    const notes = Array.isArray(j.notes) ? j.notes : [];
+    const out = [];
+    for (const n of notes.slice(0, 8)) {
+      const c = (n && n.content) || {};
+      const title = (c.title && c.title.value) || c.title || '';
+      const abstract = (c.abstract && c.abstract.value) || c.abstract || '';
+      const venue = (c.venue && c.venue.value) || c.venue || '';
+      const forum = n.forum || n.id || '';
+      if (!title || !forum) continue;
+      out.push({
+        url: `https://openreview.net/forum?id=${forum}`,
+        title: String(title).slice(0, 200),
+        excerpt: String(abstract).replace(/\s+/g, ' ').slice(0, 600),
+        sourceType: 'openreview',
+        venue: String(venue).slice(0, 80),
+        stars: 0,
+      });
+    }
+    return out;
+  } catch (_) { return []; }
+}
+
+// Channel — Papers with Code (L3). Paper + code repo + benchmark/dataset
+// linkage. paperswithcode.com/api/v1/papers public endpoint, no auth needed.
+// Tag engineering_value high in metadata schema (Day 5).
+async function _harvestPapersWithCode(topic, _settings) {
+  const q = String(topic).trim();
+  if (!q) return [];
+  const fetchFn = (typeof fetch !== 'undefined') ? fetch : require('node-fetch');
+  try {
+    const url = `https://paperswithcode.com/api/v1/papers/?q=${encodeURIComponent(q)}&page=1&items_per_page=8`;
+    const r = await Promise.race([
+      fetchFn(url, { headers: { 'User-Agent': 'Hypha/0.4', 'Accept': 'application/json' } }),
+      new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 5000)),
+    ]);
+    if (!r.ok) return [];
+    const j = await r.json();
+    const results = Array.isArray(j.results) ? j.results : [];
+    const out = [];
+    for (const p of results.slice(0, 6)) {
+      const id = p.id || '';
+      const title = String(p.title || '').slice(0, 200);
+      const abstract = String(p.abstract || '').replace(/\s+/g, ' ').slice(0, 600);
+      const url = p.url_pdf || p.url_abs || (id ? `https://paperswithcode.com/paper/${id}` : '');
+      if (!title || !url) continue;
+      out.push({
+        url, title, excerpt: abstract,
+        sourceType: 'pwc',
+        published: String(p.published || '').slice(0, 30),
+        stars: 0,
+      });
+    }
+    return out;
+  } catch (_) { return []; }
+}
+
+// Channel — Hugging Face Papers (L3). Daily-trending AI papers community pool.
+// Uses Tavily domain-filter on huggingface.co/papers/* (paths with "papers/"
+// segment). Tag freshness high; stability low (HF trending churns daily).
+async function _harvestHFPapers(topic, settings) {
+  const tavilyKey = (settings && settings.tavilyKey) || process.env.TAVILY_API_KEY || '';
+  if (!tavilyKey) return [];
+  const q = String(topic).trim();
+  if (!q) return [];
+  const fetchFn = (typeof fetch !== 'undefined') ? fetch : require('node-fetch');
+  try {
+    const r = await fetchFn('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: tavilyKey, query: q, search_depth: 'basic', max_results: 8,
+        include_domains: ['huggingface.co'],
+      }),
+    });
+    if (!r.ok) return [];
+    const j = await r.json();
+    const results = (j.results || []).filter(x => x && x.url && /huggingface\.co\/papers\//.test(x.url));
+    return results.slice(0, 5).map(x => ({
+      url: x.url,
+      title: String(x.title || '').slice(0, 200),
+      excerpt: String(x.content || '').replace(/\s+/g, ' ').slice(0, 600),
+      sourceType: 'hf-papers',
+      stars: 0,
+    }));
+  } catch (_) { return []; }
 }
 
 // Channel 10 — YC Library (gated to MINDSET / startup keywords). Discovery
@@ -885,12 +1472,16 @@ async function _harvestPerLesson(existingSources, lessonTopic, settings) {
 // latency + avoids polluting sources with noise — e.g., SEP firing for
 // "React Hooks" wastes 4s + injects irrelevant philosophy entries).
 const CHANNEL_ROUTES = {
-  'TECH-CONCEPT': ['github', 'arxiv', 'web', 'hn', 'youtube', 'openalex'],
-  'TECH-PROC':    ['github', 'hn', 'web', 'youtube'],
+  // v0.4 — courseware (L1 Canonical Curriculum) joins TECH/DECL/LANG routes.
+  // HUMANITIES already has SEP for academic philosophy; courseware would
+  // duplicate (Stanford SEP, MIT/Harvard humanities OCW are in same league).
+  // MINDSET stays YC-anchored (lab_blog joins via pinned-domains in v0.4 step 4).
+  'TECH-CONCEPT': ['github', 'arxiv', 'web', 'hn', 'youtube', 'openalex', 'courseware', 'openreview', 'pwc', 'hf-papers', 'pinned-domains'],
+  'TECH-PROC':    ['github', 'hn', 'web', 'youtube', 'courseware', 'pwc', 'pinned-domains'],
   'HUMANITIES':   ['wikipedia', 'openalex', 'sep', 'web', 'hn'],
-  'MINDSET':      ['yclibrary', 'web', 'wikipedia', 'youtube', 'hn'],
-  'LANG-ACQ':     ['wikipedia', 'youtube', 'web'],
-  'DECL-MASS':    ['wikipedia', 'openalex', 'web', 'hn'],
+  'MINDSET':      ['yclibrary', 'web', 'wikipedia', 'youtube', 'hn', 'pinned-domains'],
+  'LANG-ACQ':     ['wikipedia', 'youtube', 'web', 'courseware'],
+  'DECL-MASS':    ['wikipedia', 'openalex', 'web', 'hn', 'courseware'],
   '_default':     ['github', 'hn', 'arxiv', 'web'],
 };
 
@@ -919,6 +1510,11 @@ async function harvest(topic, settings, onProgress = null, archetype = '_default
     youtube:   () => _harvestYouTube(topic),
     sep:       () => _harvestSEP(topic, settings),
     yclibrary: () => _harvestYCLibrary(topic, settings),
+    courseware: () => _harvestCourseware(topic, settings),
+    openreview: () => _harvestOpenReview(topic, settings),
+    pwc:        () => _harvestPapersWithCode(topic, settings),
+    'hf-papers':      () => _harvestHFPapers(topic, settings),
+    'pinned-domains': () => _harvestPinnedDomains(topic, archetype, settings),
   };
   const runChannel = async (key, fn) => {
     const start = Date.now();
@@ -1071,6 +1667,428 @@ async function harvest(topic, settings, onProgress = null, archetype = '_default
   // Final assembly — preserve original [live..., fallback...] order + 30 cap.
   const out = [...liveItems, ...perChannel.fallback.items];
   return out.slice(0, 30);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// v0.3 — harvestV3: 5-layer Heavy Harvest dispatcher
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Sits ALONGSIDE legacy `harvest()` — does NOT replace it. Dispatches to the
+// Phase 1 Heavy-Harvest modules under app/lib/harvest/:
+//   - layer1-canonical    — MIT OCW / Yale OYC / Stanford syllabus extraction
+//                           → STRUCTURE ANCHOR (lectureSequence + prerequisiteChain)
+//                           that designSkeletonOnly anchors to. The cure for
+//                           the v0.2.1 哲学→Galileo failure (LLM training-
+//                           frequency prior overrode pre-Socratic canonical
+//                           ordering — Thales/Anaximander/Heraclitus skipped).
+//   - layer3-deep-frontier — arXiv / OpenReview / Papers with Code / HF Papers
+//                           / Semantic Scholar deep-fetch (abstract + intro
+//                           excerpt + reviews + leaderboard deltas).
+//   - layer4-community     — bb-browser daemon: Twitter / Reddit / ProductHunt
+//                           (+ Xiaohongshu / AppStore RSS optional). 知乎 OUT.
+//                           WebSearch fallback when daemon unavailable.
+//
+// Plus the legacy harvest() (v0.4 channels: Courseware / OpenReview / PwC /
+// HFPapers / PinnedDomains / GitHub / HN / arXiv / WebSearch / Wikipedia /
+// OpenAlex / YouTube / SEP / YCLibrary) is still called as a `legacy` channel
+// — those entries land in `legacy[]` and unify into `sources[]`.
+//
+// Archetype-aware dispatch:
+//   HUMANISTIC      → Layer 1 + Layer 3 (skip community — Twitter signal weak
+//                     for philosophy/literature/history)
+//   TECH-CONCEPT    → all 3 layers + legacy
+//   TECH-PROC       → Layer 4 heavy + Layer 3 light + legacy
+//   MATH-PHYSICS    → Layer 1 heavy + Layer 3 (arXiv) + legacy
+//   GUIDE / PROCESS-MASTERY → Layer 4 + legacy
+//   _default         → Layer 1 best-effort + Layer 3 + legacy
+//
+// Returns:
+//   {
+//     structureAnchor: { lectureSequence, prerequisiteChain, anchorCourses },
+//     sources:         [...flat ranked unified list with sourceType + layer + best_use],
+//     layer1:          {raw Layer 1 result},
+//     layer3:          {raw Layer 3 result},
+//     layer4:          {raw Layer 4 result},
+//     legacy:          [...legacy harvest result],
+//     warnings:        [...string]
+//   }
+//
+// opts:
+//   - onProgress(stage, payload?) — wires layer module progress through plus
+//                                   own dispatcher events (layer1:start,
+//                                   layer3:start, layer4:start, legacy:start,
+//                                   layer1:done, ..., done).
+//   - signal — AbortSignal chained into each layer call.
+//   - layer1Options / layer3Options / layer4Options — opt overrides.
+//
+// Per-layer error isolation: one layer crashing doesn't kill the others.
+// Phase 1 modules lazy-required to avoid circular boot risk.
+async function harvestV3(topic, settings, prePrediction, archetype = '_default', opts = {}) {
+  const t0 = Date.now();
+  // v0.5.2 — frontier-cron flags: cronMode=true suppresses progress events for
+  // silent background sweeps; tavilyFallback=true routes Layer 3 emptiness
+  // through a Tavily search so the cron digest is rarely empty.
+  const cronMode = !!opts.cronMode;
+  const tavilyFallback = !!opts.tavilyFallback;
+  const onProgress = (cronMode || typeof opts.onProgress !== 'function') ? null : opts.onProgress;
+  const signal = opts.signal || null;
+  const warnings = [];
+  const safeProgress = (stage, payload) => {
+    if (!onProgress) return;
+    try { onProgress(stage, payload); } catch (_) { /* never let UI hooks throw */ }
+  };
+
+  // Archetype routing — which layers fire for this archetype.
+  // Per project_hypha_5layer_scrape_spec selective-scraping mandate:
+  // archetype-aware channel selection, not blind fire-all.
+  const arch = String(archetype || '_default').toUpperCase();
+  const route = (() => {
+    if (arch === 'HUMANISTIC' || arch === 'HUMANITIES') {
+      return { layer1: true, layer3: true, layer4: false, legacy: true };
+    }
+    if (arch === 'TECH-CONCEPT') {
+      return { layer1: true, layer3: true, layer4: true, legacy: true };
+    }
+    if (arch === 'TECH-PROC') {
+      return { layer1: false, layer3: true, layer4: true, legacy: true };
+    }
+    if (arch === 'MATH-PHYSICS' || arch === 'DECL-MASS') {
+      return { layer1: true, layer3: true, layer4: false, legacy: true };
+    }
+    if (arch === 'GUIDE' || arch === 'PROCESS-MASTERY' || arch === 'MINDSET') {
+      return { layer1: false, layer3: false, layer4: true, legacy: true };
+    }
+    return { layer1: true, layer3: true, layer4: false, legacy: true };
+  })();
+
+  const result = {
+    structureAnchor: null,
+    sources: [],
+    layer1: null,
+    layer3: null,
+    layer4: null,
+    legacy: [],
+    warnings,
+  };
+
+  // ── Layer 1 — Canonical Curriculum syllabus extraction ─────────────────
+  if (route.layer1) {
+    safeProgress('layer1:start', { topic, archetype: arch });
+    try {
+      // Lazy require — avoid circular boot risk per orchestrator constraint.
+      const { harvestLayer1Canonical } = require('./lib/harvest/layer1-canonical');
+      const layer1Opts = Object.assign({
+        timeoutMs: 120000,
+        perFetchTimeoutMs: 15000,
+        useLlmForPrereq: true,
+        maxAnchors: 3,
+      }, opts.layer1Options || {}, { signal });
+      const l1 = await harvestLayer1Canonical({
+        topic,
+        archetype: arch,
+        goalContract: (settings && settings.goalContract) || null,
+        options: layer1Opts,
+      });
+      result.layer1 = l1;
+      if (l1 && Array.isArray(l1.warnings)) warnings.push(...l1.warnings.map(w => `layer1: ${w}`));
+      if (l1 && (l1.lectureSequence || []).length > 0) {
+        result.structureAnchor = {
+          lectureSequence: l1.lectureSequence || [],
+          prerequisiteChain: l1.prerequisiteChain || [],
+          anchorCourses: l1.anchorCourses || [],
+          confidence: typeof l1.confidence === 'number' ? l1.confidence : 0,
+        };
+      }
+      safeProgress('layer1:done', {
+        anchors: ((l1 && l1.anchorCourses) || []).length,
+        lectures: ((l1 && l1.lectureSequence) || []).length,
+        confidence: (l1 && l1.confidence) || 0,
+      });
+    } catch (e) {
+      const msg = (e && e.message) ? String(e.message) : String(e);
+      warnings.push(`layer1: dispatcher error — ${msg}`);
+      safeProgress('layer1:error', { error: msg });
+    }
+  }
+
+  // ── Layer 3 — Frontier deep-extract ────────────────────────────────────
+  if (route.layer3) {
+    safeProgress('layer3:start', { topic, archetype: arch });
+    try {
+      const { harvestLayer3DeepFrontier } = require('./lib/harvest/layer3-deep-frontier');
+      // Wire per-source progress through to caller as layer3:<src>:<event>.
+      const layer3Opts = Object.assign({
+        timeoutMs: 300000,
+        maxPapersPerSource: 5,
+        deepFetchIntro: true,
+      }, opts.layer3Options || {}, {
+        signal,
+        onProgress: (stage, payload) => safeProgress('layer3:' + stage, payload),
+      });
+      const l3 = await harvestLayer3DeepFrontier({ topic, options: layer3Opts });
+      result.layer3 = l3;
+      if (l3 && Array.isArray(l3.warnings)) warnings.push(...l3.warnings.map(w => `layer3: ${w}`));
+      safeProgress('layer3:done', { total_papers: (l3 && l3.total_papers) || 0 });
+    } catch (e) {
+      const msg = (e && e.message) ? String(e.message) : String(e);
+      warnings.push(`layer3: dispatcher error — ${msg}`);
+      safeProgress('layer3:error', { error: msg });
+    }
+    // v0.5.2 — Tavily fallback for cron mode when Layer 3 surfaced zero
+    // papers. Keeps the daily frontier digest meaningful even when arXiv /
+    // OpenReview rate-limit a cron host. Inline minimal call (does not import
+    // a non-existent helper). Graceful no-op when no Tavily key configured.
+    if (tavilyFallback && (!result.layer3 || ((result.layer3.total_papers || 0) === 0))) {
+      const tavilyKey = (settings && settings.tavilyKey) || process.env.TAVILY_API_KEY || '';
+      if (!tavilyKey) {
+        warnings.push('layer3 tavily-fallback: no key configured — skipping');
+      } else {
+        try {
+          const fetchFn = (typeof fetch !== 'undefined') ? fetch : require('node-fetch');
+          const r = await fetchFn('https://api.tavily.com/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              api_key: tavilyKey,
+              query: `${topic} arxiv recent`,
+              search_depth: 'basic',
+              max_results: 6,
+              include_domains: ['arxiv.org', 'openreview.net', 'paperswithcode.com', 'huggingface.co'],
+            }),
+          });
+          if (!r.ok) {
+            warnings.push(`layer3 tavily-fallback: HTTP ${r.status}`);
+          } else {
+            const j = await r.json();
+            const items = Array.isArray(j.results) ? j.results : [];
+            const papers = items.map(it => ({
+              url: it.url || '',
+              title: String(it.title || '').slice(0, 200),
+              abstract: String(it.content || '').replace(/\s+/g, ' ').slice(0, 600),
+              published: null,
+              authors: null,
+              venue: null,
+            })).filter(p => p.url);
+            if (papers.length > 0) {
+              if (!result.layer3) result.layer3 = { sources: {}, total_papers: 0, warnings: [] };
+              if (!result.layer3.sources) result.layer3.sources = {};
+              result.layer3.sources.tavily_fallback = { papers };
+              result.layer3.total_papers = (result.layer3.total_papers || 0) + papers.length;
+              result.layer3.tavily_fallback_used = true;
+            }
+          }
+        } catch (e) {
+          warnings.push(`layer3 tavily-fallback: ${e && e.message ? e.message : String(e)}`);
+        }
+      }
+    }
+  }
+
+  // ── Layer 4 — Community discussion via bb-browser ─────────────────────
+  if (route.layer4) {
+    safeProgress('layer4:start', { topic, archetype: arch });
+    try {
+      const { harvestLayer4Community } = require('./lib/harvest/layer4-community');
+      const layer4Opts = Object.assign({
+        timeoutMs: 180000,
+        perCallTimeoutMs: 45000,
+        maxPostsPerPlatform: 10,
+      }, opts.layer4Options || {}, { signal });
+      const l4 = await harvestLayer4Community({ topic, archetype: arch, options: layer4Opts });
+      result.layer4 = l4;
+      if (l4 && Array.isArray(l4.warnings)) warnings.push(...l4.warnings.map(w => `layer4: ${w}`));
+      if (l4 && l4.daemon_available === false) {
+        warnings.push('layer4: bb-browser daemon unavailable — community signal via WebSearch fallback');
+      }
+      safeProgress('layer4:done', {
+        total_posts: (l4 && l4.total_posts) || 0,
+        daemon_available: !!(l4 && l4.daemon_available),
+        fallback_used_any: !!(l4 && l4.fallback_used_any),
+      });
+    } catch (e) {
+      const msg = (e && e.message) ? String(e.message) : String(e);
+      warnings.push(`layer4: dispatcher error — ${msg}`);
+      safeProgress('layer4:error', { error: msg });
+    }
+  }
+
+  // ── Legacy harvest (v0.4 channels) ─────────────────────────────────────
+  // Calls existing harvest() so v0.4-era callers' channels still flow into
+  // the unified sources[] (Courseware / GitHub / HN / arXiv / WebSearch /
+  // Wikipedia / OpenAlex / YouTube / SEP / YCLibrary / OpenReview / PwC /
+  // HFPapers / PinnedDomains). Errors absorbed; legacy[] just empty on failure.
+  if (route.legacy) {
+    safeProgress('legacy:start', { topic, archetype: arch });
+    try {
+      const legacyOnProgress = (stage, payload) => safeProgress('legacy:' + String(stage), payload);
+      const legacyArch = (archetype && archetype !== '_default') ? archetype : '_default';
+      const legacyArr = await harvest(topic, settings, legacyOnProgress, legacyArch);
+      result.legacy = Array.isArray(legacyArr) ? legacyArr : [];
+      safeProgress('legacy:done', { count: result.legacy.length });
+    } catch (e) {
+      const msg = (e && e.message) ? String(e.message) : String(e);
+      warnings.push(`legacy: dispatcher error — ${msg}`);
+      safeProgress('legacy:error', { error: msg });
+    }
+  }
+
+  // ── Unified flat sources[] ─────────────────────────────────────────────
+  // Each entry: { url, title, excerpt, sourceType, layer, best_use, ... }.
+  // sourceType drives metadata defaults (authority / freshness / etc) via
+  // _inferSourceMetadata; new layer-3/4 sourceTypes ('paper-deep' /
+  // 'community-discussion' / 'course-anchor') fall through to defaults
+  // gracefully (best_use defaults to 'lesson').
+  const flat = [];
+
+  // Layer 1 anchor-course rows — high-authority curriculum entries.
+  if (result.layer1 && Array.isArray(result.layer1.anchorCourses)) {
+    for (const c of result.layer1.anchorCourses) {
+      if (!c || !c.url) continue;
+      flat.push({
+        url: c.url,
+        title: c.title || '',
+        excerpt: (c.syllabus_text || '').slice(0, 280),
+        stars: 0,
+        sourceType: 'course-anchor',
+        layer: 1,
+        best_use: 'curriculum',
+        authority: 95,
+        teaching_value: 90,
+        stability: 90,
+        license_status: 'open',
+        anchor_meta: {
+          source: c.source || '',
+          syllabusUrl: c.syllabusUrl || '',
+          terms_offered: c.terms_offered || '',
+        },
+      });
+    }
+  }
+
+  // Layer 3 papers — deep-fetched abstracts + intros.
+  if (result.layer3 && result.layer3.sources) {
+    const SRC_KEYS = ['arxiv', 'openreview', 'papers_with_code', 'hf_papers', 'semantic_scholar', 'tavily_fallback'];
+    for (const key of SRC_KEYS) {
+      const blob = result.layer3.sources[key];
+      if (!blob || !Array.isArray(blob.papers)) continue;
+      for (const p of blob.papers) {
+        if (!p || !p.url) continue;
+        flat.push({
+          url: p.url,
+          title: p.title || '',
+          excerpt: (p.abstract || p.intro_excerpt || p.summary || '').slice(0, 400),
+          stars: Number(p.stars) || 0,
+          sourceType: 'paper-deep',
+          layer: 3,
+          best_use: 'spark',
+          authority: (key === 'openreview' || key === 'arxiv') ? 80 : 70,
+          freshness: 95,
+          frontier_value: 90,
+          paper_meta: {
+            source: key,
+            authors: p.authors || null,
+            published: p.published || null,
+            venue: p.venue || null,
+          },
+        });
+      }
+    }
+  }
+
+  // Layer 4 community posts.
+  if (result.layer4 && result.layer4.platforms) {
+    for (const platform of Object.keys(result.layer4.platforms)) {
+      const pdata = result.layer4.platforms[platform];
+      const posts = (pdata && Array.isArray(pdata.posts)) ? pdata.posts : [];
+      for (const post of posts) {
+        if (!post || !post.url) continue;
+        flat.push({
+          url: post.url,
+          title: post.title || post.text_excerpt || '',
+          excerpt: (post.text_excerpt || post.summary || '').slice(0, 300),
+          stars: Number(post.score) || Number(post.upvotes) || 0,
+          sourceType: 'community-discussion',
+          layer: 4,
+          best_use: 'example',
+          authority: pdata.fallback_used ? 35 : 50,
+          freshness: 80,
+          engineering_value: 60,
+          community_meta: {
+            platform,
+            fallback_used: !!pdata.fallback_used,
+            author: post.author || null,
+            timestamp: post.timestamp || post.created_at || null,
+          },
+        });
+      }
+    }
+  }
+
+  // Legacy v0.4 channel sources — already shaped { url, title, excerpt,
+  // stars, sourceType }; tag them as layer 0 for downstream UI grouping.
+  for (const s of result.legacy) {
+    if (!s || !s.url) continue;
+    flat.push(Object.assign({ layer: 0 }, s));
+  }
+
+  // ── Dedup by URL (keep first occurrence) + cap at 60 ────────────────────
+  const seen = new Set();
+  const unified = [];
+  for (const s of flat) {
+    if (!s || !s.url) continue;
+    const key = String(s.url).split('#')[0];
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unified.push(s);
+    if (unified.length >= 60) break;
+  }
+
+  // ── BM25 rank against topic for primary ordering, then prepend any
+  // layer-1 anchor-course rows so the canonical-curriculum spine always
+  // tops the list (regardless of BM25 score on a short syllabus excerpt).
+  let ranked;
+  try {
+    ranked = rankSourcesBM25(unified, String(topic || ''), unified.length, {});
+  } catch (e) {
+    warnings.push(`harvestV3: rank fallback — ${e && e.message ? e.message : String(e)}`);
+    ranked = unified.slice();
+  }
+  const anchorRows = ranked.filter(s => s.sourceType === 'course-anchor');
+  const otherRows = ranked.filter(s => s.sourceType !== 'course-anchor');
+  result.sources = [...anchorRows, ...otherRows];
+
+  // ── Telemetry ──────────────────────────────────────────────────────────
+  const durationMs = Date.now() - t0;
+  try {
+    const vault = require('./lib/vault');
+    if (vault && typeof vault.appendJSONL === 'function') {
+      vault.appendJSONL('events.jsonl', {
+        ts: new Date().toISOString(),
+        op: 'harvest_v3_complete',
+        topic: String(topic || ''),
+        archetype: arch,
+        route,
+        durationMs,
+        layer1_anchors: result.layer1 ? (result.layer1.anchorCourses || []).length : 0,
+        layer1_lectures: result.layer1 ? (result.layer1.lectureSequence || []).length : 0,
+        layer1_confidence: result.layer1 ? (result.layer1.confidence || 0) : 0,
+        layer3_papers: result.layer3 ? (result.layer3.total_papers || 0) : 0,
+        layer4_posts: result.layer4 ? (result.layer4.total_posts || 0) : 0,
+        layer4_daemon_available: result.layer4 ? !!result.layer4.daemon_available : null,
+        legacy_count: (result.legacy || []).length,
+        unified_count: result.sources.length,
+        warnings_count: warnings.length,
+      });
+    }
+  } catch (_) { /* telemetry best-effort */ }
+
+  safeProgress('done', {
+    durationMs,
+    structure_anchor_present: !!result.structureAnchor,
+    unified_count: result.sources.length,
+    warnings_count: warnings.length,
+  });
+  return result;
 }
 
 // 2026-05-03 — JsonSpotter-style balanced-bracket JSON extractor. Replaces
@@ -1265,13 +2283,17 @@ const PRIMITIVES = {
 };
 
 // HIGH=2, MED=1, LOW=0, SKIP=-1. See app/lib/pedagogy.md Layer 3.
+// v0158m — added P6 PRIOR-INSTALL column. HIGH for concept-dense archetypes
+// (TECH-CONCEPT/TECH-PROC/HUMANITIES); LOW for archetypes where the prior is
+// already provided by other substrates (LANG-ACQ has L1 anchors; DECL-MASS has
+// rote substrate). MINDSET = MED (concept-dense but learner often has lay prior).
 const EMPHASIS = {
-  'LANG-ACQ':     { P1: 2, P2: 1, P3: 2, P4: 0, P5: -1, F1: 0,  F2: 2, F3: 1 },
-  'TECH-CONCEPT': { P1: 2, P2: 2, P3: 0, P4: 1, P5: 1,  F1: 2,  F2: 2, F3: 2 },
-  'TECH-PROC':    { P1: 1, P2: 2, P3: 1, P4: 0, P5: 2,  F1: 2,  F2: 1, F3: 2 },
-  'HUMANITIES':   { P1: 2, P2: 1, P3: 1, P4: 2, P5: 0,  F1: 1,  F2: 1, F3: 0 },
-  'DECL-MASS':    { P1: 0, P2: 0, P3: 2, P4: 0, P5: -1, F1: -1, F2: 0, F3: 1 },
-  'MINDSET':      { P1: 2, P2: 2, P3: 1, P4: 2, P5: 0,  F1: 1,  F2: 1, F3: 1 },
+  'LANG-ACQ':     { P1: 2, P2: 1, P3: 2, P4: 0, P5: -1, P6: 0, F1: 0,  F2: 2, F3: 1 },
+  'TECH-CONCEPT': { P1: 2, P2: 2, P3: 0, P4: 1, P5: 1,  P6: 2, F1: 2,  F2: 2, F3: 2 },
+  'TECH-PROC':    { P1: 1, P2: 2, P3: 1, P4: 0, P5: 2,  P6: 2, F1: 2,  F2: 1, F3: 2 },
+  'HUMANITIES':   { P1: 2, P2: 1, P3: 1, P4: 2, P5: 0,  P6: 2, F1: 1,  F2: 1, F3: 0 },
+  'DECL-MASS':    { P1: 0, P2: 0, P3: 2, P4: 0, P5: -1, P6: 0, F1: -1, F2: 0, F3: 1 },
+  'MINDSET':      { P1: 2, P2: 2, P3: 1, P4: 2, P5: 0,  P6: 1, F1: 1,  F2: 1, F3: 1 },
 };
 
 const EMPHASIS_LABEL = {
@@ -1287,11 +2309,12 @@ const EMPHASIS_LABEL = {
 // from EMPHASIS[archetype] so each archetype only sees its enabled primitives.
 const TURN_MOVES = {
   P1: 'When the student gives an extended answer or claims understanding → ask them to RESTATE the core claim in plain language as if teaching a high-school freshman. Then probe ONE specific ambiguity in their restatement (not abstract praise).',
-  P2: 'Before introducing a new concept/mechanism → STOP. Ask the student to PREDICT what the answer/mechanism might be. Capture verbatim ("you predicted: X"). Reveal canonical only after they commit. Name the delta explicitly.',
+  P2: 'Before introducing a new concept/mechanism → STOP. Ask the student to PREDICT what the answer/mechanism might be. Capture verbatim ("you predicted: X"). Reveal canonical only after they commit. Name the delta explicitly. ⚠ DO NOT FIRE if P6 is active for this concept (no prior to predict against).',
   P3: 'When recalling previously-covered concept → present a blind cue (concept name OR scenario) WITHOUT the answer. Wait for their attempt. Reveal canonical, FLAG specific discrepancies (not just "good job").',
-  P4: 'Before introducing a non-trivial new concept → ask "what would you ASK first to understand X?". Internally rubric-grade their question depth+specificity. Then test pre-knowledge via a P3-style cue. Then deliver instruction. Skip if student has already shown >0.5 mastery on adjacent concepts.',
+  P4: 'Before introducing a non-trivial new concept → ask "what would you ASK first to understand X?". Internally rubric-grade their question depth+specificity. Then test pre-knowledge via a P3-style cue. Then deliver instruction. Skip if student has already shown >0.5 mastery on adjacent concepts. ⚠ DO NOT FIRE if P6 is active for this concept.',
   P5: 'When demonstrating a procedure → calibrate by mastery seen in transcript: novice (≤2 attempts) = full worked example; intermediate = partial example with 1-2 steps blanked; expert (>3 successful attempts) = problem only, no example.',
-  F1: 'For conceptually-deep moments → present a hard variant problem FIRST and let student attempt before you reveal the canonical method. The failed attempt activates prior knowledge — productive failure beats direct instruction on transfer.',
+  P6: 'When this lesson\'s central concept has NO anchor in the student\'s state.concepts AND priorNotes does not mention it → install a usable prior FIRST (BEFORE any P2/P3/P4 fires). 4-stage arc: (1) DEFINE — name + plain definition; (2) ANALOGIZE — one concrete analogy that gives the concept a body; (3) CHECK — confirm the prior landed via Feynman-back rephrase OR concrete-instance test (not deep-mechanism probe); (4) EXTEND — only after CHECK passes, deepen via probe / next layer / Feynman explain-back. Teacher-says-MORE on the foundation triggers more effective thinking; saying less ≠ pedagogy. **EMIT** the marker `<!-- p6: introduced concept_id=X -->` in the FIRST turn so lesson:finish persists state.concepts[X].',
+  F1: 'For conceptually-deep moments → present a hard variant problem FIRST and let student attempt before you reveal the canonical method. The failed attempt activates prior knowledge — productive failure beats direct instruction on transfer. ⚠ PF requires existing prior — DO NOT FIRE if P6 just installed prior this lesson; defer F1 to a later lesson.',
   F3: 'At end of substantive turns → ask "How confident are you that you can [restate the learn goal] right now? 0-100." Note their answer. If next retrieval gap > 30, flag in your final tag as <!--method:F3-gap-->.',
 };
 // F2 (HYBRID INTERLEAVING) is curriculum-level (handled by chain planner), not
@@ -1540,7 +2563,258 @@ Return the JSON object now. Aim for the count target above.`;
   }
 }
 
-async function designLesson({ topic, idx, sequence, sources, state, priorNotes, agentProfile, userProfile, archetype }, settings) {
+// v0158q — cached prompt loader for Hypha Learn templates. Reads each template
+// at most once per process; returns '' on read failure (silent fail-safe).
+const _learnPromptCache = new Map();
+function _loadLearnPromptCached(name) {
+  const cached = _learnPromptCache.get(name);
+  if (typeof cached === 'string') return cached;
+  try {
+    const _fs = require('node:fs');
+    const _path = require('node:path');
+    const txt = _fs.readFileSync(_path.join(__dirname, 'prompts', `${name}.txt`), 'utf8');
+    _learnPromptCache.set(name, txt);
+    return txt;
+  } catch (_) {
+    _learnPromptCache.set(name, '');
+    return '';
+  }
+}
+
+// v0.4 — pedagogy rules registry. Lazy-loaded, cached. Falls back to empty
+// when the JSON is missing (graceful degrade — no PEDAGOGY GUARDRAILS block).
+let _pedagogyRulesCache = null;
+function _loadPedagogyRules() {
+  if (_pedagogyRulesCache) return _pedagogyRulesCache;
+  try { _pedagogyRulesCache = require('./lib/pedagogy-rules.json'); }
+  catch (_) { _pedagogyRulesCache = { principles: [] }; }
+  return _pedagogyRulesCache;
+}
+
+// _selectPedagogyForLesson — pick top-3 pedagogy principles by
+// (archetype_weight × lesson_stage_weight). Pure deterministic. Returns
+// up to `count` principle objects. Used to populate PEDAGOGY GUARDRAILS.
+function _selectPedagogyForLesson(archetype, currentState, count = 3) {
+  const cfg = _loadPedagogyRules();
+  const list = (cfg && Array.isArray(cfg.principles)) ? cfg.principles : [];
+  if (list.length === 0) return [];
+  const stage = String(currentState || 'HOOK').toUpperCase();
+  const arch = archetype || 'TECH-CONCEPT';
+  const scored = list.map(p => {
+    const aw = (p.archetype_weights && typeof p.archetype_weights[arch] === 'number') ? p.archetype_weights[arch] : 1;
+    const sw = (p.lesson_stage_weights && typeof p.lesson_stage_weights[stage] === 'number') ? p.lesson_stage_weights[stage] : 1;
+    return { p, score: aw * sw };
+  }).sort((a, b) => b.score - a.score);
+  // Filter zero-scored (e.g. transfer in HOOK stage = 0 → don't inject).
+  return scored.filter(s => s.score > 0).slice(0, count).map(s => s.p);
+}
+
+// _buildPedagogyBlock — render the selected principles as a PEDAGOGY
+// GUARDRAILS prompt block. Returns '' when no principles apply (e.g. END
+// state where all stage-weights are zero) so the prompt stays clean.
+function _buildPedagogyBlock(archetype, currentState) {
+  const picks = _selectPedagogyForLesson(archetype, currentState, 3);
+  if (picks.length === 0) return '';
+  const lines = picks.map((p, i) =>
+    `${i + 1}. [${p.name}] ${p.distilled_rule}\n   → applied here: ${p.hypha_application}`
+  );
+  return `PEDAGOGY GUARDRAILS — apply these ${picks.length} principles in this turn (weighted by archetype "${archetype}" + state "${currentState || 'HOOK'}"):\n${lines.join('\n')}\n\nThese are not decoration. If your draft violates one (e.g. teach without prior probe, exceed cognitive load, give vague feedback, skip transfer), revise BEFORE sending.`;
+}
+
+// _buildStructurePriorBlock — extract top-1 courseware source matching the
+// current lesson and render as a STRUCTURE PRIOR prompt fragment. Returns ''
+// when no courseware grounded (graceful no-op). Caller passes the already-
+// scoped `sources` array; this function does its own BM25 + best_use filter.
+function _buildStructurePriorBlock(sources, query) {
+  if (!Array.isArray(sources) || sources.length === 0) return '';
+  if (!query || !String(query).trim()) return '';
+  const top = rankSourcesBM25(sources, query, 1, { desiredUse: 'curriculum' });
+  if (top.length === 0) return '';
+  const s = top[0];
+  const inst = s.institution || 'university';
+  const code = s.courseCode ? ` ${s.courseCode}` : '';
+  const url = s.url ? ` (${s.url})` : '';
+  const excerpt = String(s.excerpt || '').replace(/\s+/g, ' ').slice(0, 250);
+  return `STRUCTURE PRIOR — ${inst}${code} sequences this topic as follows${url}:\n${excerpt}\nUse as a sequencing prior, NOT verbatim copy. Align if their order is canonical; deviate when the student's goal demands a different entry point.`;
+}
+
+// v0.2 Surface Finishing Track A A2 — render the Character Contract for the
+// active tutor agent as a CHARACTER CONTRACT block. Goes BEFORE LESSON BRIEF
+// in the system-prompt appendix so the contract is the tutor's outermost
+// frame ("who I am") and the brief sits inside it ("what I'm teaching now").
+//
+// Default agent_id = 'mycelium-professor' (the cognitive structure designer
+// per specs/persona-coherence-layer.md). Falls through silently when the
+// loader throws or returns null (legacy tutors keep working without it).
+//
+// Block format kept tight (~250-350 tokens) — uses i_am, i_am_not,
+// epistemic_temperament, failure_protocol from the 13-field contract schema.
+// Project mycelium-professor.json does NOT have a `failure_honesty_modes`
+// field; we use `failure_protocol` (closest semantic match: per-agent prose
+// protocol for failure-honesty).
+function _buildCharacterContractBlock(agentId) {
+  const id = agentId || 'mycelium-professor';
+  let contract = null;
+  try {
+    const loader = require('./lib/agent-character/contract-loader');
+    contract = loader.loadContract(id);
+  } catch (_) { return ''; }
+  if (!contract || typeof contract !== 'object') return '';
+
+  const lines = [];
+  lines.push('=== CHARACTER CONTRACT ===');
+  if (Array.isArray(contract.i_am) && contract.i_am.length > 0) {
+    lines.push('I am:');
+    contract.i_am.forEach(item => lines.push(`- ${String(item).trim()}`));
+  }
+  if (Array.isArray(contract.i_am_not) && contract.i_am_not.length > 0) {
+    lines.push('I am NOT:');
+    contract.i_am_not.forEach(item => lines.push(`- ${String(item).trim()}`));
+  }
+  if (contract.epistemic_temperament) {
+    lines.push(`Epistemic temperament: ${String(contract.epistemic_temperament).trim()}`);
+  }
+  if (contract.failure_protocol) {
+    lines.push(`Failure-honesty protocol: ${String(contract.failure_protocol).trim()}`);
+  }
+  lines.push('=== END CONTRACT ===');
+  lines.push('');
+  lines.push('This contract is your outermost frame. Every turn must honor it; the LESSON BRIEF below sits INSIDE this frame.');
+  return lines.join('\n');
+}
+
+// v0.2 Surface Finishing Track B B2 — render the pre-lesson body v2 brief
+// (thesis + canonical_example + 2 misconceptions + exit_proof) as a LESSON
+// BRIEF block. Reads vault/<slug>/lesson-<idx>.body.json. Returns '' when
+// the body file is absent (graceful no-op — designLesson falls through to
+// today's v0.4 grounding-only behaviour). When present, the tutor reads
+// its own prep notes BEFORE the chat opens, anchoring the turn in a
+// concrete thesis instead of "winging an overview".
+function _buildLessonBriefBlock(slug, idx) {
+  if (!slug) return '';
+  if (!Number.isFinite(idx) || idx < 0) return '';
+  let body = null;
+  try {
+    const vault = require('./lib/vault');
+    const persisted = vault.readJSON(`${slug}/lesson-${idx}.body.json`, null);
+    body = persisted && persisted.body;
+  } catch (_) { return ''; }
+  if (!body || typeof body !== 'object') return '';
+  if (!body.thesis) return '';
+
+  const lines = [];
+  lines.push(`LESSON BRIEF (your own prep — read first, anchor every turn here):`);
+  lines.push(`  thesis: ${String(body.thesis).trim()}`);
+  if (body.canonical_example) {
+    lines.push(`  canonical_example: ${String(body.canonical_example).replace(/\s+/g, ' ').trim().slice(0, 400)}`);
+  }
+  if (Array.isArray(body.common_misconceptions) && body.common_misconceptions.length) {
+    lines.push(`  common_misconceptions:`);
+    body.common_misconceptions.slice(0, 2).forEach((m, i) => {
+      lines.push(`    ${i + 1}. ${String(m).replace(/\s+/g, ' ').trim().slice(0, 250)}`);
+    });
+  }
+  if (body.exit_proof) {
+    lines.push(`  exit_proof (Feynman test you close on): ${String(body.exit_proof).replace(/\s+/g, ' ').trim().slice(0, 300)}`);
+  }
+  if (body.mechanism_explanation) {
+    lines.push(`  mechanism_in_one_breath: ${String(body.mechanism_explanation).replace(/\s+/g, ' ').trim().slice(0, 400)}`);
+  }
+  if (Array.isArray(body.jargon_list) && body.jargon_list.length) {
+    lines.push(`  jargon_to_introduce: ${body.jargon_list.slice(0, 5).map(j => String(j).replace(/\s+/g, ' ').trim().slice(0, 80)).join(' | ')}`);
+  }
+  if (body.note_connection && !/first lesson — no prior note/i.test(String(body.note_connection))) {
+    lines.push(`  note_connection: ${String(body.note_connection).trim()}`);
+  }
+  lines.push(``);
+  lines.push(`Honor this brief. The thesis is the ONE thing this 30-min landed; do NOT broaden into encyclopedia survey. The canonical_example is your recurring anchor — return to it across HOOK→VERIFY→EXTEND. The misconceptions are wrong-priors to surface and correct, not strawmen.`);
+  return lines.join('\n');
+}
+
+async function designLesson({ topic, idx, sequence, sources, state, priorNotes, agentProfile, userProfile, archetype, mode, currentState, stateHistory, stakeBlock, transcript, latestUserMsg, lessonTitle, learnGoal }, settings) {
+  // v0158q — Hypha Learn opt-in. When mode === 'learn' we render the
+  // state-machine + STAKE substrate templates and bypass the classic
+  // monolithic prompt below. Every other branch (classic / undefined /
+  // anything not 'learn') falls through to the existing path unchanged.
+  if (mode === 'learn') {
+    const isFirstTurn = !Array.isArray(transcript) || transcript.length === 0;
+    const tplName = isFirstTurn ? 'learn-start' : 'learn-turn';
+    const tpl = _loadLearnPromptCached(tplName);
+    const transcriptStr = (Array.isArray(transcript) && transcript.length)
+      ? transcript.map(t => `${t.role === 'assistant' ? 'TUTOR' : 'STUDENT'}: ${t.content || ''}`).join('\n\n')
+      : '(no prior turns this session)';
+    // 2026-05-08 Phase A — YC root cause fix. Was title-only (~10 lines, 0
+    // grounding substance) → tutor fell back to training data, producing the
+    // "像 Google 摘要" register the student flagged. Now: BM25-rank against
+    // (learnGoal + lesson title + topic), take top 6, render each chapter
+    // with its 350-char excerpt body. sources.json already carries 400-char
+    // excerpts per chapter (main.js:2098); we just stopped throwing them
+    // away. ~1500 tokens of grounding well under context budget.
+    const _bm25Query = [
+      learnGoal || '',
+      (sequence && sequence[idx] && sequence[idx].title) || '',
+      topic || '',
+    ].filter(Boolean).join(' ').trim();
+    const _srcArr = Array.isArray(sources) ? sources : [];
+    const _ranked = (_bm25Query && _srcArr.length > 0)
+      ? rankSourcesBM25(_srcArr, _bm25Query, 6)
+      : _srcArr.slice(0, 6);
+    const sourcesList = _ranked.length > 0
+      ? _ranked.map((s, i) => {
+          const tag = s.sourceType || 'src';
+          const title = String(s.title || `Source ${i + 1}`).slice(0, 100);
+          const excerpt = String(s.excerpt || '').replace(/\s+/g, ' ').trim().slice(0, 350);
+          const url = s.url ? ` (${s.url})` : '';
+          return `--- Source ${i + 1} [${tag}]: ${title}${url} ---\n${excerpt || '(no excerpt available — cite by title only)'}`;
+        }).join('\n\n')
+      : '(no sources available — proceed without grounding citations)';
+    const priorNotesStr = (Array.isArray(priorNotes) && priorNotes.length)
+      ? priorNotes.slice(-3).map(p => `Lesson ${p.idx}: ${(p.body || '').slice(0, 600)}`).join('\n---\n')
+      : '(none yet)';
+    const studentStateJson = JSON.stringify({
+      mastered: (state && state.mastered) || [],
+      gaps: (state && state.gaps) || [],
+      concepts: (state && state.concepts) || {},
+    });
+    const vars = {
+      TOPIC: topic || '',
+      LESSON_TITLE: lessonTitle || (sequence && sequence[idx] && sequence[idx].title) || '',
+      LEARN_GOAL: learnGoal || (sequence && sequence[idx] && sequence[idx].learnGoal) || '',
+      LESSON_IDX_PLUS_1: String((idx | 0) + 1),
+      STUDENT_STATE_JSON: studentStateJson,
+      PRIOR_NOTES: priorNotesStr,
+      SOURCES_LIST: sourcesList,
+      STAKE_BLOCK: stakeBlock || '',
+      CURRENT_STATE: currentState || 'HOOK',
+      STATE_HISTORY: JSON.stringify(Array.isArray(stateHistory) ? stateHistory : []),
+      TRANSCRIPT: transcriptStr,
+      LATEST_USER_MSG: latestUserMsg || '',
+    };
+    let body = tpl;
+    for (const [k, v] of Object.entries(vars)) body = body.split(`{{${k}}}`).join(String(v));
+    // v0.4 — L2 PEDAGOGY GUARDRAILS + L1 STRUCTURE PRIOR injection.
+    // Both blocks append AFTER the rendered template so they don't interfere
+    // with template var substitution above. Empty strings when no signal —
+    // prompt stays clean for END state / no-courseware curricula.
+    const _pedagogyBlock = _buildPedagogyBlock(archetype, currentState);
+    const _structurePriorBlock = _buildStructurePriorBlock(_srcArr, _bm25Query);
+    // v0.2 Surface Finishing Track B B2 — pre-lesson body v2 brief read from
+    // vault/<topic>/lesson-<idx>.body.json (when present). Carries the
+    // thesis the tutor must anchor on; STRUCTURE PRIOR + PEDAGOGY GUARDRAILS
+    // shape HOW to teach the brief.
+    const _lessonBriefBlock = _buildLessonBriefBlock(topic, idx);
+    // v0.2 Surface Finishing Track A A2 — Character Contract goes FIRST so
+    // it is the tutor's outermost identity frame; everything else (brief,
+    // structure prior, pedagogy guardrails) sits INSIDE this frame.
+    const _characterContractBlock = _buildCharacterContractBlock(
+      (agentProfile && agentProfile.agent_id) || 'mycelium-professor'
+    );
+    const _appendix = [_characterContractBlock, _lessonBriefBlock, _structurePriorBlock, _pedagogyBlock].filter(Boolean).join('\n\n');
+    // Constitution prepended on top so manuscript register + identity gates
+    // outrank the learn-mode prompt — same precedence as classic path.
+    return `${HYPHA_FULL}\n${body}${_appendix ? '\n\n' + _appendix : ''}`;
+  }
+
   // v0.9.0 HERMES-style — inject file-based user profile derived from this
   // vault's lesson corpus. Per /tr council 2026-05-02: Hypha's vault IS the
   // personalization corpus; we just need to surface it. Profile lives at
@@ -1561,8 +2835,30 @@ async function designLesson({ topic, idx, sequence, sources, state, priorNotes, 
   // the lesson's first turn must be a prediction prompt, not a probe-of-understanding.
   // P2 emphasis values per app/lib/pedagogy.md: HIGH=2, MED=1, LOW=0, SKIP=-1.
   const p2Emph = (archetype && EMPHASIS[archetype] && typeof EMPHASIS[archetype].P2 === 'number') ? EMPHASIS[archetype].P2 : 0;
-  const p2Active = p2Emph >= 1;
   const target = sequence[idx];
+  // v0158m P6 PRIOR-INSTALL — when archetype is concept-dense AND the central
+  // concept has no anchor in state.concepts / priorNotes, P6 SUPERSEDES P2/P4
+  // first-turn invocation. Pure-Socratic on novel concept = mathematical noise
+  // extraction (I(answer; question) ≈ 0 when learner's prior is uniform).
+  // Hybrid trigger: frontmatter concept_id check + LLM self-judge fallback.
+  const p6Emph = (archetype && EMPHASIS[archetype] && typeof EMPHASIS[archetype].P6 === 'number') ? EMPHASIS[archetype].P6 : 0;
+  const conceptId = (target && target.conceptId) || null;
+  const conceptState = (state && state.concepts && conceptId) ? state.concepts[conceptId] : null;
+  const userSkipped = !!(conceptState && conceptState.user_skipped);
+  const userForceExpose = !!(conceptState && conceptState.user_force_expose);
+  const conceptIntroduced = !!(conceptState && conceptState.introduced_at);
+  // priorNotes mention check — coarse but cheap. Match concept_id token in any prior body.
+  const conceptInPriors = !!(conceptId && priorNotes.some(p =>
+    (p.body || '').toLowerCase().includes(conceptId.toLowerCase())
+  ));
+  const p6Active = p6Emph >= 1
+    && !userSkipped
+    && (userForceExpose || (!conceptIntroduced && !conceptInPriors));
+  // When concept_id is missing (legacy course frontmatter), let the LLM self-judge
+  // novelty by surfacing the directive as a soft instruction in the system prompt.
+  const p6FallbackToLLMJudge = p6Emph >= 1 && !conceptId && !userSkipped;
+  // P2 only fires when P6 isn't active (information-theoretic priority).
+  const p2Active = (p2Emph >= 1) && !p6Active;
   const priorSummary = priorNotes.slice(-3).map(p => `Lesson ${p.idx}: ${(p.body || '').slice(0, 600)}`).join('\n---\n') || '(none yet)';
   const stateSummary = JSON.stringify({ mastered: state.mastered || [], gaps: state.gaps || [] });
 
@@ -1615,6 +2911,25 @@ async function designLesson({ topic, idx, sequence, sources, state, priorNotes, 
   // designSequence handles curriculum-level (W1); this is the runtime form.
   const turnTimeMovesBlock = _buildTurnTimeMoves(archetype);
 
+  // v0.4 — L2 PEDAGOGY GUARDRAILS + L1 STRUCTURE PRIOR for classic mode.
+  // Mirrors learn-mode injection above. Classic mode lacks an explicit
+  // currentState so we treat first-lesson as HOOK; mid-curriculum lessons
+  // default to EXTEND/CONNECT mid-stage by approximating from priorNotes
+  // length (more priors → later stage → CONNECT/LATCH-leaning weights).
+  const _classicStage = (priorNotes && priorNotes.length >= 4) ? 'CONNECT' : ((idx | 0) === 0 ? 'HOOK' : 'EXTEND');
+  const _classicPedagogyBlock = _buildPedagogyBlock(archetype, _classicStage);
+  const _classicQuery = [target?.learnGoal || '', target?.title || '', topic || ''].filter(Boolean).join(' ').trim();
+  const _classicSrcArr = Array.isArray(sources) ? sources : [];
+  const _classicStructurePriorBlock = _buildStructurePriorBlock(_classicSrcArr, _classicQuery);
+  // v0.2 Track B B2 — also for classic mode (legacy path), append LESSON BRIEF.
+  const _classicLessonBriefBlock = _buildLessonBriefBlock(topic, idx);
+  // v0.2 Track A A2 — Character Contract for classic mode, parallel to
+  // learn-mode. Same contract; same outermost-frame ordering.
+  const _classicCharacterContractBlock = _buildCharacterContractBlock(
+    (agentProfile && agentProfile.agent_id) || 'mycelium-professor'
+  );
+  const _classicAppendix = [_classicCharacterContractBlock, _classicLessonBriefBlock, _classicStructurePriorBlock, _classicPedagogyBlock].filter(Boolean).join('\n\n');
+
   return `${HYPHA_FULL}${languageBlock}You are a tutor inside Hypha. You are teaching one specific lesson now.
 
 Your name (as the student knows you): ${tutorDisplayName}. When self-introducing or signing off, use this name; don't reveal the underlying model name unless asked directly.
@@ -1641,26 +2956,57 @@ Recent prior notes (the student wrote these themselves; honor what they already 
 ${priorSummary}
 
 Available sources (cite by name, do not invent):
-${sources.slice(0, 10).map(s => `- ${s.title} [${s.sourceType}]`).join('\n')}
+${(() => {
+  // 2026-05-08 Phase A — same fix as learn path (BM25 + excerpts). Classic
+  // mode kept in parity so legacy callers benefit too. Empty-sources branch
+  // returns an explicit fallback string so the prompt stays well-formed.
+  const q = [target?.learnGoal || '', target?.title || '', topic || ''].filter(Boolean).join(' ').trim();
+  const arr = Array.isArray(sources) ? sources : [];
+  const ranked = (q && arr.length > 0) ? rankSourcesBM25(arr, q, 6) : arr.slice(0, 6);
+  if (ranked.length === 0) return '(no sources available — proceed without grounding citations)';
+  return ranked.map((s, i) => {
+    const tag = s.sourceType || 'src';
+    const title = String(s.title || `Source ${i + 1}`).slice(0, 100);
+    const excerpt = String(s.excerpt || '').replace(/\s+/g, ' ').trim().slice(0, 350);
+    const url = s.url ? ` (${s.url})` : '';
+    return `--- Source ${i + 1} [${tag}]: ${title}${url} ---\n${excerpt || '(no excerpt available — cite by title only)'}`;
+  }).join('\n\n');
+})()}
 ${turnTimeMovesBlock}
 Universal rules (overlay on top of the persona above):
-${p2Active ? `1. **P2 PRE-READ PREDICTION** (THIS LESSON'S OPENER MUST BE A PREDICTION PROMPT — archetype ${archetype} emphasizes prediction). Open with ONE prediction prompt — ask the student to FORECAST the lesson's central claim/mechanism BEFORE you reveal anything. Frame it as a guess, not a test ("What do you think happens when X meets Y?" / "Predict the outcome of Z"). Do NOT reveal the canonical answer until they respond. After they respond, capture their prediction verbatim ("You said: X") and EXPLICITLY compare to the canonical (where they landed, where they missed, what surprised). Predict-error magnitude is the high-value learning signal — make the comparison visible to the student.` : `1. Open with ONE question that probes current understanding of the lesson goal AT THE LEVEL THE STUDENT BLOCK INDICATES. No preamble. No "Welcome". If student says "no foundation", first question is concept-level (e.g., "have you ever heard of weights in a neural network?"), NOT formula-level.`}
+${p6Active ? `1. **P6 PRIOR-INSTALL** (THIS LESSON'S OPENER MUST INSTALL THE CONCEPT'S PRIOR — concept "${conceptId}" has no anchor in state.concepts and is not mentioned in priorNotes; archetype ${archetype} marks P6 as ${p6Emph === 2 ? 'HIGH' : 'MED'}). Open with the 4-stage exposition arc BEFORE any probe / prediction / inquiry. **DENSITY PER STAGE IS BINDING** — total opening 600-1200 字 (中文) or 250-500 words (English). Thin stage = noise. Match Claude-Code-terminal depth.
+   (1) **DEFINE** — 2-4 paragraphs. Name + plain definition + ENUMERATE the concept's main forms / sub-types / variants when they exist (e.g., 'leverage' has 4 forms: labor / capital / code / media — name each with a 1-line characterization; 'Q/K/V' = three matrices, name each role + their relationship). Hand the student a structured map, not a tease line.
+   (2) **ANALOGIZE** — 2-4 paragraphs. Concrete analogy that gives the concept a body, **plus at least one numerical instance OR A-vs-B structural contrast**. Example: '你 1 万自有, 借 9 万凑 10 万买股票 → 涨 10% 还本金 9 万 → 手里 2 万 (100% 回报); 不借 1 万 → 同样涨 10% 只赚 1000 (10% 回报). 同样市场动一格, 你的钱包动十格.' Include the contrast.
+   (3) **CHECK** — pose ONE concrete instance test that REQUIRES the learner to compute / specify / predict — NOT 'what do you think?' or 'does that make sense?'. Examples: '如果上面那笔 10 万跌 10%, 你手里剩多少？算给我看' / 'Q 完全不匹配任何 K 时, attention 输出是什么？给个具体场景'. **WAIT for the learner's reply BEFORE proceeding to EXTEND** — do not pre-emptively answer your own CHECK in the same turn.
+   (4) **EXTEND** — fires ONLY after the learner replies to CHECK. Then introduce the next deeper layer with its own mini-arc (mini-define → mini-instance → connect to prior). For leverage this is asymmetric companion concepts (Permissioned vs Permissionless / Power Law / Barbell strategy) presented as 'now that 杠杆 lands, here's the twin you also need: 不对称回报...'. Density: 2-4 paragraphs. Optionally close with a Feynman-back invitation.
+   ⚠ Information-theoretic justification: pre-prior probes carry I(answer; question) ≈ 0 — they extract noise. Saying MORE on the foundation triggers MORE effective thinking.
+   ⚠ EMIT in your FIRST turn the marker line: \`<!-- p6: introduced concept_id=${conceptId || 'INFERRED'} -->\` so lesson:finish can persist state.concepts.
+   ⚠ Do NOT fire P2 (prediction) or P4 (scaffolded inquiry) on a brand-new concept — they require a non-uniform prior to be informative. P6 supersedes them on the first turn.` : (p6FallbackToLLMJudge ? `1. **P6 GATE (LLM self-judge)** — this lesson lacks a concept_id field; archetype ${archetype} marks P6 as ${p6Emph === 2 ? 'HIGH' : 'MED'}. JUDGE: is the central concept of this lesson genuinely new to the student (not mentioned in priorNotes / state.concepts / student profile)? IF YES → run the 4-stage P6 arc (DEFINE → ANALOGIZE → CHECK → EXTEND); emit \`<!-- p6: introduced concept_id=<your-best-guess-kebab-id> -->\` on the FIRST turn. IF NO → fall back to rule below.
+   FALLBACK (concept already known): ${p2Active ? 'Open with ONE prediction prompt (P2).' : 'Open with ONE concept-level probe question.'}` : (p2Active ? `1. **P2 PRE-READ PREDICTION** (THIS LESSON'S OPENER MUST BE A PREDICTION PROMPT — archetype ${archetype} emphasizes prediction; the concept is already in state.concepts so the learner has a non-uniform prior to predict against). Open with ONE prediction prompt — ask the student to FORECAST the lesson's central claim/mechanism BEFORE you reveal anything. Frame it as a guess, not a test. Do NOT reveal canonical until they respond. Capture verbatim ("You said: X") and EXPLICITLY compare to canonical.` : `1. Open with ONE question that probes current understanding of the lesson goal AT THE LEVEL THE STUDENT BLOCK INDICATES. No preamble. No "Welcome".`))}
 2. After student's answer, re-calibrate depth (hit / miss / partial). Adapt — but never assume prerequisites the student profile did not claim.
-3. Each turn ≤ 2 short paragraphs + at least 1 question (unless persona explicitly demands otherwise — e.g., Lewin demos may run longer prose; Sandel demands stricter dialogue-only).
+3. **DEPTH LATCHING** — match output length to the moment, not a fixed cap. When the student asks for substance (explain / walk through / distill / 详细 / 深入 / 解释), deliver at full Claude-Code-terminal depth, then one question at the end. When the student asserts a claim (probe-target), brief Q-back to sharpen it. Persona-specific overrides apply (Lewin = longer prose; Sandel = stricter dialogue).
 4. When student says something insightful, name it explicitly so the dual-layer note can capture it as 用户灵感.
 5. Reference prior notes when relevant.
 6. End the lesson when learn goal is met OR student signals "ready". Never artificially extend.
 7. If you catch yourself using a term the student profile suggests they don't know, stop mid-sentence and rewrite — never push through with a "you'll learn this later" handwave.
 7. NEVER use the words: AI, LLM, embedding, model, prompt, agent, RAG, vector. You are the teacher, not a tool.
 
-Begin now.`;
+Begin now.${_classicAppendix ? '\n\n' + _classicAppendix : ''}`;
 }
 
-async function streamTurn({ systemPrompt, history, userMsg, settings, signal }, onChunk) {
-  const messages = [{ role: 'system', content: systemPrompt }];
-  for (const h of (history || [])) messages.push({ role: h.role, content: h.content });
+async function streamTurn({ systemPrompt, history, userMsg, settings, signal, resumeSessionId, onSessionId }, onChunk) {
+  // 2026-05-05 (Appendix D) — claude-cli session continuity. When
+  // resumeSessionId is set, the model has its own history via --resume; we
+  // skip transcript replay and send ONLY the current user message. Approaches
+  // native Terminal `claude` experience.
+  const isResumePath = !!resumeSessionId;
+  const messages = [];
+  if (!isResumePath) {
+    messages.push({ role: 'system', content: systemPrompt });
+    for (const h of (history || [])) messages.push({ role: h.role, content: h.content });
+  }
   if (userMsg && userMsg !== '__begin__') messages.push({ role: 'user', content: userMsg });
-  else messages.push({ role: 'user', content: '[Lesson start. Begin with your first question.]' });
+  else if (!isResumePath) messages.push({ role: 'user', content: '[Lesson start. Begin with your first question.]' });
 
   // 2026-05-02 — accumulate the full reply transparently so we can run
   // persona-leak detection after the stream ends without coupling onChunk's
@@ -1682,6 +3028,7 @@ async function streamTurn({ systemPrompt, history, userMsg, settings, signal }, 
       throw err;
     } finally {
       _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
+      _detectAndLogIngratiation(_accumulated, settings, { context: 'tutor_turn' });
       _logMethodTag(_accumulated, settings, { context: 'tutor_turn' });
     }
     return;
@@ -1689,13 +3036,29 @@ async function streamTurn({ systemPrompt, history, userMsg, settings, signal }, 
 
   // CLI provider branch — Claude Max / Gemini CLI shell-out streaming.
   if (_isCliProvider(settings)) {
+    // 2026-05-05 (Appendix C) — pure passthrough for claude-cli. User wants
+    // Hypha's claude-cli tutor turns to feel like Terminal claude-cli (newly
+    // installed Claude Code in an empty folder). Drop Hypha's tutor system
+    // prompt so Claude Code's default system takes over. Sandbox env still
+    // blocks Victor universe / global agents. Other CLI binaries (gemini-cli,
+    // codex-cli) keep their existing flow — user only flagged claude-cli.
+    // 2026-05-05 (Appendix D) — Plus session continuity via --resume.
+    const _cliCfgForPure = _resolveProviderConfig(settings);
+    const _isClaudeCli = !!(_cliCfgForPure && _cliCfgForPure.binary
+      && /^claude(\b|-)/i.test(_cliCfgForPure.binary));
     try {
-      await _runCliStream(messages, settings, _wrappedOnChunk, { signal });
+      await _runCliStream(messages, settings, _wrappedOnChunk, {
+        signal,
+        cliPureMode: _isClaudeCli,
+        resumeSessionId: _isClaudeCli ? resumeSessionId : null,
+        onSessionId: _isClaudeCli ? onSessionId : null,
+      });
     } catch (err) {
       console.error('[streamTurn] cli stream failed:', err && err.message);
       throw err;
     } finally {
       _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
+      _detectAndLogIngratiation(_accumulated, settings, { context: 'tutor_turn' });
       _logMethodTag(_accumulated, settings, { context: 'tutor_turn' });
     }
     return;
@@ -1709,7 +3072,14 @@ async function streamTurn({ systemPrompt, history, userMsg, settings, signal }, 
       messages,
       stream: true,
       temperature: 0.8,
-      max_tokens: 1500,
+      // 2026-05-08 — was 1500. Caused mid-sentence truncation on rich HOOK
+      // turns (P6 4-stage opener spec demands 600-1200 字 中文 ≈ 800-1600
+      // tokens; pre-v0.4 was already at the cap, v0.4 PEDAGOGY GUARDRAILS
+      // density push tipped it over). Raised to 4000 to match designSequence
+      // (agent.js:2080) and give headroom for full HOOK + state markers
+      // + question + closing. Cost impact negligible — most turns finish
+      // well below this; the cap only matters for outliers.
+      max_tokens: 4000,
     }, signal ? { signal } : undefined);
   } catch (err) {
     console.error('[streamTurn] create failed:', err && err.message, err && err.status, err && err.error);
@@ -1753,14 +3123,17 @@ async function streamTurn({ systemPrompt, history, userMsg, settings, signal }, 
     } catch (err) {
       console.error('[streamTurn] non-streaming fallback also failed:', err && err.message);
       _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
+      _detectAndLogIngratiation(_accumulated, settings, { context: 'tutor_turn' });
       _logMethodTag(_accumulated, settings, { context: 'tutor_turn' });
       throw err;
     }
   } else if (lastError) {
     _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
+    _detectAndLogIngratiation(_accumulated, settings, { context: 'tutor_turn' });
     throw lastError;
   }
   _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
+  _detectAndLogIngratiation(_accumulated, settings, { context: 'tutor_turn' });
 }
 
 async function synthesizeNote({ topic, idx, transcript, sources, sequence, mode, priorBody }, settings) {
@@ -2539,23 +3912,57 @@ Return JSON now.`;
     return violations;
   }
 
-  let parsed = { links: [], warning: 'plan failed', alternatives: null };
-  try {
-    const raw = await llmJSON(
-      [{ role: 'system', content: sys }, { role: 'user', content: user }],
-      settings,
-      { json: true, temperature: 0.4, max_tokens: 8000, timeoutMs: 180_000 }
-    );
+  // 2026-05-05 — retry-with-descending-temperature loop. Pre-fix, planChain
+  // returned empty links on any single LLM failure (parse error / timeout /
+  // truncation), surfacing as "崩了 / 无法生成 plan" to the user; clicking again
+  // re-rolled the dice and usually worked. Now: 3 attempts at temps [0.4, 0.2,
+  // 0.1] — first attempt natural sampling, subsequent attempts collapse the
+  // distribution toward greedy. max_tokens raised 8000→12000 because complex
+  // chains (10-15 links × 5-8 fields) hit the 8K ceiling and JSON arrived
+  // truncated. Backward-compatible: return shape unchanged on success and on
+  // final failure.
+  const RETRY_TEMPS = [0.4, 0.2, 0.1];
+  let parsed = null;
+  let lastErr = null;
+  for (let attempt = 0; attempt < RETRY_TEMPS.length; attempt++) {
     try {
-      parsed = JSON.parse(raw);
-    } catch (parseErr) {
-      console.error('[planChain] JSON parse failed. Raw response (first 500 chars):', String(raw || '').slice(0, 500));
-      console.error('[planChain] parse error:', parseErr.message);
-      return { links: [], warning: `plan failed: invalid JSON from LLM (${parseErr.message})`, alternatives: null };
+      const raw = await llmJSON(
+        [{ role: 'system', content: sys }, { role: 'user', content: user }],
+        settings,
+        {
+          json: true,
+          temperature: RETRY_TEMPS[attempt],
+          max_tokens: 12000,
+          timeoutMs: 180_000,
+        }
+      );
+      try {
+        parsed = JSON.parse(raw);
+        if (attempt > 0) {
+          console.log(`[planChain] succeeded on retry ${attempt + 1}/${RETRY_TEMPS.length} (temp=${RETRY_TEMPS[attempt]})`);
+        }
+        break;
+      } catch (parseErr) {
+        lastErr = parseErr;
+        console.warn(`[planChain] attempt ${attempt + 1}/${RETRY_TEMPS.length} JSON parse failed (temp=${RETRY_TEMPS[attempt]}): ${parseErr.message}`);
+        if (attempt === RETRY_TEMPS.length - 1) {
+          console.error('[planChain] final raw response (first 500 chars):', String(raw || '').slice(0, 500));
+        }
+      }
+    } catch (llmErr) {
+      lastErr = llmErr;
+      console.warn(`[planChain] attempt ${attempt + 1}/${RETRY_TEMPS.length} LLM call failed: ${llmErr.message} ${llmErr.code || ''}`);
     }
-  } catch (llmErr) {
-    console.error('[planChain] LLM call failed:', llmErr.message, llmErr.code || '');
-    return { links: [], warning: `plan failed: ${llmErr.message}`, alternatives: null };
+    if (attempt < RETRY_TEMPS.length - 1) {
+      await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+    }
+  }
+  if (!parsed) {
+    return {
+      links: [],
+      warning: `plan failed after ${RETRY_TEMPS.length} attempts: ${lastErr ? lastErr.message : 'unknown'}`,
+      alternatives: null,
+    };
   }
 
   // Audit + regenerate-once if violations.
@@ -2911,12 +4318,73 @@ function computePhaseLessonCounts(phases, timeCommit, customLessons, tier) {
   return counts;
 }
 
+// v0.4 — 8-field source metadata schema defaults. Per-sourceType anchor
+// values for {authority, freshness, stability, teaching_value, frontier_value,
+// engineering_value, license_status, best_use}. Read-time inference (no
+// vault migration): existing sources.json files keep working — undefined
+// fields filled by _inferSourceMetadata(src) at read time.
+const SOURCE_METADATA_DEFAULTS = Object.freeze({
+  'courseware':       { authority: 95, stability: 85, teaching_value: 90, frontier_value: 20, license_status: 'open',    best_use: 'curriculum' },
+  'pedagogy':         { authority: 95,                teaching_value: 100,                                                best_use: 'lesson_design' },
+  'arxiv':            { authority: 70, freshness: 100, stability: 40, frontier_value: 95,                                 best_use: 'spark' },
+  'pwc':              { authority: 75,                 frontier_value: 80, engineering_value: 90,                         best_use: 'lesson' },
+  'openreview':       { authority: 80,                 frontier_value: 85, stability: 60,                                 best_use: 'spark' },
+  'hf-papers':        { authority: 65, freshness: 95,  frontier_value: 80, stability: 30,                                 best_use: 'spark' },
+  'lab_blog':         { authority: 90, freshness: 80,  engineering_value: 85,                                             best_use: 'lesson' },
+  'framework_docs':   { authority: 80, stability: 85,  engineering_value: 80,                                             best_use: 'lesson' },
+  'youtube-curated':  { authority: 85, teaching_value: 95, frontier_value: 50,                                            best_use: 'lesson' },
+  'youtube':          { authority: 40, teaching_value: 50,                                                                best_use: 'example' },
+  'github':           {                  freshness: 80, engineering_value: 80,                                            best_use: 'assignment' },
+  'sep':              { authority: 95, stability: 95,  teaching_value: 80,                                                best_use: 'lesson' },
+  'wikipedia':        { authority: 60, stability: 70,                                                                     best_use: 'example' },
+  'openalex':         { authority: 80, frontier_value: 60,                                                                best_use: 'spark' },
+  'yc':               { authority: 75, engineering_value: 70,                                                             best_use: 'lesson' },
+  'cited-ref':        { authority: 70, frontier_value: 70, stability: 50,                                                 best_use: 'spark' },
+  'cited-by':         { authority: 70, frontier_value: 75, stability: 50,                                                 best_use: 'spark' },
+  'web':              { authority: 50,                                                                                    best_use: 'example' },
+  'hn':               { authority: 55, freshness: 75, engineering_value: 60,                                              best_use: 'example' },
+  'forum-anchor':     { authority: 50,                                                                                    best_use: 'example' },
+  'uni-anchor':       { authority: 90, stability: 90,  teaching_value: 80,                                                best_use: 'curriculum' },
+  'user-upload':      { authority: 100, license_status: 'open',                                                           best_use: 'lesson' },
+  'user-url':         { authority: 95,                                                                                    best_use: 'lesson' },
+});
+
+// _inferSourceMetadata — backfill the 8-field metadata schema on a source
+// using sourceType-keyed defaults. Existing values in `src` win (caller
+// already enriched). Pure function: returns a NEW object, never mutates.
+function _inferSourceMetadata(src) {
+  if (!src || typeof src !== 'object') return src;
+  const sourceType = src.sourceType || 'web';
+  const defaults = SOURCE_METADATA_DEFAULTS[sourceType] || {};
+  return {
+    authority:         (typeof src.authority         === 'number') ? src.authority         : (defaults.authority         || 0),
+    freshness:         (typeof src.freshness         === 'number') ? src.freshness         : (defaults.freshness         || 0),
+    stability:         (typeof src.stability         === 'number') ? src.stability         : (defaults.stability         || 0),
+    teaching_value:    (typeof src.teaching_value    === 'number') ? src.teaching_value    : (defaults.teaching_value    || 0),
+    frontier_value:    (typeof src.frontier_value    === 'number') ? src.frontier_value    : (defaults.frontier_value    || 0),
+    engineering_value: (typeof src.engineering_value === 'number') ? src.engineering_value : (defaults.engineering_value || 0),
+    license_status:    src.license_status || defaults.license_status || 'unknown',
+    best_use:          src.best_use        || defaults.best_use        || 'lesson',
+  };
+}
+
 // rankSourcesBM25 — pure-JS BM25 over title + excerpt. No LLM, no embeddings.
 // Returns top-k sources sorted by relevance. Used by Stage 2 (frontier
 // retrieval) to pick which 5 sources to pass to proposeNextLesson per
 // upcoming lesson — citations always real, never invented.
-function rankSourcesBM25(sources, query, k = 5) {
-  const list = Array.isArray(sources) ? sources : [];
+//
+// v0.4 — opts.desiredUse filters list to only sources whose inferred
+// best_use matches (e.g. 'curriculum' for designSequence STRUCTURE PRIOR,
+// 'lesson' for in-lesson grounding). authority/teaching_value boost folded
+// into the score so courseware (auth 95) ranks above generic web (auth 50).
+function rankSourcesBM25(sources, query, k = 5, opts = {}) {
+  const list0 = Array.isArray(sources) ? sources : [];
+  if (list0.length === 0) return [];
+  // v0.4 — best_use filter (optional).
+  const desiredUse = opts && opts.desiredUse ? String(opts.desiredUse) : '';
+  const list = desiredUse
+    ? list0.filter(s => _inferSourceMetadata(s).best_use === desiredUse)
+    : list0;
   if (list.length === 0) return [];
   const q = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
   if (q.length === 0) return list.slice(0, k);
@@ -2946,7 +4414,20 @@ function rankSourcesBM25(sources, query, k = 5) {
     // Star/recency boost — small multiplier so popular sources tie-break ahead.
     const stars = Number(src.stars) || 0;
     const starBoost = stars > 0 ? Math.log10(1 + stars) * 0.3 : 0;
-    return { src, score: score + starBoost };
+    // 2026-05-05 — user-supplied URLs (sourceType='user-url') ranked above
+    // generic web harvest. User explicitly chose these URLs as authoritative,
+    // so per-document score gets 1.5x multiplier. user-upload (PDFs/MDs/TXTs
+    // dropped via picker) is the primary high-priority channel and skips
+    // web harvest entirely; user-url is the parallel high-priority channel
+    // that lives within uploadedSource.files[] alongside uploads.
+    const userUrlBoost = (src.sourceType === 'user-url') ? 0.5 : 0;
+    // v0.4 — authority + teaching_value boost from metadata schema. Bounded
+    // multiplier so a high-authority source with low BM25 doesn't crowd out
+    // a low-authority source that's actually on-topic. Range 0 - 0.3.
+    const meta = _inferSourceMetadata(src);
+    const useTeaching = (desiredUse === 'lesson' || desiredUse === 'lesson_design' || desiredUse === 'curriculum');
+    const metaBoost = ((meta.authority || 0) / 1000) + (useTeaching ? (meta.teaching_value || 0) / 1000 : 0);
+    return { src, score: (score + starBoost) * (1 + userUrlBoost + metaBoost) };
   });
   scored.sort((a, b) => b.score - a.score);
   return scored.slice(0, k).map(s => s.src);
@@ -2998,14 +4479,15 @@ async function designSeed({ topic, goal, archetype, timeCommit, customLessons, t
   const frontierAnchor = (tmpl && tmpl.frontier_definition && tmpl.frontier_definition.prompt_anchor) || '';
   const sys = `${HYPHA_FULL}${profileBlock}You are seeding a Hypha curriculum: a sequence of one-on-one tutor conversations that build basics → frontier in the manuscript register. The PHASE STRUCTURE is already fixed (the user will see ${phases.length} phases: ${phases.map(p => p.label).join(', ')}, totaling ${totalLessons} lessons). Your job here is ONLY to:
 
-1. Write the title + 1-sentence learnGoal of LESSON 1 (the very first lesson, in phase "${phases[0].label}", phase tone: "${phases[0].tone}"). If the STUDENT PROFILE shows the student already knows the typical lesson-1 material, lift LESSON 1 to a higher entry point that matches their actual baseline.
+1. Write the title + 1-sentence learnGoal + conceptId of LESSON 1 (the very first lesson, in phase "${phases[0].label}", phase tone: "${phases[0].tone}"). If the STUDENT PROFILE shows the student already knows the typical lesson-1 material, lift LESSON 1 to a higher entry point that matches their actual baseline.
 2. Write a 2-3 sentence "trajectory" paragraph describing where the curriculum heads — concrete (names of mechanisms / frontier debates / final artifact), not generic.
 
-Output STRICT JSON: { "firstLesson": { "title": string, "learnGoal": string }, "trajectory": string }
+Output STRICT JSON: { "firstLesson": { "title": string, "learnGoal": string, "conceptId": string }, "trajectory": string }
 
 Hard rules:
 - title: 4-10 words, concrete + specific. NEVER generic ("Introduction to X", "Overview"). Names a specific mechanism / claim / starting move.
 - learnGoal: 1 sentence, plain. Single concrete claim or skill.
+- conceptId: kebab-case stable identifier for the central concept this lesson teaches (e.g. "attention-qkv", "sigma-algebra", "productive-failure"). Used for cross-lesson concept tracking — once introduced via P6, future lessons reusing the same conceptId skip the prior-install step. Lowercase, hyphen-separated, 1-4 words.
 - trajectory: ≤ 80 words. Names specific mechanisms / papers / artifacts the learner will reach by phase ${phases[phases.length - 1].label}. No generic words like "fundamentals", "essentials".
 - Banned words: AI, LLM, embedding, model, prompt, agent, RAG, vector, fine-tune.${frontierAnchor ? `\n- Frontier window: ${frontierAnchor}` : ''}`;
 
@@ -3041,11 +4523,317 @@ Return the JSON now. Lesson 1 should be the most accessible entry point that an 
     lessonPlan[0].title = firstLesson.title;
     lessonPlan[0].learnGoal = firstLesson.learnGoal;
     lessonPlan[0].ghost = false;
+    // v0158m — emit conceptId for P6 routing when LLM provided one.
+    if (typeof firstLesson.conceptId === 'string' && firstLesson.conceptId.trim()) {
+      lessonPlan[0].conceptId = firstLesson.conceptId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    }
     for (let i = 1; i < lessonPlan.length; i++) {
       lessonPlan[i].ghost = true;
     }
   }
   return { archetype: archetype || 'TECH-CONCEPT', phases, firstLesson, trajectory, lessonPlan };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// v0.3 — designSkeletonOnly: SKELETON-FIRST curriculum design
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Sits ALONGSIDE legacy designSeed — does NOT replace it. The new v0.3 path
+// (per project_hypha_v03_2stage_gen 2-stage flow) calls designSkeletonOnly
+// during STAGE 1 to produce a SKELETON for user approval, then later (after
+// the user clicks 开始上课) STAGE 2 calls generateLessonBodyV2 in
+// lesson-body-generator.js to produce the actual lesson body.
+//
+// Why this exists:
+//   v0.2.1 designSeed shipped a 哲学 course whose tutor opened at Galileo
+//   1633 + Descartes, skipping pre-Socratics. Root cause: LLM training-
+//   frequency prior puts Descartes/Galileo above Thales (more famous = more
+//   mentioned), and designSeed had no external syllabus anchor. v0.3 cure:
+//   harvestV3 Layer 1 returns canonical lectureSequence + prerequisiteChain;
+//   designSkeletonOnly is REQUIRED to honor it as STRUCTURE ANCHOR. Deviation
+//   is allowed only with explicit reason in _meta.deviations[].
+//
+// Differences from legacy designSeed:
+//   1. Accepts args.structureAnchor (mandatory if provided; graceful fallback
+//      to designSeed if null/empty).
+//   2. Adds 3 new per-slot fields to lessonPlan: scope_in / scope_out /
+//      prerequisite — surface the boundary between adjacent lessons.
+//   3. NO firstLesson body content — lessonPlan slots are SKELETON ONLY
+//      (each marked ghost: true; STAGE 2 fills body via generateLessonBodyV2).
+//   4. _meta.deviations[] records explicit deviations from the anchor.
+//
+// Returns:
+//   {
+//     archetype, phases, lessonPlan, trajectory,
+//     _meta: { deviations: [...], structure_anchor_used: bool }
+//   }
+//
+// Each lessonPlan[].slot:
+//   { idx, phaseId, phaseLabel, phaseLessonIdx, phaseTone,
+//     title, learnGoal, conceptId,
+//     scope_in, scope_out, prerequisite,
+//     ghost: true }
+async function designSkeletonOnly(args, settings) {
+  args = args || {};
+  const { topic, goal, archetype, timeCommit, customLessons, tier, clarifications, sourceDigest } = args;
+  const structureAnchor = args.structureAnchor || null;
+
+  // ── Graceful fallback when no structure anchor present ────────────────
+  // Per spec: "If null/empty → fall back to designSeed legacy behavior +
+  // emit warning (graceful for archetypes/topics where Layer 1 returned
+  // nothing)." Examples: 'cooking' / niche topics without canonical syllabus.
+  const hasAnchor = structureAnchor
+    && Array.isArray(structureAnchor.lectureSequence)
+    && structureAnchor.lectureSequence.length > 0;
+  if (!hasAnchor) {
+    const legacy = await designSeed({
+      topic, goal, archetype, timeCommit, customLessons, tier, clarifications, sourceDigest,
+    }, settings);
+    // Reshape legacy output to skeleton shape: drop firstLesson body content,
+    // mark all slots ghost, add empty scope fields. _meta tags the fallback.
+    const lessonPlan = (legacy.lessonPlan || []).map((slot, i) => Object.assign({}, slot, {
+      ghost: true,
+      title: i === 0 && legacy.firstLesson ? (legacy.firstLesson.title || slot.title || '') : (slot.title || ''),
+      learnGoal: i === 0 && legacy.firstLesson ? (legacy.firstLesson.learnGoal || slot.learnGoal || '') : (slot.learnGoal || ''),
+      conceptId: slot.conceptId || (i === 0 && legacy.firstLesson ? (legacy.firstLesson.conceptId || '') : ''),
+      scope_in: '',
+      scope_out: '',
+      prerequisite: '',
+    }));
+    return {
+      archetype: legacy.archetype,
+      phases: legacy.phases,
+      lessonPlan,
+      trajectory: legacy.trajectory,
+      _meta: {
+        deviations: [],
+        structure_anchor_used: false,
+        fallback_reason: 'no_structure_anchor — falling back to legacy designSeed shape',
+      },
+    };
+  }
+
+  // ── Anchor present — drive skeleton from Layer 1 lectureSequence ─────
+  const tmpl = loadArchetypeTemplate(archetype || 'TECH-CONCEPT');
+  const counts = computePhaseLessonCounts(tmpl.phases, timeCommit, customLessons, tier);
+  const phases = tmpl.phases.map((p, i) => ({
+    id: p.id,
+    label: p.label,
+    lessonCount: counts[i],
+    tone: p.tone || '',
+  }));
+
+  // Build base lesson-plan slots from phase counts (same as designSeed).
+  const lessonPlan = [];
+  let idx = 0;
+  for (const ph of phases) {
+    for (let li = 0; li < ph.lessonCount; li++) {
+      lessonPlan.push({
+        idx,
+        phaseId: ph.id,
+        phaseLabel: ph.label,
+        phaseLessonIdx: li,
+        phaseTone: ph.tone,
+      });
+      idx += 1;
+    }
+  }
+  const totalLessons = lessonPlan.length;
+
+  // ── Build STRUCTURE ANCHOR blocks for system prompt ────────────────────
+  const lectureSequenceFmt = (structureAnchor.lectureSequence || []).slice(0, 30)
+    .map(lec => {
+      const prereq = (Array.isArray(lec.prerequisite_idxs) && lec.prerequisite_idxs.length)
+        ? ` [prereq idx: ${lec.prerequisite_idxs.join(', ')}]`
+        : '';
+      return `${lec.idx}. ${lec.title}${prereq}`;
+    }).join('\n');
+
+  const prerequisiteChainFmt = (structureAnchor.prerequisiteChain || []).slice(0, 20)
+    .map(edge => {
+      const pre = Array.isArray(edge.prerequisites) ? edge.prerequisites.join(' / ') : '';
+      return `- ${edge.concept} ⇐ ${pre || '(no prereq)'}`;
+    }).join('\n');
+
+  const anchorCoursesFmt = (structureAnchor.anchorCourses || []).slice(0, 3)
+    .map(c => `- ${c.title} (${c.source})`).join('\n');
+
+  const profileBlock = userProfileBlock(settings && settings.userProfile);
+  const frontierAnchor = (tmpl && tmpl.frontier_definition && tmpl.frontier_definition.prompt_anchor) || '';
+
+  const sys = `${HYPHA_FULL}${profileBlock}You are designing a curriculum skeleton. The user has invested time. Speed is anti-trust.
+
+CANONICAL SYLLABUS ORDER (from Layer 1 anchor courses — TREAT AS STRUCTURE ANCHOR):
+${lectureSequenceFmt}
+
+PREREQUISITE CHAIN:
+${prerequisiteChainFmt || '(none extracted; respect lecture order above)'}
+
+ANCHOR COURSES:
+${anchorCoursesFmt || '(none)'}
+
+YOUR LESSON PLAN MUST RESPECT THIS ORDER. If you deviate, justify in _meta.deviations[] with reason.
+
+The PHASE STRUCTURE is fixed (the user will see ${phases.length} phases: ${phases.map(p => p.label).join(', ')}, totaling ${totalLessons} lessons).
+
+Each lesson SLOT must include:
+  - title — 4-10 words, concrete + specific. Names a specific mechanism / claim / starting move. NEVER generic.
+  - learnGoal — 1 sentence, plain. Single concrete claim or skill.
+  - conceptId — kebab-case stable identifier (e.g. "thales-water-monism", "sigma-algebra"). Lowercase, hyphen-separated, 1-4 words.
+  - scope_in — 1-2 sentences, what THIS lesson covers (concrete, named).
+  - scope_out — 1-2 sentences, what THIS lesson EXPLICITLY does NOT cover (defers to which other lesson, or out-of-scope entirely).
+  - prerequisite — 1 sentence, what user must already know.
+
+DO NOT generate lesson body content. Only skeleton.
+
+Output STRICT JSON:
+{
+  "lessonPlan": [
+    { "idx": 0, "title": "...", "learnGoal": "...", "conceptId": "...",
+      "scope_in": "...", "scope_out": "...", "prerequisite": "..." },
+    ...one entry per slot, idx 0..${totalLessons - 1}...
+  ],
+  "trajectory": "2-3 sentences naming specific mechanisms / papers / artifacts the learner reaches by phase ${phases[phases.length - 1].label}",
+  "_meta": {
+    "deviations": [
+      { "idx": <slot idx>, "original_canonical_lecture": "<from CANONICAL SYLLABUS ORDER>", "replaced_with": "<your title>", "reason": "<why>" }
+    ],
+    "structure_anchor_used": true
+  }
+}
+
+Hard rules:
+- ${totalLessons} lessonPlan entries, idx 0..${totalLessons - 1}, in order.
+- For TOTAL lessons ≤ canonical lectures, use the FIRST ${totalLessons} canonical lectures verbatim or adapt them. For TOTAL lessons > canonical lectures, USE all canonical lectures in order then EXTEND with deeper / applied / frontier lessons in the final phase.
+- Lesson 0 MUST anchor at the start of the canonical sequence (the very first canonical lecture / earliest concept). Do not skip to a famous-but-late icon.
+- Banned words: AI, LLM, embedding, model, prompt, agent, RAG, vector, fine-tune.${frontierAnchor ? `\n- Frontier window: ${frontierAnchor}` : ''}`;
+
+  const userMsg = `Topic: ${topic}
+Archetype: ${archetype}
+Time commitment: ${timeCommit} (${totalLessons} lessons across ${phases.length} phases)
+${goal ? `Student's stated goal: ${goal}\n` : ''}${Array.isArray(clarifications) && clarifications.length ? `Clarifications:\n${clarifications.map(c => `  - ${c.question} → ${Array.isArray(c.answer) ? c.answer.join(', ') : c.answer}`).join('\n')}\n` : ''}Shape of the field (digest):
+${(sourceDigest || '').slice(0, 1500)}
+
+Phase plan:
+${phases.map((p, i) => `  ${i + 1}. ${p.label} — ${p.lessonCount} lesson(s) — tone: ${p.tone || '(default)'}`).join('\n')}
+
+Return the JSON now. Anchor lesson 0 at the start of the canonical syllabus order. Do not skip to famous-but-late icons.`;
+
+  // ── LLM call ─────────────────────────────────────────────────────────
+  // Lazy-require ./lib/llm to avoid circular boot. Falls back to llmJSON
+  // (legacy provider path) if executeChat unavailable. Both paths produce
+  // a JSON string we parse below.
+  let raw = '';
+  let llmCallOk = false;
+  try {
+    let llm = null;
+    try { llm = require('./lib/llm'); } catch (_) { llm = null; }
+    if (llm && typeof llm.executeChat === 'function') {
+      const dispatch = await llm.executeChat('T6_STRONG', {
+        messages: [
+          { role: 'system', content: sys },
+          { role: 'user',   content: userMsg },
+        ],
+        json: true,
+        temperature: 0.4,
+        maxTokens: 4000,
+        timeoutMs: 90000,
+      });
+      // executeChat result shape varies per provider; pull text content.
+      const r = dispatch && dispatch.result;
+      if (typeof r === 'string') raw = r;
+      else if (r && typeof r.content === 'string') raw = r.content;
+      else if (r && r.message && typeof r.message.content === 'string') raw = r.message.content;
+      else if (r && Array.isArray(r.choices) && r.choices[0] && r.choices[0].message
+               && typeof r.choices[0].message.content === 'string') raw = r.choices[0].message.content;
+      else raw = JSON.stringify(r || dispatch || {});
+      llmCallOk = true;
+    } else {
+      // Fallback: legacy llmJSON (provider abstraction in this file).
+      raw = await llmJSON(
+        [{ role: 'system', content: sys }, { role: 'user', content: userMsg }],
+        settings,
+        { json: true, temperature: 0.4, max_tokens: 4000, timeoutMs: 90_000, fn: 'designSkeletonOnly' }
+      );
+      llmCallOk = true;
+    }
+  } catch (err) {
+    console.error('[designSkeletonOnly] LLM call failed:', err && err.message ? err.message : err);
+  }
+
+  let parsed = null;
+  if (llmCallOk && raw) {
+    try {
+      const cleaned = _extractFirstJSON(raw);
+      parsed = (typeof cleaned === 'string') ? JSON.parse(cleaned) : cleaned;
+    } catch (e) {
+      console.error('[designSkeletonOnly] JSON parse failed:', e && e.message ? e.message : e);
+    }
+  }
+
+  // ── Merge LLM output into lessonPlan slots; ghost = true for all ──────
+  let trajectory = `${phases.length} phases: ${phases.map(p => p.label).join(' → ')}.`;
+  let deviations = [];
+  let structureAnchorUsed = true;
+  if (parsed && Array.isArray(parsed.lessonPlan)) {
+    for (const entry of parsed.lessonPlan) {
+      if (!entry || typeof entry.idx !== 'number') continue;
+      const i = entry.idx;
+      if (i < 0 || i >= lessonPlan.length) continue;
+      lessonPlan[i].title       = String(entry.title || '').slice(0, 200);
+      lessonPlan[i].learnGoal   = String(entry.learnGoal || '').slice(0, 400);
+      lessonPlan[i].conceptId   = String(entry.conceptId || '').toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 60);
+      lessonPlan[i].scope_in    = String(entry.scope_in || '').slice(0, 400);
+      lessonPlan[i].scope_out   = String(entry.scope_out || '').slice(0, 400);
+      lessonPlan[i].prerequisite = String(entry.prerequisite || '').slice(0, 400);
+      lessonPlan[i].ghost = true; // SKELETON ONLY — STAGE 2 fills body
+    }
+    if (typeof parsed.trajectory === 'string') trajectory = parsed.trajectory.slice(0, 600);
+    if (parsed._meta) {
+      if (Array.isArray(parsed._meta.deviations)) deviations = parsed._meta.deviations;
+      if (typeof parsed._meta.structure_anchor_used === 'boolean') {
+        structureAnchorUsed = parsed._meta.structure_anchor_used;
+      }
+    }
+  } else {
+    // LLM failed entirely — fill from canonical sequence verbatim so the
+    // skeleton at least surfaces canonical ordering. scope_in/out/prereq
+    // empty strings; user will hit 需要修改 to regen.
+    const seq = structureAnchor.lectureSequence || [];
+    for (let i = 0; i < lessonPlan.length; i++) {
+      const lec = seq[i];
+      if (lec) {
+        lessonPlan[i].title = String(lec.title || '').slice(0, 200);
+        lessonPlan[i].learnGoal = '';
+        lessonPlan[i].conceptId = '';
+        lessonPlan[i].scope_in = '';
+        lessonPlan[i].scope_out = '';
+        lessonPlan[i].prerequisite = i > 0 && seq[i - 1] ? `Lesson ${i}: ${seq[i - 1].title}` : '';
+      } else {
+        lessonPlan[i].title = '';
+        lessonPlan[i].learnGoal = '';
+        lessonPlan[i].conceptId = '';
+        lessonPlan[i].scope_in = '';
+        lessonPlan[i].scope_out = '';
+        lessonPlan[i].prerequisite = '';
+      }
+      lessonPlan[i].ghost = true;
+    }
+  }
+
+  // Final ghost-mark sweep — every slot is a ghost in skeleton-only path.
+  for (const slot of lessonPlan) slot.ghost = true;
+
+  return {
+    archetype: archetype || 'TECH-CONCEPT',
+    phases,
+    lessonPlan,
+    trajectory,
+    _meta: {
+      deviations,
+      structure_anchor_used: structureAnchorUsed,
+    },
+  };
 }
 
 // proposeNextLesson — Stage 3 of the pipeline. Given prior lesson outcomes
@@ -3069,11 +4857,12 @@ async function proposeNextLesson({ topic, archetype, slot, priorLessons, priorAt
 
 Phase: ${slot.phaseLabel} (slot ${slot.phaseLessonIdx + 1} within phase). Tone: "${slot.phaseTone || 'editorial, specific'}".
 
-Output STRICT JSON: { "title": string, "learnGoal": string }
+Output STRICT JSON: { "title": string, "learnGoal": string, "conceptId": string }
 
 Rules:
 - title: 4-10 words, concrete + specific. Reference the actual mechanism / paper / technique. NEVER generic.
 - learnGoal: 1 plain-language sentence. The single concrete claim or skill.
+- conceptId: kebab-case stable identifier for the central concept this lesson teaches (e.g. "attention-qkv", "backprop-chain-rule", "phlogiston-theory"). Used for cross-lesson tracking — once introduced via P6, future lessons reusing the same conceptId skip prior-install. Lowercase, hyphen-separated, 1-4 words. Reuse a previously-introduced conceptId IF this lesson genuinely revisits / deepens the same concept.
 - Stay within the phase tone. Reference at least one concept from priorAtlas where natural (continuity).
 - If retrievedSources contain a recent named paper, cite the author / title in the learnGoal where it fits.
 - Banned words: AI, LLM, embedding, model, prompt, agent, RAG, vector, fine-tune.`;
@@ -3106,7 +4895,15 @@ Write the next lesson now.`;
     );
     const parsed = JSON.parse(raw);
     if (parsed.title && parsed.learnGoal) {
-      return { title: String(parsed.title).slice(0, 200), learnGoal: String(parsed.learnGoal).slice(0, 400) };
+      const result = {
+        title: String(parsed.title).slice(0, 200),
+        learnGoal: String(parsed.learnGoal).slice(0, 400),
+      };
+      // v0158m — capture conceptId for P6 routing if LLM emitted one.
+      if (typeof parsed.conceptId === 'string' && parsed.conceptId.trim()) {
+        result.conceptId = parsed.conceptId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 60);
+      }
+      return result;
     }
   } catch (err) {
     console.error('[proposeNextLesson] failed:', err.message);
@@ -3119,8 +4916,15 @@ Write the next lesson now.`;
 }
 
 module.exports = {
+  // v0158o — exposed for cli-install.js + main.js auth IPCs to spawn `claude`
+  // with the SAME sandbox isolation that lesson dispatch uses. Otherwise login
+  // token goes to user's real ~/.claude/ but agent invocations look at sandbox.
+  _hyphaSandboxDir,
+  _hyphaSandboxedSpawnOpts,
   llmJSON,                      // v0.11.0 — exposed for reflectionLLM (HERMES feedback loop)
   harvest,
+  // v0.3 — Heavy Harvest dispatcher (5-layer) + skeleton-only design path
+  harvestV3,
   clarifyQuestions,
   classifyArchetype,
   getEmphasis,
@@ -3145,7 +4949,11 @@ module.exports = {
   // v0.4.0 three-stage pipeline
   loadArchetypeTemplate,
   rankSourcesBM25,
+  // v0.4 — 5-layer Course Source Stack metadata schema
+  SOURCE_METADATA_DEFAULTS,
+  _inferSourceMetadata,
   designSeed,
+  designSkeletonOnly,           // v0.3 — skeleton-first 2-stage flow
   proposeNextLesson,
   adaptLessonGoal,
   // v0.6.0 — tier multiplier + probe + per-lesson re-harvest

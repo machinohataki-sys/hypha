@@ -106,6 +106,14 @@ const PROVIDERS = [
     // recall obeys Hypha's tutor instructions even when CLAUDE.md walkup +
     // ~/.claude/agents are still in context. Live verified clean.
     systemPromptFlag: '--system-prompt',
+    // v0158x — extended thinking via --effort flag (Claude Code 2026 syntax,
+    // replaces deprecated --thinking / budget_tokens). 2026-05-05: bumped
+    // 'high' → 'xhigh' per user request. effort levels (low/medium/high/
+    // xhigh/max); xhigh is "advanced coding and complex agentic work
+    // requiring extended exploration", more thinking budget than high
+    // without going to max. Pushed via suffixArgs so applies to both
+    // _runCliOnce and _runCliStream paths.
+    suffixArgs: ['--effort', 'xhigh'],
     baseURL: '',
     models: [
       { id: 'claude-opus-4-7',   label: 'Opus 4.7',   sub: 'deepest reasoning' },

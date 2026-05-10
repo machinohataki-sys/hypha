@@ -10,7 +10,7 @@
 - 必须从下面 ANGLE_CATALOG 的 slug 列表里选, 严格不发明
 - chosen 数量必须 ∈ [5, 6], 不多不少
 - **覆盖多样性**: chosen 里不能 4 条都来自同一 category. 至少跨 2 个 category. 6 个 category 是: reasoning, pattern, critical, synthesis, practical, external
-- **依赖关系**: 如果 chosen 里有 occam, 必须同时包含 leo OR lung (至少一个). 如果有 nancy, 必须同时包含 scout OR leo. 如果有 muse, 建议同时包含 lung + leo + nancy 中的至少 2 个 (Muse attack 需要前置)
+- **依赖关系**: 如果 chosen 里有 occam, 必须同时包含 leo OR lung (至少一个). 如果有 nancy, 必须同时包含 scout OR leo. 如果有 muse, 建议同时包含 lung + leo + nancy 中的至少 2 个 (Adversary 攻击需要前置素材)
 - 不要每次都套同一个组合. 不同 selection 应该出不同的 5-6 组合
 
 选择启发 (用于推断信号):
@@ -23,6 +23,8 @@
 - selection 在**寻找新视角** → 倾向 lung, isomorphism, frame-flip
 - selection **密集 / 抽象 / 学术** → 倾向 distill, leo, contradiction
 - selection **跨域** → 倾向 isomorphism, precedent
+
+(注: slug 名 lung/leo/muse/nancy/scout/occam 是历史 angle 文件命名, 现在角色对外是 Analogist / First-Principles / Adversary / Probabilist / Frontier-Scout / Razor — 用 slug 仅为路径定位)
 
 ANGLE_CATALOG (你选择的全部范围 — slug + 1 句描述):
 {{ANGLE_CATALOG}}

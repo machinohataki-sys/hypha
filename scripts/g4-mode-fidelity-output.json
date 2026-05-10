@@ -1,0 +1,289 @@
+{
+  "summary": {
+    "total": 10,
+    "aligned": 2,
+    "pass": false
+  },
+  "results": [
+    {
+      "idx": "01",
+      "name": "exam-1-kaoyan-math",
+      "mode": "Exam",
+      "keyword_score": 100,
+      "llm_score": 95,
+      "llm_reason": "Strong exam focus with time pressure and test-specific analysis",
+      "final_score": 97.5,
+      "aligned": true,
+      "plan": {
+        "objective": "识别近五年考研数学真题的高频考点与时间陷阱。",
+        "prerequisite_check": "能否在无提示下列出多元函数极值的求解步骤？",
+        "hook_concrete": "2022年考研数学一真题第17题，满分12分，平均得分仅3.5分。基础扎实的你为何拿不到一半的分？",
+        "path": [
+          "限时15分钟独立解答一道近三年高频真题大题并记录用时",
+          "对照官方评分标准批改自己的卷面，标出步骤分扣分点",
+          "提炼该题的考点套路与时间陷阱，写出三条实战避坑原则",
+          "基于避坑原则，用5分钟重写该题关键得分步骤"
+        ],
+        "micro_proof": {
+          "stimulus": "粘贴你提炼的三条实战避坑原则与重写的关键得分步骤。",
+          "expected_signal": "文本包含三条原则及重写步骤，重写步骤含≥2个评分标准关键词如'偏导数为零'或'判别式'",
+          "fail_mode": "仅抄写原题解法或原则为空泛口号如'仔细计算'"
+        },
+        "next_lesson_seed": "应用避坑原则限时拆解线代高频真题。",
+        "assignment_level": 1
+      }
+    },
+    {
+      "idx": "02",
+      "name": "exam-2-aws-saa",
+      "mode": "Exam",
+      "keyword_score": 0,
+      "llm_score": 95,
+      "llm_reason": "Strong exam focus with time pressure, scope, and test-style proof",
+      "final_score": 47.5,
+      "aligned": false,
+      "plan": {
+        "objective": "Map AWS Well-Architected pillars to IAM security controls for the SAA exam.",
+        "prerequisite_check": "Can you recall the difference between an IAM user and an IAM role?",
+        "hook_concrete": "Your EC2 instance has hardcoded S3 access keys in its code. This violates two Well-Architected pillars and is a guaranteed exam trap.",
+        "path": [
+          "List the six AWS Well-Architected pillars from memory or docs.",
+          "Identify which pillar hardcoded credentials violate and explain why.",
+          "Write the IAM policy JSON snippet granting S3 read-only access.",
+          "Assign the policy to an IAM role and attach the role to an EC2 instance profile."
+        ],
+        "micro_proof": {
+          "stimulus": "Paste your IAM role trust policy JSON for the EC2 instance.",
+          "expected_signal": "JSON contains 'Statement', 'Effect', 'Principal' with 'ec2.amazonaws.com', and 'Action' with 'sts:AssumeRole'.",
+          "fail_mode": "Missing Principal or using IAM user credentials instead of role assumption."
+        },
+        "next_lesson_seed": "Apply least privilege IAM policies to S3 bucket access patterns.",
+        "assignment_level": 1
+      }
+    },
+    {
+      "idx": "03",
+      "name": "exam-3-jlpt-n1",
+      "mode": "Exam",
+      "keyword_score": 50,
+      "llm_score": 85,
+      "llm_reason": "Time limits, exam scope, test-style proof",
+      "final_score": 67.5,
+      "aligned": true,
+      "plan": {
+        "objective": "Deconstruct two N1 advanced syntax items and allocate reading time limits.",
+        "prerequisite_check": "Can you read a 600-word N2 opinion piece in under 5 minutes?",
+        "hook_concrete": "N1 reading passages often embed the core argument inside a single 50-word sentence ending in 〜ずじまい or 〜を余儀なくされる, crushing your time budget.",
+        "path": [
+          "Map 〜ずじまい and 〜を余儀なくされる to their literal translations and usage constraints.",
+          "Write two original sentences using each grammar point with daily-life contexts.",
+          "Set strict per-question time limits for a 25-question N1 reading section.",
+          "Skim a short N1 text applying the time limits and identify the main argument sentence."
+        ],
+        "micro_proof": {
+          "stimulus": "Paste your two sentences and your per-question reading time limits.",
+          "expected_signal": "Output contains two sentences with target grammar and a list of numbers summing to 65-70.",
+          "fail_mode": "Missing grammar points or time limits lack numeric values or sum incorrectly."
+        },
+        "next_lesson_seed": "Tackle N1 academic listening vocabulary using timed shadowing.",
+        "assignment_level": 1
+      }
+    },
+    {
+      "idx": "04",
+      "name": "exam-4-gmat-740",
+      "mode": "Exam",
+      "keyword_score": 25,
+      "llm_score": 85,
+      "llm_reason": "Strong exam focus with timed practice and GMAT-specific questions",
+      "final_score": 55,
+      "aligned": false,
+      "plan": {
+        "objective": "Identify subject-verb agreement errors in GMAT sentence correction questions.",
+        "prerequisite_check": "Can you locate the main subject and main verb in a complex English sentence?",
+        "hook_concrete": "GMAT sentence: 'The list of items are on the desk.' Spot the grammar error that breaks the rule.",
+        "path": [
+          "Underline the core subject and verb in 5 GMAT sentence correction prompts.",
+          "Match three singular subjects disguised by plural prepositional phrases with singular verbs.",
+          "Eliminate three SC options violating subject-verb agreement rules.",
+          "Select the correct answer for two full SC questions under a 90-second timer."
+        ],
+        "micro_proof": {
+          "stimulus": "Paste your final answer for the two timed SC questions with subject and verb underlined.",
+          "expected_signal": "output contains two selected letters and two underlined subject-verb pairs",
+          "fail_mode": "missing underlined components or unselected answer choices"
+        },
+        "next_lesson_seed": "Apply pronoun agreement rules to sentence correction questions.",
+        "assignment_level": 1
+      }
+    },
+    {
+      "idx": "05",
+      "name": "growth-1-rsc",
+      "mode": "Growth",
+      "keyword_score": 0,
+      "llm_score": 85,
+      "llm_reason": "Focuses on transferable skills and deep understanding of server/client boundaries.",
+      "final_score": 42.5,
+      "aligned": false,
+      "plan": {
+        "objective": "Distinguish server and client boundaries by refactoring a dashboard component to fetch data on the server.",
+        "prerequisite_check": "Can you export a default React component in Next.js 13 App Router?",
+        "hook_concrete": "Your dashboard component renders a chart, but the API key and water-fetching waterfall are exposed in the browser network tab. Why?",
+        "path": [
+          "Identify the 'use client' directive in your existing dashboard component and remove it.",
+          "Move the data fetching logic out of useEffect to a direct async call inside the component.",
+          "Pass the fetched server data as props to a new client component for the interactive chart.",
+          "Verify the network tab no longer shows the API call, proving server-side execution."
+        ],
+        "micro_proof": {
+          "stimulus": "Paste your refactored dashboard component code showing the data fetch and prop passing.",
+          "expected_signal": "Code contains an async server component passing props to a client component with 'use client' directive.",
+          "fail_mode": "Data fetching remains inside useEffect or 'use client' is at the top of the data-fetching file."
+        },
+        "next_lesson_seed": "Stream partial dashboard UI using React Suspense boundaries.",
+        "assignment_level": 1
+      }
+    },
+    {
+      "idx": "06",
+      "name": "growth-2-bayes",
+      "mode": "Growth",
+      "keyword_score": 0,
+      "llm_score": 85,
+      "llm_reason": "Strong transfer focus with business analogy and tech talk application.",
+      "final_score": 42.5,
+      "aligned": false,
+      "plan": {
+        "objective": "Explain prior, posterior, and MCMC intuition using a business analogy for a tech talk.",
+        "prerequisite_check": "Can you define conditional probability P(A|B) in your own words?",
+        "hook_concrete": "A coin lands heads 9/10 flips. Frequentist says 90% heads. Bayesian says maybe 50% if you trust the mint. Same data, different beliefs.",
+        "path": [
+          "Map prior, likelihood, and posterior to updating a colleague's belief with new dashboard data.",
+          "Draft one tech talk slide comparing frequentist confidence interval vs Bayesian credible interval.",
+          "Write a 3-sentence tech talk script explaining why MCMC is needed when the posterior has no closed form.",
+          "Sketch a hierarchical model diagram for predicting sales across different store regions."
+        ],
+        "micro_proof": {
+          "stimulus": "Paste your 3-sentence MCMC script for the tech talk.",
+          "expected_signal": "Text contains words implying sampling/approximation and references posterior distribution complexity.",
+          "fail_mode": "Script only says MCMC computes the posterior without explaining why approximation is necessary."
+        },
+        "next_lesson_seed": "Implement a simple PyMC model to validate the hierarchical store sales intuition.",
+        "assignment_level": 1
+      }
+    },
+    {
+      "idx": "07",
+      "name": "growth-3-whisper",
+      "mode": "Growth",
+      "keyword_score": 25,
+      "llm_score": 92,
+      "llm_reason": "Strongly aligned: hands-on dimension tracing, LoRA implementation, and transfer to accent fine-tuning, all beyond exam scope.",
+      "final_score": 58.5,
+      "aligned": false,
+      "plan": {
+        "objective": "在 Whisper 代码中插入自定义 LoRA 层并跑通前向传播",
+        "prerequisite_check": "你能用 PyTorch 写一个单层 Linear 的 forward 吗？",
+        "hook_concrete": "Whisper 的输入不是音频波形，而是 80 维 mel 谱图矩阵。直接 fork 代码加 nn.Linear 会因维度不匹配而报错。",
+        "path": [
+          "用 torchaudio 将一段 wav 转成 80 维 mel 谱图并打印 shape",
+          "加载 WhisperModel 并追踪从 mel 谱图到 encoder 最后输出的 tensor 维度变化",
+          "编写一个 LoRA nn.Module，接收 Whisper 的 hidden_size 并输出同维度",
+          "将 LoRA 层挂载到 Whisper encoder 的某个 Linear 层并跑通一个 forward pass"
+        ],
+        "micro_proof": {
+          "stimulus": "贴出你加 LoRA 后跑通 forward pass 的代码和输出 tensor 的 shape",
+          "expected_signal": "输出包含一个 shape 为 [1, seq_len, hidden_size] 的 tensor，且代码里有自定义 LoRA 类",
+          "fail_mode": "输出报错或 tensor shape 不含 hidden_size 维度"
+        },
+        "next_lesson_seed": "用你的 LoRA 层微调 Whisper 适配特定口音数据",
+        "assignment_level": 1
+      }
+    },
+    {
+      "idx": "08",
+      "name": "growth-4-system-design",
+      "mode": "Growth",
+      "keyword_score": 0,
+      "llm_score": 85,
+      "llm_reason": "Focuses on transfer and deep understanding of system design patterns",
+      "final_score": 42.5,
+      "aligned": false,
+      "plan": {
+        "objective": "Contrast feed fan-out on write versus on read for a Twitter-like system.",
+        "prerequisite_check": "Can you explain why a single PostgreSQL table struggles with millions of concurrent writes?",
+        "hook_concrete": "A celebrity with 50M followers posts a tweet. Writing 50M rows to a single DB table before returning 'OK' takes minutes. How does Twitter return 'OK' in milliseconds?",
+        "path": [
+          "Map out the single-DB write bottleneck for a celebrity tweet using fan-out on write.",
+          "Sketch the fan-out on read approach using a reverse-chronological query per user.",
+          "Draw a hybrid model routing celebrities to fan-out on read and regular users to fan-out on write.",
+          "Annotate the hybrid sketch with the cache and async queue required for each path."
+        ],
+        "micro_proof": {
+          "stimulus": "Paste your hybrid fan-out sketch showing both celebrity and regular user paths.",
+          "expected_signal": "sketch contains two distinct paths, an async queue on the write path, and a cache/DB lookup on the read path",
+          "fail_mode": "Only one fan-out path shown, or missing async queue for writes."
+        },
+        "next_lesson_seed": "Design a consistent hashing ring to distribute those 50M writes across multiple shards.",
+        "assignment_level": 1
+      }
+    },
+    {
+      "idx": "09",
+      "name": "hybrid-1-saa-iam",
+      "mode": "Hybrid",
+      "keyword_score": 50,
+      "llm_score": 65,
+      "llm_reason": "Growth signals strong (transfer, depth, CLI verification); no exam signals (deadline, test scope) present.",
+      "final_score": 57.5,
+      "aligned": false,
+      "plan": {
+        "objective": "Construct an IAM policy granting scoped S3 read access for your SaaS tenant.",
+        "prerequisite_check": "Can you manually create an S3 bucket in the AWS console?",
+        "hook_concrete": "A wildcard S3 policy `s3:*` on `*` lets any compromised role delete every tenant's data. Write the exact policy line that restricts access to only one tenant prefix.",
+        "path": [
+          "Write a JSON policy allowing s3:GetObject on arn:aws:s3:::my-saas-bucket/tenant-123/*.",
+          "Add a second statement allowing s3:ListBucket on the bucket with a StringEquals condition key for tenant-123.",
+          "Attach the policy to a new IAM User and run an AWS CLI s3 cp command to verify read access.",
+          "Attempt an s3 rm command on the same object to confirm the write action is denied."
+        ],
+        "micro_proof": {
+          "stimulus": "Paste the IAM policy JSON that limits a user to list and read only their own tenant prefix.",
+          "expected_signal": "JSON contains Statement array with Effect Allow, Action includes s3:GetObject and s3:ListBucket, Resource contains tenant-specific ARN, and Condition key restricts s3:prefix.",
+          "fail_mode": "Policy uses Effect Allow with Action s3:* and Resource * without Condition."
+        },
+        "next_lesson_seed": "Use STS AssumeRole to generate temporary scoped credentials for tenants.",
+        "assignment_level": 1
+      }
+    },
+    {
+      "idx": "10",
+      "name": "hybrid-2-macroeconomics",
+      "mode": "Hybrid",
+      "keyword_score": 0,
+      "llm_score": 75,
+      "llm_reason": "Signals for both exam and growth present but not dominant",
+      "final_score": 37.5,
+      "aligned": false,
+      "plan": {
+        "objective": "Distinguish fiscal vs monetary policy using the Phillips curve and QE mechanisms.",
+        "prerequisite_check": "Can you explain how central bank interest rate changes affect GDP?",
+        "hook_concrete": "Japan raised rates ending negative interest policy, yet the Yen weakened—contradicting standard textbook monetary policy expectations.",
+        "path": [
+          "Map QE steps from central bank asset purchase to bank reserves and inflation.",
+          "Contrast QE with government stimulus checks on a 2x2 grid of fiscal vs monetary.",
+          "Sketch the Phillips curve linking unemployment and inflation for a rate-hike scenario.",
+          "Draft a 3-sentence MPA essay excerpt using fiscal and monetary policy terms."
+        ],
+        "micro_proof": {
+          "stimulus": "Paste your 3-sentence MPA essay excerpt analyzing a simultaneous rate hike and stimulus check.",
+          "expected_signal": "Excerpt contains ≥1 monetary tool, ≥1 fiscal tool, and references inflation or unemployment.",
+          "fail_mode": "Mixes up fiscal and monetary tools, or omits inflation/unemployment linkage."
+        },
+        "next_lesson_seed": "Analyze supply-side shocks shifting the Phillips curve.",
+        "assignment_level": 1
+      }
+    }
+  ]
+}

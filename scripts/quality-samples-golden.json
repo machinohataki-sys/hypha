@@ -1,0 +1,167 @@
+{
+  "_comment": "Quality Harness golden samples — 5 plan+body pairs that SHOULD pass the Harness lite path with verdict PASS (gap_pct ≤ 30 + persona ≥ 70 + minimal ingratiation).",
+  "_pass_criteria": "When fed through `runFullPipeline({preset:'lite'})`, all 5 should return verdict=PASS or WARN (never FAIL).",
+  "samples": [
+    {
+      "name": "g1-workflow-io",
+      "plan": {
+        "objective": "Identify the inputs and outputs of one workflow step.",
+        "prerequisite_check": "你能描述一个工作流当前的输入和输出吗?",
+        "hook_concrete": "一个工作流接收订单数据, 决定是否扣库存. 输入与输出可画在一张白纸上.",
+        "path": [
+          "画一张白纸, 标记本工作流当前一步的所有输入字段.",
+          "在同一张纸上, 列出这一步对外发出的输出字段.",
+          "为每个输出字段, 写一句话说明它依赖哪些输入字段.",
+          "把这张图给一个不熟悉这块业务的同事看, 让他用自己话复述."
+        ],
+        "micro_proof": {
+          "stimulus": "列出这个工作流步骤的输入字段和输出字段.",
+          "expected_signal": "Response contains: order_id, sku, quantity, stock_remaining, decision.",
+          "fail_mode": "只画输入不画输出 / 复述只用术语不用具体字段名."
+        },
+        "next_lesson_seed": "下一节: 把这张图改成可执行的 1 步代码."
+      },
+      "body": {
+        "intro_prose": "本节聚焦一个工作流步骤的输入与输出 — 把抽象函数还原成具体字段.",
+        "path_prose": [
+          "在白纸上画一个矩形, 左侧标 inputs, 右侧标 outputs. 这是步骤的 I/O 边界.",
+          "inputs 区写: order_id (唯一标识), sku (产品键), quantity (请求数量).",
+          "outputs 区写: stock_remaining (扣减后库存), decision (accept / partial / reject).",
+          "把这张图发给同事, 请他用自己话复述. 复述若漏字段或讲不清依赖, 就是你的图还不够清楚."
+        ],
+        "closing_prose": "这一节我们把工作流的一个具体步骤画成了可被人复述的图."
+      },
+      "evidence_ledger": [
+        { "claim_ref": "objective", "claim_text": "Identify inputs/outputs of one workflow step", "evidence_type": "reasoning", "evidence_pointer": "blueprint:6.1", "confidence": "high", "verifiability": "high", "risk": "low" },
+        { "claim_ref": "path[2]",   "claim_text": "Each output depends on specific inputs", "evidence_type": "reasoning", "evidence_pointer": "general SE practice", "confidence": "medium", "verifiability": "partial", "risk": "low" }
+      ]
+    },
+    {
+      "name": "g2-3-layer-auth",
+      "plan": {
+        "objective": "Sketch the 3 layers of a typical web auth system.",
+        "prerequisite_check": null,
+        "hook_concrete": "登录请求进来 → 解析 token → 写入会话状态. 三件事可以画成三个盒子.",
+        "path": [
+          "画 3 个盒子: handler / validator / persister. 标出方向.",
+          "在 handler 框内写: 接 HTTP 请求, 提取 Authorization header.",
+          "在 validator 框内写: 验签 + JWKS 缓存刷新. 标 read-only.",
+          "在 persister 框内写: 写最近一次见到时间 + 风险分. 标 write-only."
+        ],
+        "micro_proof": {
+          "stimulus": "用 3 行描述 auth 三层的职责, 每行 ≤ 20 字.",
+          "expected_signal": "Response contains: handler, validator, persister.",
+          "fail_mode": "层名错 / 漏一层 / 把验证和存储混在一起."
+        },
+        "next_lesson_seed": "下一节: 给 validator 层加缓存"
+      },
+      "body": {
+        "intro_prose": "auth 系统的三层不是装饰, 是责任边界 — 一层做一件事.",
+        "path_prose": [
+          "handler: 收请求, 解 header, 把 token 交给 validator. 不做验证, 不写状态.",
+          "validator: 拿 token, 对照公钥缓存验签. 缓存 miss 时从 JWKS 取. 不写任何状态.",
+          "persister: 验签通过后, 记录用户 last-seen 时间 + 风险分. 写操作只发生在这一层."
+        ],
+        "closing_prose": "三层各司其职 — 调试时你知道去哪一层找问题."
+      },
+      "evidence_ledger": [
+        { "claim_ref": "path[2]", "claim_text": "validator 验签 + JWKS 缓存", "evidence_type": "primary_source", "evidence_pointer": "RFC 7519 + JWK spec", "confidence": "high", "verifiability": "high", "risk": "low" }
+      ]
+    },
+    {
+      "name": "g3-sql-where-vs-having",
+      "plan": {
+        "objective": "区分 SQL WHERE 和 HAVING 的执行时机.",
+        "prerequisite_check": "你能写一个含 GROUP BY 的 SQL 吗?",
+        "hook_concrete": "WHERE 在 GROUP BY 前 — 它筛行. HAVING 在 GROUP BY 后 — 它筛组.",
+        "path": [
+          "写一个 SELECT 含 WHERE + GROUP BY + HAVING.",
+          "标出 WHERE 和 HAVING 各自筛掉了什么.",
+          "把 WHERE 条件改成 HAVING, 看会出什么错."
+        ],
+        "micro_proof": {
+          "stimulus": "用 1 句话说明为什么 WHERE 比 HAVING 早执行.",
+          "expected_signal": "Response mentions: rows, before aggregation, individual records.",
+          "fail_mode": "把 WHERE 和 HAVING 顺序搞反 / 没解释聚合."
+        },
+        "next_lesson_seed": "下一节: 索引在 WHERE / HAVING 上的影响"
+      },
+      "body": {
+        "intro_prose": "WHERE 和 HAVING 看起来都是过滤, 但作用对象不同 — 一个是行, 一个是组.",
+        "path_prose": [
+          "WHERE 在 GROUP BY 之前执行 — 它过滤个体记录.",
+          "HAVING 在 GROUP BY 之后执行 — 它过滤聚合后的组.",
+          "如果你把行级条件 (e.g. status='active') 写到 HAVING, 数据库会被迫先聚合所有行, 性能崩盘."
+        ],
+        "closing_prose": "记法: WHERE 早, HAVING 晚. 规则上的, 性能上的."
+      },
+      "evidence_ledger": [
+        { "claim_ref": "path[0]", "claim_text": "WHERE filters before GROUP BY", "evidence_type": "primary_source", "evidence_pointer": "ANSI SQL spec", "confidence": "high", "verifiability": "high", "risk": "low" }
+      ]
+    },
+    {
+      "name": "g4-git-three-areas",
+      "plan": {
+        "objective": "Name the 3 storage areas in git and what moves files between them.",
+        "prerequisite_check": "你装过 git 吗?",
+        "hook_concrete": "你的代码同时存在 3 个地方 — 工作目录、暂存区、本地仓库.",
+        "path": [
+          "写一个文件, 跑 git status. 看到 untracked. 这是 working tree.",
+          "git add 那个文件. 再 git status. 看到 staged. 这是 staging area.",
+          "git commit. 再 git log. 看到新 commit. 这是 repository.",
+          "git checkout HEAD~1 -- file. 看到 working tree 改回上一版. 这是 repo → working."
+        ],
+        "micro_proof": {
+          "stimulus": "Name the 3 git storage areas + 3 commands moving files between them.",
+          "expected_signal": "Response contains: working tree, staging, repository, add, commit, checkout.",
+          "fail_mode": "missing one area / GUI verbs / unclear direction."
+        },
+        "next_lesson_seed": "下一节: stash 和 reset 在这三层中怎么动文件"
+      },
+      "body": {
+        "intro_prose": "git 把你的工作流切成 3 个状态 — 编辑中、准备提交、已提交.",
+        "path_prose": [
+          "working tree: 你在编辑器里看到的文件状态. git status 显示 untracked / modified.",
+          "staging area (index): 你 git add 后的快照. git diff --cached 显示这一层和 repo 的差.",
+          "repository (.git/): commit 写入的不可变历史. git log 是这一层的视图.",
+          "三个命令: git add (working → staging), git commit (staging → repo), git checkout <file> (repo → working)."
+        ],
+        "closing_prose": "理解了这 3 层, git 的大部分指令都是在层之间搬数据."
+      },
+      "evidence_ledger": [
+        { "claim_ref": "path[0]", "claim_text": "git status shows working-tree state", "evidence_type": "primary_source", "evidence_pointer": "git-scm.com docs", "confidence": "high", "verifiability": "high", "risk": "low" }
+      ]
+    },
+    {
+      "name": "g5-fp-pure-function",
+      "plan": {
+        "objective": "Define what makes a function pure + test 3 examples.",
+        "prerequisite_check": "你写过 JS 函数吗?",
+        "hook_concrete": "Math.random() 不纯 — 同样输入, 不同输出. add(2, 3) 纯 — 同样输入, 同样输出, 没改外面任何东西.",
+        "path": [
+          "写一个加法函数 add(a, b). 验证: 同样输入, 同样输出.",
+          "改一行: 让它 console.log(a). 现在它有副作用. 不再纯.",
+          "再改: 让它 read 一个全局变量 X. 现在它依赖外部状态. 也不纯."
+        ],
+        "micro_proof": {
+          "stimulus": "Name 3 properties of a pure function.",
+          "expected_signal": "Response contains: deterministic, no side effects, same input → same output.",
+          "fail_mode": "只说 'functional' 没具体属性."
+        },
+        "next_lesson_seed": "下一节: immutability 和纯函数的关系"
+      },
+      "body": {
+        "intro_prose": "纯函数有 3 个固定属性 — 它们不是哲学, 是可验证的代码性质.",
+        "path_prose": [
+          "deterministic: 同样输入永远产生同样输出. add(2,3) 永远是 5.",
+          "no side effects: 不改外部状态. 不写文件、不改全局、不发请求、不 console.log.",
+          "same input → same output: 不依赖时间、随机数、外部 API. 函数体内部封闭."
+        ],
+        "closing_prose": "这 3 性质是测试性 + 可推理性的根 — 你可以替换它而不破任何东西."
+      },
+      "evidence_ledger": [
+        { "claim_ref": "path[0]", "claim_text": "Pure functions are deterministic", "evidence_type": "primary_source", "evidence_pointer": "Backus 1977 Turing lecture", "confidence": "high", "verifiability": "high", "risk": "low" }
+      ]
+    }
+  ]
+}

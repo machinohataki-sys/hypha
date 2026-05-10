@@ -1235,3 +1235,138 @@ hr {
   }
 }
 
+/* ───────── 搁置课程 D · 长按褪去 (MUSE 顶级审美大师 spec 2026-05-09) ─────────
+   Hypha v0.5.x. Surface = screen-home.jsx course-row long-press gesture
+   (千金 visible affordance via .dispose-press-hint hover-cue). Existing
+   HandscrollNav.jsx 长按 0.5s on brass-stroke rail stays unchanged
+   (orthogonal power-user shortcut on a separate surface).
+
+   Aesthetic: 1100ms cubic-bezier exhalation; ink-primary → tabac (aging
+   paper) → aubergine (dusk bruise) → fade. blur + kerning + translateY are
+   the three mist mechanisms. meta dissolves at 825ms (75%) so the title gets
+   its full breath alone. border-bottom hairline drains in sync to avoid
+   ghost-slot. Does NOT route through oxblood: oxblood is the action
+   verb-color and would re-assert "delete!" mid-dissolve, breaking the
+   unhurried register. Aubergine #4a2540 + tabac #8b6f47 are inlined here
+   (not in :root tokens) since they are persona-specific manuscript-register
+   accents, not shared palette tokens.
+
+   Reference demo: vault/.previews/dispose-course-shotgun.html (col-d).
+*/
+.dispose-row { user-select: none; cursor: pointer; }
+.dispose-row.dispose-press {
+  animation: dispose-fade 1100ms cubic-bezier(.45, .05, .35, 1) forwards;
+}
+.dispose-row.dispose-press .dispose-meta {
+  animation: dispose-fade-meta 825ms cubic-bezier(.4, .1, .4, 1) forwards;
+}
+@keyframes dispose-fade {
+  0%   { opacity: 1;    filter: blur(0);     letter-spacing: 0;      transform: translateY(0);      color: var(--ink-primary); border-bottom-color: var(--hairline-warm); }
+  50%  { opacity: 0.78; filter: blur(1.4px); letter-spacing: 0.07em; transform: translateY(-1.2px); color: #8b6f47;            border-bottom-color: var(--hairline-warm); }
+  85%  { opacity: 0.32; filter: blur(3px);   letter-spacing: 0.14em; transform: translateY(-2.4px); color: #4a2540;            border-bottom-color: color-mix(in srgb, var(--brass-mid) 14%, transparent); }
+  100% { opacity: 0;    filter: blur(4px);   letter-spacing: 0.18em; transform: translateY(-3px);   color: #4a2540;            border-bottom-color: transparent; }
+}
+@keyframes dispose-fade-meta {
+  0%   { opacity: 1;   color: var(--ink-muted); }
+  60%  { opacity: 0.4; color: #8b6f47; }
+  100% { opacity: 0;   color: #4a2540; }
+}
+.dispose-row.dispose-aborted {
+  animation: dispose-restore 280ms cubic-bezier(.2, .8, .3, 1) forwards;
+}
+.dispose-row.dispose-aborted .dispose-meta {
+  animation: dispose-restore-meta 280ms cubic-bezier(.2, .8, .3, 1) forwards;
+}
+@keyframes dispose-restore {
+  from { opacity: var(--from-opacity, 0.5); filter: blur(var(--from-blur, 2px)); letter-spacing: var(--from-spacing, 0.09em); transform: translateY(var(--from-y, -1.5px)); color: var(--from-color, #8b6f47); }
+  to   { opacity: 1; filter: blur(0); letter-spacing: 0; transform: translateY(0); color: var(--ink-primary); border-bottom-color: var(--hairline-warm); }
+}
+@keyframes dispose-restore-meta {
+  to { opacity: 1; color: var(--ink-muted); }
+}
+.dispose-row.dispose-committed {
+  animation: dispose-collapse 240ms ease-in forwards;
+  pointer-events: none;
+  overflow: hidden;
+}
+@keyframes dispose-collapse {
+  0%   { opacity: 0; max-height: 100px; padding-top: 16px; padding-bottom: 16px; }
+  100% { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; margin-top: 0; margin-bottom: 0; border-top-width: 0; border-bottom-width: 0; }
+}
+/* 千金可见 hint — italic Garamond, brass-mid faded, hover-revealed only */
+.dispose-press-hint {
+  font-style: italic;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--brass-mid) 70%, transparent);
+  letter-spacing: 0.04em;
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+.dispose-row:hover .dispose-press-hint { opacity: 1; }
+.dispose-row.dispose-press .dispose-press-hint { opacity: 0; }
+
+/* ───────── 已搁置 list (Apple-Mail-style Recently Deleted, Scout top-1) ───────── */
+.set-aside-section {
+  margin-top: 28px;
+  padding-top: 14px;
+  border-top: 1px dotted var(--hairline-warm);
+}
+.set-aside-section .label {
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.set-aside-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dotted var(--hairline-warm);
+}
+.set-aside-row:last-child { border-bottom: none; }
+.set-aside-title {
+  font-style: italic;
+  color: var(--brass-mid);
+  font-size: 14.5px;
+  flex: 0 0 auto;
+}
+.set-aside-when {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-faint);
+  flex: 1 1 auto;
+}
+.set-aside-restore {
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  color: var(--brass-mid);
+  font-style: italic;
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 2px 0;
+  border-bottom: 1px solid transparent;
+  transition: color 160ms ease, border-bottom-color 160ms ease;
+}
+.set-aside-restore:hover {
+  color: var(--brass-bright);
+  border-bottom-color: var(--brass-mid);
+}
+
+/* Reduced-motion fallback for the dispose stack */
+@media (prefers-reduced-motion: reduce) {
+  .dispose-row.dispose-press,
+  .dispose-row.dispose-press .dispose-meta,
+  .dispose-row.dispose-aborted,
+  .dispose-row.dispose-aborted .dispose-meta,
+  .dispose-row.dispose-committed {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+

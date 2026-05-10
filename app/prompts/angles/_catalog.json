@@ -121,7 +121,7 @@
     },
     {
       "slug": "failure-mode",
-      "name": "QAQ inversion / pre-mortem",
+      "name": "Inversion / pre-mortem",
       "category": "critical",
       "description": "Pretends the plan failed; works backward from failure to identify causes. Pick when selection describes a plan, design, or system likely to be fielded.",
       "tags": ["risk", "falsifier", "pre-mortem", "failure"],

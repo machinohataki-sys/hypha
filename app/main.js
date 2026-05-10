@@ -248,7 +248,7 @@ async function createWindow() {
     return { action: 'deny' };
   });
 
-  win.loadURL(`http://127.0.0.1:${port}/ui_kits/ptor-app/index.html`);
+  win.loadURL(`http://127.0.0.1:${port}/design/HYPHA.html`);
 
   if (isDev) win.webContents.openDevTools({ mode: 'detach' });
 
@@ -447,6 +447,429 @@ ipcMain.handle('vault:read',  (_e, rel) => {
 ipcMain.handle('vault:write', (_e, rel, body) => vault.write(rel, body));
 ipcMain.handle('vault:root',  () => vault.resolveRoot());
 
+// Lesson Skeleton generator — sub-step D (v0.1). 6-field schema validated via
+// 5-plan smoke test 2026-05-08, 5/5 strict 3/3. Single-pass + 1 retry on
+// schema violation. NO Critic loop (deferred to v0.2 per council synthesis).
+//
+// ⚠ v0.3 pivot: this emits a per-lesson SKELETON (HOOK seed for state-machine
+// chat). The "Plan" semantically per BLUEPRINT §1.1 = the curriculum chain
+// from `agent.js:planChain`. IPC route name `lesson:generatePlan` retained
+// for ABI compat.
+const lessonGenerator = require('./lib/lesson-generator');
+ipcMain.handle('lesson:generatePlan', async (_e, payload) => {
+  try {
+    const plan = await lessonGenerator.generatePlan(payload || {});
+    return { ok: true, plan };
+  } catch (err) {
+    return { ok: false, error: err.code || 'UNKNOWN', message: err.message };
+  }
+});
+
+// Lesson body — sub-step F (v0.1). Expands a 6-field plan into intro_prose +
+// path_prose[] + closing_prose. Fields 4 + 11 only per AMD-10 frozen scope.
+ipcMain.handle('lesson:generateBody', async (_e, payload) => {
+  try {
+    const r = await lessonGenerator.generateLessonBody(payload || {});
+    return { ok: true, body: r.body };
+  } catch (err) {
+    return { ok: false, error: err.code || 'UNKNOWN', message: err.message };
+  }
+});
+
+// v0.2 Surface Finishing Track B B1 — pre-lesson body v2 (11-field).
+// Generates the prep artifact (thesis / canonical_example / common_misconceptions /
+// exit_proof / mechanism / jargon / note_connection) the tutor reads BEFORE
+// LessonChat opens. Persists to vault/<slug>/lesson-N.body.json.
+//
+// Inputs: {slug, idx, plan?, goalContract?, audience?, learnerState?,
+//          lessonTitle?, learnGoal?, force?}
+// When plan/goalContract/sources are omitted, the handler reads them from
+// vault state.json + sources.json. force=true bypasses the "exists" check.
+const lessonBodyGen = require('./lib/lesson-body-generator');
+ipcMain.handle('lesson:body:generate', async (_e, payload = {}) => {
+  try {
+    const slug = String(payload.slug || '').trim();
+    const idx = Number.isFinite(payload.idx) ? Number(payload.idx) : -1;
+    if (!slug) return { ok: false, error: 'BAD_INPUT', message: 'slug required' };
+    if (idx < 0)  return { ok: false, error: 'BAD_INPUT', message: 'idx (>=0) required' };
+
+    const bodyRel = `${slug}/lesson-${idx}.body.json`;
+    const force = !!payload.force;
+    if (!force && vault.exists(bodyRel)) {
+      const cached = vault.readJSON(bodyRel, null);
+      if (cached && cached.body) return { ok: true, body: cached.body, _meta: cached._meta || {}, cached: true };
+    }
+
+    // Read state + sources from vault when not provided in payload.
+    const state = vault.readJSON(`${slug}/state.json`, null);
+    const sources = vault.readJSON(`${slug}/sources.json`, []) || [];
+    const lessonPlan = (state && Array.isArray(state.lessonPlan)) ? state.lessonPlan : [];
+    const slot = lessonPlan[idx] || {};
+    const plan = payload.plan || {
+      objective: slot.learnGoal || slot.title || '',
+      title: slot.title || '',
+      path: Array.isArray(slot.path) ? slot.path : [],
+      micro_proof: slot.micro_proof || {},
+    };
+    const goalContract = payload.goalContract || (state && state.goalContract) || {
+      north_star_goal: (state && state.topic) || slug,
+      current_level: 'self-directed adult learner',
+    };
+    const learnerState = payload.learnerState || (state && {
+      known: state.mastered || [],
+      unknown: state.gaps || [],
+    }) || { known: [], unknown: [] };
+
+    const r = await lessonBodyGen.generateLessonBodyV2({
+      plan,
+      goalContract,
+      sources,
+      audience: payload.audience,
+      learnerState,
+      lessonTitle: payload.lessonTitle || slot.title,
+      learnGoal: payload.learnGoal || slot.learnGoal,
+      idx,
+    });
+
+    const persisted = { body: r.body, _meta: r._meta, generated_at: new Date().toISOString() };
+    vault.writeJSON(bodyRel, persisted);
+
+    // v0.2 Track C C1 — when generator surfaces a drift_warning, persist a
+    // sibling drift-warning.json + emit `lesson_body_drift_check` so the
+    // trust-panel surface (Machino-C) can render "本节锚定 弱 · 主题漂移 N次".
+    // Body itself is NOT blocked; the warning is observational.
+    try {
+      const dw = r._meta && r._meta.drift_warning;
+      if (dw) {
+        const warnRel = `${slug}/lesson-${idx}.body.drift-warning.json`;
+        vault.writeJSON(warnRel, { warning: dw, generated_at: new Date().toISOString() });
+        _hyphaAppendEvent('lesson_body_drift_check', {
+          topic: slug,
+          idx,
+          passed: false,
+          attempts: dw.attempts || 2,
+          score: dw.score,
+          flags: (dw.violations || []).slice(0, 6).map(v => ({ axis: v.axis, text: v.text })),
+        });
+      } else {
+        _hyphaAppendEvent('lesson_body_drift_check', {
+          topic: slug,
+          idx,
+          passed: true,
+          attempts: 1,
+          score: (r._meta && r._meta.drift_score) != null ? r._meta.drift_score : null,
+        });
+      }
+    } catch (_) { /* drift surface must never break body gen */ }
+
+    return { ok: true, body: r.body, _meta: r._meta, cached: false };
+  } catch (err) {
+    return { ok: false, error: (err && err.code) || 'UNKNOWN', message: (err && err.message) || String(err) };
+  }
+});
+
+// v0.2.1 — preview-and-approve regen. After PreviewCard's "需要修改" + free-text
+// feedback submit, frontend calls this with { slug, lessonIdx, userFeedback }.
+// We read the prior body off disk + invoke generateLessonBodyV2 with priorBody +
+// userFeedback so the LLM sees both the rejected attempt + the feedback prose.
+// Result is validated, drift-gated, hook_concrete-checked (existing flow), then
+// written back atomically. Returns the new body so PreviewCard can re-render.
+// On schema/drift/hook failure we keep the previous body intact + return error.
+ipcMain.handle('curriculum:body:regenerate', async (_e, payload = {}) => {
+  try {
+    const slug = String(payload.slug || '').trim();
+    const idx = Number.isFinite(payload.lessonIdx) ? Number(payload.lessonIdx) : -1;
+    const userFeedback = String(payload.userFeedback || '').trim();
+    if (!slug)               return { ok: false, error: 'BAD_INPUT', message: 'slug required' };
+    if (idx < 0)             return { ok: false, error: 'BAD_INPUT', message: 'lessonIdx (>=0) required' };
+    if (!userFeedback)       return { ok: false, error: 'BAD_INPUT', message: 'userFeedback required' };
+
+    const bodyRel = `${slug}/lesson-${idx}.body.json`;
+    if (!vault.exists(bodyRel)) return { ok: false, error: 'NO_PRIOR_BODY', message: 'no body.json to regenerate' };
+    const cached = vault.readJSON(bodyRel, null);
+    const priorBody = cached && cached.body;
+    if (!priorBody) return { ok: false, error: 'NO_PRIOR_BODY', message: 'body.json present but unreadable' };
+
+    const state = vault.readJSON(`${slug}/state.json`, null);
+    const sources = vault.readJSON(`${slug}/sources.json`, []) || [];
+    const lessonPlan = (state && Array.isArray(state.lessonPlan)) ? state.lessonPlan : [];
+    const slot = lessonPlan[idx] || {};
+    const plan = {
+      objective: slot.learnGoal || slot.title || '',
+      title: slot.title || '',
+      path: Array.isArray(slot.path) ? slot.path : [],
+      micro_proof: slot.micro_proof || {},
+    };
+    const goalContract = (state && state.goalContract) || {
+      north_star_goal: (state && state.topic) || slug,
+      current_level: 'self-directed adult learner',
+    };
+    const learnerState = (state && {
+      known: state.mastered || [],
+      unknown: state.gaps || [],
+    }) || { known: [], unknown: [] };
+
+    const r = await lessonBodyGen.generateLessonBodyV2({
+      plan,
+      goalContract,
+      sources,
+      learnerState,
+      lessonTitle: slot.title,
+      learnGoal: slot.learnGoal,
+      idx,
+      priorBody,
+      userFeedback,
+    });
+
+    // Persist the new body, mirroring lesson:body:generate.
+    const persisted = { body: r.body, _meta: r._meta, generated_at: new Date().toISOString(), regen_feedback: userFeedback.slice(0, 500) };
+    vault.writeJSON(bodyRel, persisted);
+
+    // Drift sibling-write + event — mirrors lesson:body:generate (lines 541-563).
+    try {
+      const dw = r._meta && r._meta.drift_warning;
+      const warnRel = `${slug}/lesson-${idx}.body.drift-warning.json`;
+      if (dw) {
+        vault.writeJSON(warnRel, { warning: dw, generated_at: new Date().toISOString() });
+        _hyphaAppendEvent('lesson_body_drift_check', {
+          topic: slug, idx, passed: false, attempts: dw.attempts || 2, score: dw.score,
+          flags: (dw.violations || []).slice(0, 6).map(v => ({ axis: v.axis, text: v.text })),
+          regen: true,
+        });
+      } else {
+        // On clean regen, remove any stale drift-warning sibling from the prior body.
+        try { if (vault.exists(warnRel)) vault.del(warnRel); } catch (_) {}
+        _hyphaAppendEvent('lesson_body_drift_check', {
+          topic: slug, idx, passed: true, attempts: 1,
+          score: (r._meta && r._meta.drift_score) != null ? r._meta.drift_score : null,
+          regen: true,
+        });
+      }
+    } catch (_) {}
+
+    _hyphaAppendEvent('lesson_body_v2_regenerated', {
+      topic: slug, idx,
+      feedback_chars: userFeedback.length,
+      ms: r._meta && r._meta.ms,
+      provider: r._meta && r._meta.provider,
+    });
+
+    return { ok: true, body: r.body, _meta: r._meta };
+  } catch (err) {
+    return { ok: false, error: (err && err.code) || 'UNKNOWN', message: (err && err.message) || String(err) };
+  }
+});
+
+// v0.2 Surface Finishing Track B B1 — read existing body v2 if present.
+// Returns {ok, body, _meta} when body.json exists, {ok:true, body:null} when
+// not yet generated. UI uses this to render LESSON BRIEF header pre-stream.
+ipcMain.handle('lesson:body:get', async (_e, { slug, idx } = {}) => {
+  try {
+    if (!slug || !Number.isFinite(idx)) return { ok: false, error: 'BAD_INPUT' };
+    const bodyRel = `${slug}/lesson-${idx}.body.json`;
+    if (!vault.exists(bodyRel)) return { ok: true, body: null, _meta: null };
+    const cached = vault.readJSON(bodyRel, null);
+    return { ok: true, body: cached && cached.body, _meta: cached && cached._meta };
+  } catch (err) {
+    return { ok: false, error: (err && err.code) || 'UNKNOWN', message: (err && err.message) || String(err) };
+  }
+});
+
+// Micro Proof scoring — sub-step H (v0.1). Recall + Production evidence types
+// only. `passed` verdict comes from a LOCAL regex/shape baseline; the LLM
+// runs in parallel as a monitoring signal (logged to false_positive_risk),
+// never as the terminal verdict. Per BLUEPRINT AMD-1.
+const scoring = require('./lib/scoring');
+
+// G3 (v0.1 acceptance gate): read the last N assistant messages from the active
+// session file so scoreMicroProof can detect "user pasted the LLM's last reply".
+// If payload doesn't include {rel, sessionFile} (older callers), fall back to
+// the explicit `recentAssistantMessages` already in payload, or [] if neither.
+function _harvestRecentAssistantMessages(payload, n = 3) {
+  if (Array.isArray(payload && payload.recentAssistantMessages)) {
+    return payload.recentAssistantMessages;
+  }
+  const rel = payload && payload.rel;
+  const sessionFile = payload && payload.sessionFile;
+  if (!rel || !sessionFile) return [];
+  try {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const fp = path.join(vault.resolveRoot(), rel, 'sessions', sessionFile);
+    if (!fs.existsSync(fp)) return [];
+    const raw = fs.readFileSync(fp, 'utf8');
+    const lines = raw.split(/\r?\n/).filter(Boolean);
+    const msgs = [];
+    for (let i = lines.length - 1; i >= 0 && msgs.length < n; i--) {
+      try {
+        const row = JSON.parse(lines[i]);
+        if (row && row.role === 'assistant' && typeof row.content === 'string') {
+          msgs.unshift(row.content);
+        }
+      } catch (_) { /* skip malformed rows */ }
+    }
+    return msgs;
+  } catch (_) {
+    return [];
+  }
+}
+
+ipcMain.handle('score:microProof', async (_e, payload) => {
+  try {
+    const enriched = {
+      ...(payload || {}),
+      recentAssistantMessages: _harvestRecentAssistantMessages(payload, 3),
+    };
+    const result = await scoring.scoreMicroProof(enriched);
+    return { ok: true, result };
+  } catch (err) {
+    return { ok: false, error: err.code || 'UNKNOWN', message: err.message };
+  }
+});
+
+// v0.2 Tranche 1 (AMD-MEOW-P7 M2 Confession Layer): generate Generator's
+// self-confession against its Character Contract. Payload: {plan, body?, agent_id}.
+const confession = require('./lib/anti-slop/confession');
+const { loadContract } = require('./lib/agent-character/contract-loader');
+ipcMain.handle('lesson:generateConfession', async (_e, payload) => {
+  try {
+    // Phase C-5 (2026-05-08): forward `transcript` so the post-session chat
+    // path can confess against turn-by-turn lesson transcript instead of body.
+    const { plan, body, transcript, agent_id } = payload || {};
+    if (!plan) throw new Error('plan required');
+    const contract = loadContract(agent_id || 'mycelium-professor', { vaultRoot: vault.resolveRoot() });
+    const out = await confession.generateConfession({ plan, body, transcript, characterContract: contract });
+    out.honesty_score = confession.gradeConfessionHonesty(out.confession);
+    return { ok: true, ...out };
+  } catch (err) {
+    return { ok: false, error: err.code || 'UNKNOWN', message: err.message };
+  }
+});
+
+// v0.2 Tranche 2 (AMD-MEOW-P7 M3 Gap Detector): pure-JS, no LLM.
+// Payload: {plan, body, evidenceLedger}.
+const gapDetector = require('./lib/anti-slop/gap-detector');
+ipcMain.handle('lesson:computeGap', async (_e, payload) => {
+  try {
+    const result = gapDetector.computeGap(payload || {});
+    return { ok: true, gap: result, summary: gapDetector.renderGapSummary(result) };
+  } catch (err) {
+    return { ok: false, error: err.code || 'UNKNOWN', message: err.message };
+  }
+});
+
+// v0.2 Tranche 2 (AMD-MEOW-P8 C3 minimal Persona Coherence Score): pure-JS.
+// Payload: {confession, ingratiationViolations, outputText, agent_id}.
+const coherenceScore = require('./lib/agent-character/coherence-score');
+ipcMain.handle('persona:computeCoherence', async (_e, payload) => {
+  try {
+    // Phase C-5 (2026-05-08): forward `mode` so per-turn caller can request the
+    // softer ingratiation penalty (×5 in turn mode vs ×10 session-aggregate).
+    const { confession: conf, ingratiationViolations, outputText, agent_id, mode } = payload || {};
+    const contract = loadContract(agent_id || 'mycelium-professor', { vaultRoot: vault.resolveRoot() });
+    const result = coherenceScore.computePersonaCoherence({ confession: conf, ingratiationViolations, outputText, contract, mode });
+    return { ok: true, persona: result, summary: coherenceScore.renderPersonaSummary(result, contract) };
+  } catch (err) {
+    return { ok: false, error: err.code || 'UNKNOWN', message: err.message };
+  }
+});
+
+// v0.2 Tranche 2 (AMD-MEOW-P7 M4 Prosecutor/Judge/Rewriter loop): 3 sequential
+// LLM stages. Payload: {plan, body, contracts?: {skeptic, judge, rewriter}}.
+const pjr = require('./lib/anti-slop/prosecute-judge-rewrite');
+ipcMain.handle('lesson:prosecuteJudgeRewrite', async (_e, payload) => {
+  try {
+    const { plan, body } = payload || {};
+    if (!plan || !body) throw new Error('plan and body required');
+    const contracts = {
+      skeptic:  loadContract('skeptic-mushroom',   { vaultRoot: vault.resolveRoot() }),
+      judge:    loadContract('mycelium-professor', { vaultRoot: vault.resolveRoot() }),
+      rewriter: loadContract('mycelium-professor', { vaultRoot: vault.resolveRoot() }),
+    };
+    const result = await pjr.runProsecuteJudgeRewrite({ plan, body, contracts });
+    return { ok: true, ...result };
+  } catch (err) {
+    return { ok: false, error: err.code || 'UNKNOWN', message: err.message };
+  }
+});
+
+// v0.2 Tranche 2 (AMD-MEOW-P7 M5 Auditable Reasoning Summary): pure-JS composer.
+// Payload: {plan, body, evidenceLedger, confession, driftScore, personaCoherence, charges, rulings}.
+const auditableSummary = require('./lib/anti-slop/auditable-summary');
+ipcMain.handle('lesson:auditableSummary', async (_e, payload) => {
+  try {
+    const out = auditableSummary.composeAuditableSummary(payload || {});
+    return { ok: true, ...out };
+  } catch (err) {
+    return { ok: false, error: err.code || 'UNKNOWN', message: err.message };
+  }
+});
+
+// v0.2 Tranche 3 (Lesson Quality Harness, blueprint §6.4): orchestrator that
+// runs the trust-stack pipeline. lite preset = ~15-20s (gap+confession+persona+summary);
+// deep preset = ~80-90s (adds Prosecutor/Judge/Rewriter loop). Caller picks via options.
+const lessonQualityHarness = require('./lib/lesson-quality-harness');
+ipcMain.handle('lesson:runFullPipeline', async (_e, payload) => {
+  try {
+    const result = await lessonQualityHarness.runFullPipeline(payload || {});
+    return { ok: true, ...result };
+  } catch (err) {
+    return { ok: false, error: err.code || 'UNKNOWN', message: err.message };
+  }
+});
+
+// v0.2 Tranche 3 (Quality Harness sample fixtures): expose golden + failure
+// sample sets. Reader can self-test the harness against known-good and
+// known-bad lesson bodies.
+ipcMain.handle('lesson:loadQualitySamples', async (_e, { kind } = {}) => {
+  try {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const filename = kind === 'failures' ? 'quality-samples-failures.json' : 'quality-samples-golden.json';
+    const fp = path.join(__dirname, '..', 'scripts', filename);
+    const raw = fs.readFileSync(fp, 'utf8');
+    return { ok: true, samples: JSON.parse(raw) };
+  } catch (err) {
+    return { ok: false, error: err.code || 'UNKNOWN', message: err.message };
+  }
+});
+
+// Phase E (Provider Health UI): expose router.getReport() for the lesson-screen
+// status badge. Read-only snapshot — state machine lives entirely in router.js.
+ipcMain.handle('llm:healthReport', async () => {
+  try {
+    const llm = require('./lib/llm');
+    return { ok: true, report: llm.getProviderHealth() };
+  } catch (err) {
+    return { ok: false, error: err.code || 'UNKNOWN', message: err.message };
+  }
+});
+
+// Lesson Note deposit — sub-step I (v0.1). Idempotent vault write per
+// BLUEPRINT §9.1: each call allocates the next free lesson-N.md inside
+// vault/<slug>/, never overwrites. Returns { ok, path, lessonId, slug }.
+const lessonNote = require('./lib/lesson-note');
+ipcMain.handle('note:deposit', async (_e, payload) => {
+  try {
+    const r = await lessonNote.depositLessonNote(payload || {});
+    return r;
+  } catch (err) {
+    return { ok: false, error: err.code || 'UNKNOWN', message: err.message };
+  }
+});
+
+// Positive Feedback — sub-step J (v0.1). 微反馈 only per BLUEPRINT §8.3 +
+// AMD-10. Pure rule-based, no LLM. Returns { ok, type, message }.
+const positiveFeedback = require('./lib/positive-feedback');
+ipcMain.handle('feedback:compose', async (_e, payload) => {
+  try {
+    const r = positiveFeedback.composePositiveFeedback(payload || {});
+    return { ok: true, ...r };
+  } catch (err) {
+    return { ok: false, error: err.code || 'UNKNOWN', message: err.message };
+  }
+});
+
 // CRUD — destructive ops. UI must confirm delete before invoking.
 ipcMain.handle('vault:delete', (_e, rel) => {
   try { return vault.del(rel); }
@@ -474,6 +897,8 @@ ipcMain.handle('vault:pick-folder', async (event) => {
 
 // source:pick — open file picker for curriculum source corpus (PDF/MD/TXT).
 // Returns { ok, filePath, fileName } or { ok: false, cancelled: true }.
+// Legacy single-file path; kept for callers that want one file. Multi-file
+// callers should use source:pickMultiple below.
 ipcMain.handle('source:pick', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const res = await dialog.showOpenDialog(win, {
@@ -489,6 +914,68 @@ ipcMain.handle('source:pick', async (event) => {
   }
   const filePath = res.filePaths[0];
   return { ok: true, filePath, fileName: require('path').basename(filePath) };
+});
+
+// source:pickMultiple — multi-file picker (Appendix B 2026-05-05). Returns
+// { ok, filePaths:[{ filePath, fileName }] } or { ok:false, cancelled:true }.
+// Up to MAX_FILES (8) is enforced renderer-side; this dialog allows more but
+// the picker UI rejects beyond cap before extract.
+ipcMain.handle('source:pickMultiple', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const res = await dialog.showOpenDialog(win, {
+    title: 'pick source documents — PDF, Markdown, or plain text (multi)',
+    properties: ['openFile', 'multiSelections', 'dontAddToRecent'],
+    filters: [
+      { name: 'Documents', extensions: ['pdf', 'md', 'markdown', 'txt'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+  });
+  if (res.canceled || !res.filePaths || !res.filePaths.length) {
+    return { ok: false, cancelled: true };
+  }
+  const pathMod = require('path');
+  return {
+    ok: true,
+    filePaths: res.filePaths.map(fp => ({ filePath: fp, fileName: pathMod.basename(fp) })),
+  };
+});
+
+// url:fetchBatch — 2026-05-05. Fetch a list of URLs, extract main content
+// of each via cheerio + turndown (or pdf-parse for PDF urls), return per-URL
+// extraction results in upload-shape so renderer can merge them into the
+// uploadedSource.files[] array (same shape as drag-dropped files). User
+// curriculum form treats URLs as additional high-priority sources alongside
+// any uploaded files.
+ipcMain.handle('url:fetchBatch', async (_e, { urls } = {}) => {
+  if (!Array.isArray(urls) || urls.length === 0) {
+    return { ok: false, error: 'urls[] required' };
+  }
+  const { extractFromUrl } = require('./lib/source-extractor');
+  const results = [];
+  // Sequential to avoid hammering hosts + share rate-limit budget.
+  for (const url of urls) {
+    if (!url || typeof url !== 'string' || !url.trim()) continue;
+    try {
+      const r = await extractFromUrl(url.trim());
+      results.push({
+        ok: true,
+        url: url.trim(),
+        fileName: r.fileName,
+        ext: r.ext,
+        pageCount: r.pageCount,
+        chapterCount: (r.chapters || []).length,
+        chapters: r.chapters,
+        text: r.text,
+      });
+    } catch (err) {
+      results.push({
+        ok: false,
+        url: url.trim(),
+        error: (err && err.message) || String(err),
+      });
+    }
+  }
+  return { ok: true, results };
 });
 
 // source:extract — read + parse the picked file. Returns text + chapter
@@ -1398,6 +1885,73 @@ ipcMain.handle('cli:uninstall', async (event) => {
   });
 });
 
+// v0158o — slash-command auth IPCs. Used by Spotlight + LessonChat slash
+// dispatcher when user types `/login` / `/logout` / `/status`. All spawns
+// go through cli-install.js which now uses agent._hyphaSandboxedSpawnOpts so
+// token state stays inside Hypha's sandbox (matches lesson dispatch).
+ipcMain.handle('cli:auth-login', async (event) => {
+  console.log('[cli:auth-login] spawning claude login in sandbox');
+  // Stream stdout to renderer so chat bubble can show OAuth URL + progress.
+  return await _cliInstall.loginClaude((chunk) => {
+    try { event.sender.send('cli:auth-progress', { stream: 'login', text: chunk }); } catch (_) {}
+    // Detect OAuth URL pattern + auto-open in user's browser.
+    const m = chunk.match(/https?:\/\/[^\s]+(?:console\.anthropic\.com|claude\.ai|oauth)[^\s]*/i);
+    if (m) {
+      try {
+        shell.openExternal(m[0]);
+        event.sender.send('cli:auth-progress', { stream: 'login', text: '\n[hypha] 已在浏览器打开登录页\n' });
+      } catch (_) {}
+    }
+  });
+});
+ipcMain.handle('cli:auth-logout', async (event) => {
+  console.log('[cli:auth-logout] spawning claude logout in sandbox');
+  return await _cliInstall.logoutClaude((chunk) => {
+    try { event.sender.send('cli:auth-progress', { stream: 'logout', text: chunk }); } catch (_) {}
+  });
+});
+ipcMain.handle('cli:auth-status', async () => {
+  // v0158p — extend with oauthToken presence check from settings.
+  const settings = _hyphaSettings();
+  const tokenSet = !!(settings && typeof settings.oauthToken === 'string' && settings.oauthToken.trim());
+  const fileStatus = _cliInstall.authStatusClaude();
+  return {
+    ...fileStatus,
+    oauthTokenConfigured: tokenSet,
+    oauthTokenLastSet: settings && settings.oauthTokenSetAt || null,
+  };
+});
+
+// v0158p — store OAuth token from user paste. Token comes from real-terminal
+// run of `claude setup-token` (Anthropic-blessed headless auth path per Issue
+// #22992). Stored in settings.oauthToken; injected as CLAUDE_CODE_OAUTH_TOKEN
+// env when sandbox spawns claude. NEVER logged in full (only prefix in console).
+ipcMain.handle('claude:set-oauth-token', async (_e, { token } = {}) => {
+  if (!token || typeof token !== 'string') return { ok: false, error: 'token (string) required' };
+  const t = token.trim();
+  if (t.length < 10) return { ok: false, error: 'token looks too short' };
+  try {
+    const settings = _hyphaSettings();
+    settings.oauthToken = t;
+    settings.oauthTokenSetAt = new Date().toISOString();
+    vault.writeJSON('settings.json', settings);
+    console.log(`[claude:set-oauth-token] stored token (len=${t.length}, prefix=${t.slice(0, 8)}...)`);
+    return { ok: true, length: t.length };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// v0158p — clear stored OAuth token (from /logout slash).
+ipcMain.handle('claude:clear-oauth-token', async () => {
+  try {
+    const settings = _hyphaSettings();
+    delete settings.oauthToken;
+    delete settings.oauthTokenSetAt;
+    vault.writeJSON('settings.json', settings);
+    console.log('[claude:clear-oauth-token] cleared');
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
 // install:status — return current installation state for Colophon panel display.
 ipcMain.handle('install:status', async () => {
   try {
@@ -1475,15 +2029,70 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
   // 2026-05-02 — purge stale trash entries (>7d) from vault/.trash on startup.
-  // Soft-deletes (vault.del) move targets to .trash/<basename>-<unixMs>/; this
-  // hard-purges anything past the recovery window. Idempotent + silent on
-  // missing dir.
   try {
     const result = vault.purgeStaleTrash();
     if (result && result.purged > 0) {
       console.log(`[startup] purged ${result.purged} stale trash entries (>7d)`);
     }
   } catch (_) {}
+  // v0158q — MVP handbook seed. On every startup, ensure `0-用户手册.md`
+  // exists at vault root. If missing (fresh install OR user deleted), copy
+  // bundled app/prompts/hypha-handbook-zh.md → vault. Idempotent — does not
+  // overwrite existing handbook so user's edits / annotations are preserved.
+  try {
+    const root = vault.resolveRoot();
+    if (root) {
+      const handbookRel = '0-用户手册.md';
+      const handbookAbs = path.join(root, handbookRel);
+      if (!fs.existsSync(handbookAbs)) {
+        const bundledHandbook = path.join(__dirname, 'prompts', 'hypha-handbook-zh.md');
+        if (fs.existsSync(bundledHandbook)) {
+          const content = fs.readFileSync(bundledHandbook, 'utf8');
+          fs.writeFileSync(handbookAbs, content, 'utf8');
+          console.log(`[startup] seeded handbook → ${handbookRel}`);
+          // Mark so renderer knows to auto-open this on first session.
+          try {
+            const settings = _hyphaSettings();
+            if (!settings.handbookSeededAt) {
+              settings.handbookSeededAt = new Date().toISOString();
+              settings.firstLaunchPendingHandbook = true;
+              vault.writeJSON('settings.json', settings);
+            }
+          } catch (_) {}
+        } else {
+          console.log('[startup] bundled handbook not found at', bundledHandbook);
+        }
+      }
+    }
+  } catch (e) { console.log('[startup] handbook seed failed:', e.message); }
+
+  // v0.5.x sub-lane (Machino-K self-shipped 2026-05-09 evening) — Frontier
+  // Cron boot auto-resume. If the user enabled the cron in a previous session
+  // (settings.frontierCronEnabled === true), restore on launch. Honors
+  // interval setting; defaults to 6h floor if interval missing or invalid.
+  // Wraps in try/catch so a cron module fault NEVER crashes app boot.
+  try {
+    const settings = _hyphaSettings();
+    if (settings && settings.frontierCronEnabled === true) {
+      const cron = require('./scripts/frontier-cron');
+      const intervalHours = Math.max(6, Number(settings.frontierCronInterval) || 6);
+      const r = cron.start({ intervalHours });
+      if (r && r.ok === true) {
+        try {
+          vault.appendJSONL('events.jsonl', {
+            ts: new Date().toISOString(),
+            op: 'frontier_cron_boot_resumed',
+            intervalHours,
+          });
+        } catch (_) { /* events.jsonl write non-fatal */ }
+        console.log(`[startup] frontier-cron resumed @ ${intervalHours}h`);
+      } else {
+        console.warn('[startup] frontier_cron_boot_resume_failed:', (r && r.error) || 'unknown');
+      }
+    }
+  } catch (e) {
+    console.warn('[startup] frontier_cron_boot_resume_threw:', e.message);
+  }
 });
 
 // ============================================================================
@@ -1496,6 +2105,25 @@ app.whenReady().then(() => {
 //     llm:deepen-progress channel (already wired in preload)
 // ============================================================================
 const _hyphaAgent = require('./agent');
+
+// Hypha Learn mode (v0158q) — STAKE substrate + state machine + answer-leak guard.
+// Loaded once; pure-function modules with no side effects on require.
+const _hyphaLearnStake = require('./lib/hypha-learn/stake-block');
+const _hyphaLearnSM    = require('./lib/hypha-learn/state-machine');
+const _hyphaLearnGuard = require('./lib/hypha-learn/answer-leak-guard');
+
+// Cached prompt-template loader. Reads app/prompts/<name>.txt once per process.
+// Mirrors the on-the-fly readFileSync pattern in `llm:run` (line ~916) but
+// memoizes so per-turn handlers don't re-hit disk every reply.
+const _promptTplCache = new Map();
+function _loadPromptTemplate(name) {
+  const cached = _promptTplCache.get(name);
+  if (typeof cached === 'string') return cached;
+  const p = path.join(__dirname, 'prompts', `${name}.txt`);
+  const tpl = fs.readFileSync(p, 'utf8');
+  _promptTplCache.set(name, tpl);
+  return tpl;
+}
 
 function _topicSlug(topic) {
   return String(topic || '').toLowerCase().trim()
@@ -1588,6 +2216,11 @@ const APP_DEFAULTS = {
   fontFamily: 'editorial',          // 'editorial' (Garamond+SongCJK) | 'system' (system-ui fallback)
   fontSize: 'default',              // 'small' | 'default' | 'large' — affects chat bubble body
   themeAuto: true,                  // true → time-of-day clock switches; false → manual only
+  // v0.5.2 — Frontier scheduler. cron sweeps active topics every Nh (≥6h
+  // floor) and writes vault/.frontier-digest/<date>.md. Data-only this lane;
+  // visible UI deferred per plan §Deferred Lanes.
+  frontierCronEnabled: false,       // master switch — false leaves cron idle
+  frontierCronInterval: 6,          // hours; ≥6 enforced by start() resolver
 };
 
 function _hyphaDefaultSettings() {
@@ -1641,9 +2274,21 @@ ipcMain.handle('curriculum:cancel', async (_e, { topic } = {}) => {
 // IPC handlers (e.g. chain:accept) can drive a curriculum end-to-end without
 // going through ipcRenderer round-trips. `event` may be null when invoked from
 // a non-renderer context — emit() guards against that.
-async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, customLessons, clarifications, uploadedSource, tier, prePrediction } = {}) {
+async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, customLessons, clarifications, uploadedSource, tier, prePrediction, lesson_mode } = {}) {
   const slug = _topicSlug(topic);
   const settings = _hyphaSettings();
+  // v0158q — Hypha Learn opt-in. UI radio (TabContent) passes 'classic' | 'learn' | 'raw'.
+  // 2026-05-05 — 'raw' added as 3rd option, only visible when provider=claude-cli;
+  // signals explicit pure-CLI passthrough at curriculum level (frontmatter persisted).
+  // Default to classic when undefined so existing flows are byte-identical.
+  const learnMode = (lesson_mode === 'learn') ? 'learn'
+                  : (lesson_mode === 'raw')   ? 'raw'
+                  : 'classic';
+  // 2026-05-05 (Appendix B) — multi-file uploadedSource. Lift legacy single-file
+  // shape via _normalizeUploadedSource so old chains keep working without
+  // migration. After this, uploadedSource is either null or {files:[...], totals}.
+  const _norm = require('./lib/source-extractor')._normalizeUploadedSource;
+  uploadedSource = _norm(uploadedSource);
   const emit = (stage, extra = {}) => {
     try {
       if (event && event.sender && typeof event.sender.send === 'function') {
@@ -1651,7 +2296,7 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
       }
     } catch (_) {}
   };
-  _hyphaAppendEvent('curriculum_start', { topic: slug, level, goal, timeCommit, customLessons, clarifCount: (clarifications || []).length, sourceMode: uploadedSource ? 'upload' : 'web' });
+  _hyphaAppendEvent('curriculum_start', { topic: slug, level, goal, timeCommit, customLessons, clarifCount: (clarifications || []).length, sourceMode: uploadedSource ? 'upload' : 'web', uploadFileCount: uploadedSource ? (uploadedSource.totalFiles || (uploadedSource.files || []).length) : 0 });
   // v0.4.4 — clear any stale cancel flag from a previous attempt with the same slug.
   _curriculumCancelled.delete(slug);
   try {
@@ -1660,23 +2305,49 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
     // classify archetype FIRST so harvest can route channels. Reused later
     // by Step A so we avoid a second classifyArchetype call.
     let preHarvestArchetype = null;
-    if (uploadedSource && Array.isArray(uploadedSource.chapters) && uploadedSource.chapters.length > 0) {
-      // v0.5.0 — user provided a source document. Skip web harvest; build the
-      // sources.json from the file's chapters. Each chapter becomes one row
-      // BM25 can rank against per-lesson via rankSourcesBM25.
-      emit('reading-source', { fileName: uploadedSource.fileName });
-      sources = uploadedSource.chapters.map((ch, i) => ({
-        title: ch.title || `Section ${i + 1}`,
-        url: `local://${uploadedSource.fileName}#chapter-${i}`,
-        excerpt: String(ch.text || '').slice(0, 400),
-        sourceType: 'user-upload',
-        fileName: uploadedSource.fileName,
-        chapterIdx: i,
-        chapterStart: ch.startCharIdx || 0,
-      }));
-      // Persist the full text under the slug dir so proposeNextLesson can
-      // re-read fresh per-lesson without keeping it all in memory.
-      try { vault.write(`${slug}/source-document.txt`, uploadedSource.text || ''); } catch (_) {}
+    if (uploadedSource && Array.isArray(uploadedSource.files) && uploadedSource.files.length > 0) {
+      // v0.5.0 + Appendix B 2026-05-05 — user provided source documents.
+      // Skip web harvest; build sources.json from each file's chapters,
+      // flattening across files. Each chapter becomes one row BM25 can rank
+      // against per-lesson via rankSourcesBM25.
+      const firstName = uploadedSource.files[0].fileName;
+      emit('reading-source', {
+        fileName: firstName,
+        fileCount: uploadedSource.files.length,
+      });
+      sources = [];
+      uploadedSource.files.forEach((file, fIdx) => {
+        const fileName = file.fileName || `file-${fIdx + 1}`;
+        const chapters = Array.isArray(file.chapters) ? file.chapters : [];
+        // 2026-05-05 — sourceType propagates from the file (user-upload OR
+        // user-url). user-url chapters get BM25 boost in rankSourcesBM25 since
+        // user explicitly chose those URLs as authoritative sources.
+        const _fileSourceType = (file.sourceType === 'user-url') ? 'user-url' : 'user-upload';
+        chapters.forEach((ch, cIdx) => {
+          sources.push({
+            title: ch.title || `${fileName} · Section ${cIdx + 1}`,
+            url: file.url || `local://${fileName}#chapter-${cIdx}`,
+            excerpt: String(ch.text || '').slice(0, 400),
+            sourceType: _fileSourceType,
+            fileName: fileName,
+            fileIdx: fIdx,
+            chapterIdx: cIdx,
+            chapterStart: ch.startCharIdx || 0,
+          });
+        });
+        // Persist each file's full text under the slug dir. New names use
+        // file index prefix; legacy single-file callers still see
+        // source-document.txt for backward compat (first file only).
+        try {
+          const safeName = String(fileName).replace(/[^\w.\-]+/g, '_').slice(0, 80);
+          vault.write(`${slug}/source-${fIdx}-${safeName}.txt`, file.text || '');
+          if (fIdx === 0) {
+            // Legacy alias — first file double-written for any reader still
+            // expecting the old path. Cheap; remove in a future cleanup pass.
+            vault.write(`${slug}/source-document.txt`, file.text || '');
+          }
+        } catch (_) {}
+      });
     } else {
       // v0.7.0 — classify archetype BEFORE harvest so harvest can route channels.
       // Adds ~2s upfront but archetype routing skips irrelevant channels (e.g.
@@ -1691,14 +2362,10 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
     vault.writeJSON(`${slug}/sources.json`, sources);
 
     emit('designing', { sourceCount: sources.length });
-    // v0.4.0 three-stage pipeline replaces the 14k-token monolith. Wall time
-    // target ≤ 15s end-to-end. Heartbeat retained in case any sub-call drags.
-    const designStart = Date.now();
-    const heartbeatId = setInterval(() => {
-      const elapsed = Math.round((Date.now() - designStart) / 1000);
-      try { emit('designing-heartbeat', { elapsed }); } catch (_) {}
-    }, 5000);
-
+    // v0.4.0 three-stage pipeline replaces the 14k-token monolith. v0.2 Surface
+    // followup 2026-05-09 — replaced opaque 5s-heartbeat with per-substep
+    // emits so the GenerationProgress card shows real progression
+    // (archetype → digest → seed) instead of "still shaping..." spam.
     let archetype, seedResult;
     try {
       // Step A: classify archetype (1 small LLM call, ~2s). v0.7.0 — if we
@@ -1706,20 +2373,26 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
       // of re-running. Saves the second classifyArchetype call.
       if (preHarvestArchetype) {
         archetype = preHarvestArchetype;
+        emit('designing-archetype', { reused: true, archetype });
       } else {
+        emit('designing-archetype', { reused: false });
         archetype = await _hyphaAgent.classifyArchetype(topic, goal, settings);
+        emit('designing-archetype-done', { archetype });
       }
       _hyphaCancelCheck(slug);
       // Step B: source digest (1 small LLM call, ~3s). Compresses 25 raw
       // sources to a ~500-token digest so designSeed isn't drowning in raw lines.
+      emit('designing-digest', {});
       let sourceDigest = '';
       try { sourceDigest = await _hyphaAgent.summarizeSources(topic, sources, settings, { archetype }); }
       catch (_) { sourceDigest = sources.slice(0, 10).map(s => `- ${s.title}`).join('\n'); }
+      emit('designing-digest-done', { digest_chars: sourceDigest.length });
       _hyphaCancelCheck(slug);
       // Step C: designSeed (1 small LLM call, ~5-8s). Returns phases (from
       // template, no LLM cost), firstLesson, trajectory, and a flat lessonPlan
       // with one slot per phase × phaseLessonCount. Slot 0 has firstLesson;
       // rest are ghost slots awaiting just-in-time materialization.
+      emit('designing-seed', {});
       seedResult = await _hyphaAgent.designSeed({
         topic, goal: goal || '', archetype,
         timeCommit: timeCommit || 'month',
@@ -1728,9 +2401,9 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
         clarifications: clarifications || [],
         sourceDigest,
       }, settings);
+      emit('designing-seed-done', { lesson_count: seedResult.lessonPlan.length });
       _hyphaCancelCheck(slug);
     } catch (err) {
-      clearInterval(heartbeatId);
       try { vault.del(slug); } catch (_) {}
       if (err && err.code === 'CURRICULUM_CANCELLED') {
         try { _hyphaAppendEvent('curriculum_cancelled', { topic: slug, stage: 'seed' }); } catch (_) {}
@@ -1744,19 +2417,20 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
       emit('error', { error: err.message || 'curriculum seeding failed' });
       return { ok: false, error: err.message };
     }
-    clearInterval(heartbeatId);
-
     emit('writing-lessons', { lessonCount: seedResult.lessonPlan.length, archetype });
-    // Write only lesson 0 as a real .md; remaining slots write as GHOST stubs
-    // (tiny .md with frontmatter ghost: true and body '_pending_'). Ghost
-    // lessons will materialize when the user finishes the prior lesson —
-    // see the lessons:adapt-after-finish IPC, generalized below.
+    // v0158m — Write only lesson 0 as a real .md; remaining slots write as GHOST stubs
+    // (frontmatter ghost: true + empty body — no `_pending_` literal). UI renders the
+    // learn_goal text + 〔题目待落笔〕 marker for ghost lessons, NEVER the literal
+    // string. Ghost lessons re-write themselves at lesson:finish via JIT-recast
+    // (proposeNextLesson called proactively, not on-navigate).
     const lessonRels = [];
     const today = new Date().toISOString().slice(0, 10);
     for (const slot of seedResult.lessonPlan) {
       const isFirst = slot.idx === 0;
       const isGhost = !!slot.ghost;
-      const title = slot.title || (isGhost ? `${slot.phaseLabel} step ${slot.phaseLessonIdx + 1}` : 'Lesson');
+      // v0158m — for ghost lessons, no fabricated phase-stub title; leave title
+      // null so chain views fall back to learn_goal display + 〔题目待落笔〕 hint.
+      const title = slot.title || (isGhost ? '' : 'Lesson');
       const learnGoal = slot.learnGoal || '';
       const fmLines = [
         '---',
@@ -1771,6 +2445,15 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
         `phase_lesson_idx: ${slot.phaseLessonIdx}`,
       ];
       if (isGhost) fmLines.push('ghost: true');
+      // v0158q — persist Hypha Learn opt-in on the note so NoteView reads
+      // meta.frontmatter.learn_mode to render state-tag chrome and the tutor
+      // handler picks up mode without an extra IPC arg. Always written so a
+      // ghost recast (proposeNextLesson) carries it forward unchanged.
+      fmLines.push(`learn_mode: ${learnMode}`);
+      // v0158m — emit concept_id when designSequence provided one (P6 trigger).
+      if (typeof slot.conceptId === 'string' && slot.conceptId.trim()) {
+        fmLines.push(`concept_id: ${JSON.stringify(slot.conceptId.trim())}`);
+      }
       // v0.10.0 — pre-read prediction from antechamber wait card. Only the
       // first non-ghost lesson gets it (that's the one the user was looking
       // at when they predicted). Empty/skipped predictions are not written.
@@ -1779,10 +2462,15 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
       }
       fmLines.push('---');
       const fm = fmLines.join('\n');
+      // v0158m — ghost body is empty (NoteView renders italic Garamond hint
+      // "lesson 待落笔 — 先完成上一节"); real lesson body keeps existing template.
       const body = isGhost
-        ? `${fm}\n\n# (pending — grows in as you advance)\n\n_pending_\n`
+        ? `${fm}\n`
         : `${fm}\n\n# ${title}\n\n## 课程基础\n\n*This lesson hasn't been taught yet. Open the Tutor to begin.*\n\n## 用户灵感\n\n`;
-      const rel = `${slug}/${String(slot.idx).padStart(2, '0')}-${isGhost ? 'pending' : _topicSlug(title).slice(0, 30)}.md`;
+      // v0158m — ghost filename uses lesson-idx + slot.phaseLabel slug instead of
+      // 'pending'. designSequence may emit slot.titleSlug; fall back to phase if absent.
+      const ghostSlug = (slot.titleSlug || _topicSlug(slot.phaseLabel || 'lesson')).slice(0, 30);
+      const rel = `${slug}/${String(slot.idx).padStart(2, '0')}-${isGhost ? ghostSlug : _topicSlug(title).slice(0, 30)}.md`;
       vault.write(rel, body);
       lessonRels.push(rel);
     }
@@ -1795,7 +2483,9 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
       customLessons: (typeof customLessons === 'number') ? customLessons : null,
       tier: tier || 'moderate',
       sourceMode: uploadedSource ? 'upload' : 'web',
-      uploadedFileName: uploadedSource ? uploadedSource.fileName : null,
+      uploadedFileName: uploadedSource ? (uploadedSource.files && uploadedSource.files[0] && uploadedSource.files[0].fileName) || uploadedSource.fileName || null : null,
+      uploadedFileNames: uploadedSource ? (uploadedSource.files || []).map(f => f.fileName).filter(Boolean) : [],
+      uploadedFileCount: uploadedSource ? (uploadedSource.totalFiles || (uploadedSource.files || []).length) : 0,
       clarifications: clarifications || [],
       archetype,
       phases: seedResult.phases,
@@ -1803,6 +2493,8 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
       concepts: {},
       lastIdx: -1,
       lessonRels,
+      // v0158q — curriculum-wide Hypha Learn flag mirrors per-note frontmatter.
+      learn_mode: learnMode,
     });
 
     // Auto-derive a tutor persona from topic + goal + clarifications. User can
@@ -1819,6 +2511,77 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
       });
     }
 
+    // v0.2 Track B B1 auto-fire — generate lesson 0's prep body BEFORE the
+    // user opens LessonChat, so the thesis card renders on first paint and
+    // the tutor's first turn is anchored in real prep notes (! cold open).
+    // Wrap in try-catch + emit progress stage; failure is non-fatal — the
+    // designLesson learn path falls through to v0.4 grounding-only when
+    // body.json is absent.
+    try {
+      emit('writing-body-0', {});
+      const stateNow = vault.readJSON(`${slug}/state.json`, null) || {};
+      const sourcesNow = vault.readJSON(`${slug}/sources.json`, []) || [];
+      const slot0 = (Array.isArray(stateNow.lessonPlan) && stateNow.lessonPlan[0]) || {};
+      const plan0 = {
+        objective: slot0.learnGoal || slot0.title || '',
+        title: slot0.title || '',
+        path: Array.isArray(slot0.path) ? slot0.path : [],
+        micro_proof: slot0.micro_proof || {},
+      };
+      const goalContract0 = (stateNow.goalContract) || {
+        north_star_goal: stateNow.topic || slug,
+        current_level: 'self-directed adult learner',
+      };
+      const learnerState0 = { known: stateNow.mastered || [], unknown: stateNow.gaps || [] };
+      const r0 = await lessonBodyGen.generateLessonBodyV2({
+        plan: plan0,
+        goalContract: goalContract0,
+        sources: sourcesNow,
+        learnerState: learnerState0,
+        lessonTitle: slot0.title,
+        learnGoal: slot0.learnGoal,
+        idx: 0,
+      });
+      vault.writeJSON(`${slug}/lesson-0.body.json`, {
+        body: r0.body,
+        _meta: r0._meta,
+        generated_at: new Date().toISOString(),
+      });
+      _hyphaAppendEvent('lesson_body_v2_generated', { topic: slug, idx: 0, ms: r0._meta && r0._meta.ms });
+
+      // v0.2 Track C C1 — surface drift warning for lesson 0 (auto-fire path).
+      // Mirrors the `lesson:body:generate` IPC handler so back-fill and auto-
+      // fire emit the same drift events + sibling warning files.
+      try {
+        const dw0 = r0._meta && r0._meta.drift_warning;
+        if (dw0) {
+          vault.writeJSON(`${slug}/lesson-0.body.drift-warning.json`, {
+            warning: dw0,
+            generated_at: new Date().toISOString(),
+          });
+          _hyphaAppendEvent('lesson_body_drift_check', {
+            topic: slug,
+            idx: 0,
+            passed: false,
+            attempts: dw0.attempts || 2,
+            score: dw0.score,
+            flags: (dw0.violations || []).slice(0, 6).map(v => ({ axis: v.axis, text: v.text })),
+          });
+        } else {
+          _hyphaAppendEvent('lesson_body_drift_check', {
+            topic: slug,
+            idx: 0,
+            passed: true,
+            attempts: 1,
+            score: (r0._meta && r0._meta.drift_score) != null ? r0._meta.drift_score : null,
+          });
+        }
+      } catch (_) { /* drift surface non-fatal */ }
+    } catch (bodyErr) {
+      _hyphaAppendEvent('lesson_body_v2_failed', { topic: slug, idx: 0, error: bodyErr && bodyErr.message });
+      // non-fatal — curriculum-create succeeds even if body gen fails
+    }
+
     _hyphaAppendEvent('curriculum_done', { topic: slug, lessons: lessonRels.length, archetype });
     emit('done', { lessonRels, firstLessonRel: lessonRels[0] });
     return { ok: true, topic: slug, lessonRels, archetype, phases: seedResult.phases };
@@ -1831,6 +2594,530 @@ async function _runCurriculumCreate(event, { topic, level, goal, timeCommit, cus
 
 ipcMain.handle('curriculum:create', async (event, args = {}) => {
   return _runCurriculumCreate(event, args);
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// v0.3 Heavy Harvest + 2-stage flow (Machino-E Phase 2)
+// ──────────────────────────────────────────────────────────────────────────
+//
+// The legacy `curriculum:create` IPC (above) does harvest → design → write
+// state → auto-fire body in one shot. Per `project_hypha_v03_2stage_gen` user
+// wants to surface the SKELETON for review BEFORE any body lands. v0.3 splits
+// this into two IPCs the renderer drives sequentially:
+//
+//   1. curriculum:harvest_and_skeleton  → Stage 1 (5-15 min, visible work)
+//   2. curriculum:approve_and_body      → Stage 2 (30-60s, after user approves)
+//
+// Plus a regen IPC for skeleton iteration (capped at 3 attempts):
+//   3. curriculum:regenerate_skeleton
+//
+// All progress events use the existing `curriculum:progress` channel so the
+// renderer's onCurriculumProgress subscription stays the same. Per-channel
+// progress events from Layer 1/3/4 modules carry substantive counts (e.g.
+// `{stage: 'layer3:arxiv', count: 12}`) — never opaque "正在思考...".
+//
+// Backward compat: legacy `curriculum:create` is unchanged. Old state.json
+// without scope_in/scope_out/prerequisite still reads cleanly; renderer
+// falls back to "(scope to-do)" fill-in for legacy curricula.
+
+const SKELETON_REGEN_CAP = 3;
+
+// _runHarvestAndSkeleton — Stage 1 of the 2-stage flow. Mirrors
+// _runCurriculumCreate's setup (slug, settings, learnMode, _hyphaCancelCheck,
+// emit) but routes harvest through agent.js:harvestV3 (5-layer + per-channel
+// progress) instead of the legacy harvest, then calls designSkeletonOnly
+// instead of designSeed. Writes state.json + sources.json + ghost stub .md
+// per slot. Does NOT auto-fire body.json (that's Stage 2).
+async function _runHarvestAndSkeleton(event, payload = {}) {
+  const { topic, level, options = {} } = payload;
+  const {
+    goalContract,
+    lesson_mode,
+    customLessons,
+    tier,
+    clarifications,
+    prePrediction,
+    goal,
+    timeCommit,
+    uploadedSource: rawUploadedSource,
+  } = options;
+
+  const slug = _topicSlug(topic);
+  const settings = _hyphaSettings();
+  const learnMode = (lesson_mode === 'learn') ? 'learn'
+                  : (lesson_mode === 'raw')   ? 'raw'
+                  : 'classic';
+  const _norm = require('./lib/source-extractor')._normalizeUploadedSource;
+  const uploadedSource = _norm(rawUploadedSource);
+
+  // Per-channel progress emitter. Renderer subscribes via onCurriculumProgress
+  // → 'curriculum:progress'. Payload shape extends with stage/count/layer/
+  // fallback_used so Stage 1 progress card can render multi-line per-channel
+  // status (per feedback_course_gen_slow_visible 2026-05-09).
+  const emit = (stage, extra = {}) => {
+    try {
+      if (event && event.sender && typeof event.sender.send === 'function') {
+        event.sender.send('curriculum:progress', { topic: slug, stage, ...extra });
+      }
+    } catch (_) {}
+  };
+
+  _hyphaAppendEvent('curriculum_v3_start', {
+    topic: slug, level,
+    goal: goal || (goalContract && goalContract.north_star_goal) || '',
+    customLessons,
+    clarifCount: (clarifications || []).length,
+    sourceMode: uploadedSource ? 'upload' : 'web',
+  });
+  _curriculumCancelled.delete(slug);
+
+  // AbortController for harvestV3 — wired into _hyphaCancelCheck so user
+  // cancel mid-harvest aborts in-flight HTTP requests too.
+  let aborter = null;
+  try { aborter = new AbortController(); } catch (_) { aborter = null; }
+
+  try {
+    // STAGE 1A — heavy harvest. agent.js:harvestV3 dispatches Layer 1/3/4
+    // modules in parallel + emits per-channel progress through opts.onProgress.
+    let archetype = null;
+    try { archetype = await _hyphaAgent.classifyArchetype(topic, goal || '', settings); }
+    catch (_) { archetype = 'TECH-CONCEPT'; }
+    _hyphaCancelCheck(slug);
+    emit('archetype', { archetype });
+
+    let harvestResult;
+    if (uploadedSource && Array.isArray(uploadedSource.files) && uploadedSource.files.length > 0) {
+      // Upload path — skip web harvest, build sources from chapters. Mirrors
+      // legacy curriculum:create branch but in v3 shape.
+      emit('reading-source', {
+        fileName: uploadedSource.files[0].fileName,
+        fileCount: uploadedSource.files.length,
+      });
+      const sources = [];
+      uploadedSource.files.forEach((file, fIdx) => {
+        const fileName = file.fileName || `file-${fIdx + 1}`;
+        const chapters = Array.isArray(file.chapters) ? file.chapters : [];
+        const _fileSourceType = (file.sourceType === 'user-url') ? 'user-url' : 'user-upload';
+        chapters.forEach((ch, cIdx) => {
+          sources.push({
+            title: ch.title || `${fileName} · Section ${cIdx + 1}`,
+            url: file.url || `local://${fileName}#chapter-${cIdx}`,
+            excerpt: String(ch.text || '').slice(0, 400),
+            sourceType: _fileSourceType,
+            layer: 'L5',  // v0.3 schema — uploaded user material → Layer 5 (User Context)
+            fileName,
+            fileIdx: fIdx,
+            chapterIdx: cIdx,
+            chapterStart: ch.startCharIdx || 0,
+          });
+        });
+        try {
+          const safeName = String(fileName).replace(/[^\w.\-]+/g, '_').slice(0, 80);
+          vault.write(`${slug}/source-${fIdx}-${safeName}.txt`, file.text || '');
+          if (fIdx === 0) vault.write(`${slug}/source-document.txt`, file.text || '');
+        } catch (_) {}
+      });
+      harvestResult = {
+        sources,
+        structureAnchor: null,
+        layer1_courses_n: 0,
+        layer3_papers_n: 0,
+        layer4_posts_n: 0,
+        daemon_available: false,
+        sourceMode: 'upload',
+      };
+    } else {
+      // Web path — call harvestV3. Machino-D exports this from agent.js. The
+      // onProgress callback re-emits per-channel events with `layer:` prefix
+      // already applied by harvestV3 dispatcher (verbatim stage names listed
+      // in the Phase 2 spec).
+      emit('harvest:start', {});
+      const onProgress = (stage, count) => {
+        try {
+          // count may be number, object, or undefined — pass through verbatim
+          // so Layer modules can attach extra fields (paper title etc).
+          if (count != null && typeof count === 'object') {
+            emit(stage, count);
+          } else {
+            emit(stage, { count: typeof count === 'number' ? count : null });
+          }
+        } catch (_) {}
+      };
+      // harvestV3(topic, settings, prePrediction, archetype, opts) — opts
+      // carries onProgress + signal. Spec defines this contract; Machino-D
+      // implements it. If harvestV3 isn't exported yet (Phase 2 race), we
+      // catch + bail with a clear error so orchestrator can re-spawn.
+      if (typeof _hyphaAgent.harvestV3 !== 'function') {
+        throw new Error('agent.harvestV3 not exported (Machino-D Phase 2 dependency missing)');
+      }
+      harvestResult = await _hyphaAgent.harvestV3(topic, settings, prePrediction, archetype, {
+        onProgress,
+        signal: aborter ? aborter.signal : null,
+        slug,
+        cancelCheck: () => _hyphaCancelCheck(slug),
+      });
+    }
+    _hyphaCancelCheck(slug);
+
+    const sources = Array.isArray(harvestResult.sources) ? harvestResult.sources : [];
+    // Persist sources.json with extended schema (layer + sourceType per row).
+    // Old readers ignore unknown fields; new readers (renderer Sources panel)
+    // group rows by `layer`.
+    vault.writeJSON(`${slug}/sources.json`, sources);
+    emit('curate:done', { sourceCount: sources.length });
+
+    // STAGE 1B — design skeleton ONLY. Machino-D exports designSkeletonOnly
+    // from agent.js. Receives structureAnchor (from Layer 1) so designSeed
+    // doesn't default to LLM training-frequency priors (per
+    // project_hypha_v021_failure_galileo Galileo-over-Thales fix).
+    emit('design:start', {});
+    if (typeof _hyphaAgent.designSkeletonOnly !== 'function') {
+      throw new Error('agent.designSkeletonOnly not exported (Machino-D Phase 2 dependency missing)');
+    }
+    const skeletonResult = await _hyphaAgent.designSkeletonOnly({
+      topic,
+      goal: goal || (goalContract && goalContract.north_star_goal) || '',
+      archetype,
+      structureAnchor: harvestResult.structureAnchor || null,
+      sources,
+      timeCommit: timeCommit || 'month',
+      customLessons,
+      tier: tier || 'moderate',
+      clarifications: clarifications || [],
+      goalContract: goalContract || null,
+    }, settings);
+    _hyphaCancelCheck(slug);
+    emit('design:done', { lesson_count: (skeletonResult.lessonPlan || []).length });
+
+    // STAGE 1C — write state.json + ghost stub .md per slot. NO body.json yet.
+    const lessonPlan = Array.isArray(skeletonResult.lessonPlan) ? skeletonResult.lessonPlan : [];
+    const lessonRels = [];
+    const today = new Date().toISOString().slice(0, 10);
+    for (const slot of lessonPlan) {
+      const isFirst = slot.idx === 0;
+      const title = slot.title || '';
+      const learnGoal = slot.learnGoal || '';
+      const fmLines = [
+        '---',
+        `lesson_idx: ${slot.idx}`,
+        `learn_goal: ${JSON.stringify(learnGoal)}`,
+        `locked: ${!isFirst}`,
+        `topic_slug: ${slug}`,
+        `date_created: ${today}`,
+        `date_distilled: null`,
+        `phase_id: ${slot.phaseId || ''}`,
+        `phase_label: ${JSON.stringify(slot.phaseLabel || '')}`,
+        `phase_lesson_idx: ${slot.phaseLessonIdx || 0}`,
+        // v0.3 schema extensions — surface lesson boundaries
+        `scope_in: ${JSON.stringify(slot.scope_in || '')}`,
+        `scope_out: ${JSON.stringify(slot.scope_out || '')}`,
+        `prerequisite: ${JSON.stringify(slot.prerequisite || '')}`,
+        // v0.3 — every slot is a ghost until Stage 2 fires its body
+        'ghost: true',
+        `learn_mode: ${learnMode}`,
+      ];
+      if (typeof slot.conceptId === 'string' && slot.conceptId.trim()) {
+        fmLines.push(`concept_id: ${JSON.stringify(slot.conceptId.trim())}`);
+      }
+      if (isFirst && typeof prePrediction === 'string' && prePrediction.trim()) {
+        fmLines.push(`pre_read_prediction: ${JSON.stringify(prePrediction.trim())}`);
+      }
+      fmLines.push('---');
+      const fm = fmLines.join('\n');
+      // Stage 1 writes ghost stubs for ALL slots. Stage 2 (approve_and_body)
+      // re-writes lesson 0 with the real template + body anchor.
+      const body = `${fm}\n`;
+      const ghostSlug = (slot.titleSlug || _topicSlug(slot.phaseLabel || 'lesson')).slice(0, 30);
+      const slugTitle = title ? _topicSlug(title).slice(0, 30) : ghostSlug;
+      const rel = `${slug}/${String(slot.idx).padStart(2, '0')}-${slugTitle || ghostSlug}.md`;
+      vault.write(rel, body);
+      lessonRels.push(rel);
+    }
+
+    // Persist state.json with v0.3 schema additions:
+    //   - lessonPlan stored at root (was missing in v0.2 — only seedResult
+    //     held it; lesson:body:generate already reads state.lessonPlan so this
+    //     fixes a latent bug too)
+    //   - skeleton_regen_count tracks v0.3 regen attempts (cap = 3)
+    //   - harvest_summary captures Layer counts + daemon flag for trust panel
+    //   - schema_version flag so old readers know which fields to expect
+    const harvestSummary = {
+      layer1_courses_n: harvestResult.layer1_courses_n || 0,
+      layer3_papers_n: harvestResult.layer3_papers_n || 0,
+      layer4_posts_n: harvestResult.layer4_posts_n || 0,
+      daemon_available: !!harvestResult.daemon_available,
+      fallback_used: !!harvestResult.fallback_used,
+      sourceMode: harvestResult.sourceMode || (uploadedSource ? 'upload' : 'web'),
+      total_sources: sources.length,
+    };
+    vault.writeJSON(`${slug}/state.json`, {
+      mastered: [], gaps: [],
+      preferences: { level: level || 'intermediate' },
+      goal: goal || '',
+      goalContract: goalContract || null,
+      timeCommit: timeCommit || 'month',
+      customLessons: (typeof customLessons === 'number') ? customLessons : null,
+      tier: tier || 'moderate',
+      sourceMode: uploadedSource ? 'upload' : 'web',
+      uploadedFileName: uploadedSource ? (uploadedSource.files && uploadedSource.files[0] && uploadedSource.files[0].fileName) || uploadedSource.fileName || null : null,
+      uploadedFileNames: uploadedSource ? (uploadedSource.files || []).map(f => f.fileName).filter(Boolean) : [],
+      uploadedFileCount: uploadedSource ? (uploadedSource.totalFiles || (uploadedSource.files || []).length) : 0,
+      clarifications: clarifications || [],
+      archetype,
+      phases: skeletonResult.phases,
+      trajectory: skeletonResult.trajectory,
+      lessonPlan,                                      // v0.3 — persist for Stage 2 reads
+      concepts: {},
+      lastIdx: -1,
+      lessonRels,
+      learn_mode: learnMode,
+      // v0.3 schema flags
+      schema_version: '0.3',
+      skeleton_regen_count: 0,
+      harvest_summary: harvestSummary,
+      structureAnchor: harvestResult.structureAnchor || null,
+    });
+
+    // Auto-derive a tutor persona (mirror legacy curriculum:create). Only seed
+    // if no agent.json exists yet — don't clobber an existing customization.
+    if (!vault.exists(`${slug}/agent.json`)) {
+      try {
+        const personas = require('./lib/personas');
+        const derived = personas.derivePersona({
+          topic, goal: goal || '', clarifications: clarifications || [],
+        });
+        vault.writeJSON(`${slug}/agent.json`, {
+          persona: derived,
+          customInstructions: '',
+          derivedFromClarifications: true,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (_) { /* persona derivation non-fatal */ }
+    }
+
+    _hyphaAppendEvent('curriculum_v3_skeleton_done', {
+      topic: slug,
+      lessons: lessonRels.length,
+      archetype,
+      ...harvestSummary,
+    });
+    emit('done', {
+      lessonRels,
+      firstLessonRel: lessonRels[0],
+      slug,
+      harvest_summary: harvestSummary,
+    });
+    return {
+      ok: true,
+      slug,
+      lessonRels,
+      harvest_summary: harvestSummary,
+      lessonPlan,
+      archetype,
+    };
+  } catch (err) {
+    if (err && err.code === 'CURRICULUM_CANCELLED') {
+      try { vault.del(slug); } catch (_) {}
+      try { _hyphaAppendEvent('curriculum_v3_cancelled', { topic: slug }); } catch (_) {}
+      try { if (aborter) aborter.abort(); } catch (_) {}
+      return { ok: false, cancelled: true };
+    }
+    try { vault.del(slug); } catch (_) {}
+    _hyphaAppendEvent('curriculum_v3_failed', { topic: slug, error: err && err.message });
+    emit('error', { error: err && err.message });
+    return { ok: false, error: (err && err.message) || String(err) };
+  }
+}
+
+// curriculum:harvest_and_skeleton — Stage 1 of the v0.3 2-stage flow.
+// Payload: { topic, level, options: { goalContract, lesson_mode, customLessons,
+//           tier, clarifications, prePrediction, goal, timeCommit,
+//           uploadedSource } }
+// Returns: { ok, slug, lessonRels, harvest_summary, lessonPlan, archetype }
+//          | { ok:false, cancelled:true } | { ok:false, error }
+ipcMain.handle('curriculum:harvest_and_skeleton', async (event, payload = {}) => {
+  return _runHarvestAndSkeleton(event, payload);
+});
+
+// curriculum:approve_and_body — Stage 2. After user approves the skeleton in
+// the renderer's PreviewCard, this fires lesson body generation for the
+// requested slot (default = lesson 0). Mirrors lesson:body:generate behavior
+// (priorBody:null, userFeedback:null) but is gated on Stage 1 having written
+// state.json + sources.json. Emits `curriculum:body_ready` on success.
+ipcMain.handle('curriculum:approve_and_body', async (event, payload = {}) => {
+  try {
+    const slug = String(payload.slug || '').trim();
+    const idx = Number.isFinite(payload.lessonIdx) ? Number(payload.lessonIdx) : 0;
+    if (!slug) return { ok: false, error: 'BAD_INPUT', message: 'slug required' };
+    if (idx < 0) return { ok: false, error: 'BAD_INPUT', message: 'lessonIdx (>=0) required' };
+
+    const state = vault.readJSON(`${slug}/state.json`, null);
+    if (!state) return { ok: false, error: 'NO_SKELETON', message: 'state.json missing — run harvest_and_skeleton first' };
+    const sources = vault.readJSON(`${slug}/sources.json`, []) || [];
+    const lessonPlan = (state && Array.isArray(state.lessonPlan)) ? state.lessonPlan : [];
+    const slot = lessonPlan[idx] || {};
+
+    const plan = {
+      objective: slot.learnGoal || slot.title || '',
+      title: slot.title || '',
+      path: Array.isArray(slot.path) ? slot.path : [],
+      micro_proof: slot.micro_proof || {},
+      // v0.3 — pass scope fields into body generator so it respects boundary
+      scope_in: slot.scope_in || '',
+      scope_out: slot.scope_out || '',
+      prerequisite: slot.prerequisite || '',
+    };
+    const goalContract = state.goalContract || {
+      north_star_goal: state.topic || state.goal || slug,
+      current_level: 'self-directed adult learner',
+    };
+    const learnerState = {
+      known: state.mastered || [],
+      unknown: state.gaps || [],
+    };
+
+    const r = await lessonBodyGen.generateLessonBodyV2({
+      plan,
+      goalContract,
+      sources,
+      learnerState,
+      lessonTitle: slot.title,
+      learnGoal: slot.learnGoal,
+      idx,
+      // Stage 2 first body — no prior to refine against.
+      priorBody: null,
+      userFeedback: null,
+    });
+
+    const bodyRel = `${slug}/lesson-${idx}.body.json`;
+    const persisted = { body: r.body, _meta: r._meta, generated_at: new Date().toISOString() };
+    vault.writeJSON(bodyRel, persisted);
+    _hyphaAppendEvent('lesson_body_v2_generated', {
+      topic: slug, idx, ms: r._meta && r._meta.ms, stage: 'v0.3_approve',
+    });
+
+    // Drift sibling-write — mirrors lesson:body:generate.
+    try {
+      const dw = r._meta && r._meta.drift_warning;
+      const warnRel = `${slug}/lesson-${idx}.body.drift-warning.json`;
+      if (dw) {
+        vault.writeJSON(warnRel, { warning: dw, generated_at: new Date().toISOString() });
+        _hyphaAppendEvent('lesson_body_drift_check', {
+          topic: slug, idx, passed: false, attempts: dw.attempts || 2, score: dw.score,
+          flags: (dw.violations || []).slice(0, 6).map(v => ({ axis: v.axis, text: v.text })),
+        });
+      } else {
+        _hyphaAppendEvent('lesson_body_drift_check', {
+          topic: slug, idx, passed: true, attempts: 1,
+          score: (r._meta && r._meta.drift_score) != null ? r._meta.drift_score : null,
+        });
+      }
+    } catch (_) {}
+
+    // Notify renderer that body is ready so it can transition from preview →
+    // lesson chat surface. Channel is curriculum:progress so it lands on the
+    // existing onCurriculumProgress subscription.
+    try {
+      if (event && event.sender && typeof event.sender.send === 'function') {
+        event.sender.send('curriculum:progress', {
+          topic: slug, stage: 'body_ready', idx,
+        });
+        event.sender.send('curriculum:body_ready', { slug, idx });
+      }
+    } catch (_) {}
+
+    return { ok: true, body: r.body, _meta: r._meta };
+  } catch (err) {
+    return { ok: false, error: (err && err.code) || 'UNKNOWN', message: (err && err.message) || String(err) };
+  }
+});
+
+// curriculum:regenerate_skeleton — re-run designSkeletonOnly when user clicks
+// "需要修改" + types feedback in PreviewCard. Caps at 3 regen attempts (per
+// v0.3 spec). Mirrors lesson-body-generator's priorBody/userFeedback pattern.
+// Sources stay frozen (don't re-harvest); only the skeleton design re-runs.
+ipcMain.handle('curriculum:regenerate_skeleton', async (event, payload = {}) => {
+  try {
+    const slug = String(payload.slug || '').trim();
+    const userFeedback = String(payload.userFeedback || '').trim();
+    if (!slug) return { ok: false, error: 'BAD_INPUT', message: 'slug required' };
+    if (!userFeedback) return { ok: false, error: 'BAD_INPUT', message: 'userFeedback required' };
+
+    const state = vault.readJSON(`${slug}/state.json`, null);
+    if (!state) return { ok: false, error: 'NO_SKELETON', message: 'state.json missing — run harvest_and_skeleton first' };
+    const regenCount = Number.isFinite(state.skeleton_regen_count) ? state.skeleton_regen_count : 0;
+    if (regenCount >= SKELETON_REGEN_CAP) {
+      return {
+        ok: false,
+        error: 'REGEN_CAP_REACHED',
+        message: `skeleton already regenerated ${SKELETON_REGEN_CAP} times — current skeleton stands`,
+        regen_count: regenCount,
+      };
+    }
+
+    const sources = vault.readJSON(`${slug}/sources.json`, []) || [];
+    const priorSkeleton = {
+      phases: state.phases || [],
+      trajectory: state.trajectory || '',
+      lessonPlan: Array.isArray(state.lessonPlan) ? state.lessonPlan : [],
+    };
+    const settings = _hyphaSettings();
+
+    if (typeof _hyphaAgent.designSkeletonOnly !== 'function') {
+      return {
+        ok: false,
+        error: 'AGENT_MISSING',
+        message: 'agent.designSkeletonOnly not exported — backend not on v0.3 lane',
+      };
+    }
+    const r = await _hyphaAgent.designSkeletonOnly({
+      topic: state.topic || slug,
+      goal: state.goal || (state.goalContract && state.goalContract.north_star_goal) || '',
+      archetype: state.archetype || 'TECH-CONCEPT',
+      structureAnchor: state.structureAnchor || null,
+      sources,
+      timeCommit: state.timeCommit || 'month',
+      customLessons: state.customLessons,
+      tier: state.tier || 'moderate',
+      clarifications: state.clarifications || [],
+      goalContract: state.goalContract || null,
+      // v0.3 regen handle — designSkeletonOnly mirrors lesson-body-generator's
+      // priorBody/userFeedback shape so the LLM sees rejected attempt + free-
+      // text feedback together. Machino-D wires this through.
+      priorSkeleton,
+      userFeedback,
+    }, settings);
+
+    const newPlan = Array.isArray(r.lessonPlan) ? r.lessonPlan : [];
+    // Persist updated state.json — keep harvest_summary + sources untouched.
+    vault.writeJSON(`${slug}/state.json`, {
+      ...state,
+      phases: r.phases,
+      trajectory: r.trajectory,
+      lessonPlan: newPlan,
+      skeleton_regen_count: regenCount + 1,
+      last_regen_feedback: userFeedback.slice(0, 500),
+      last_regen_at: new Date().toISOString(),
+    });
+
+    _hyphaAppendEvent('curriculum_v3_skeleton_regenerated', {
+      topic: slug,
+      regen_count: regenCount + 1,
+      feedback_chars: userFeedback.length,
+    });
+
+    try {
+      if (event && event.sender && typeof event.sender.send === 'function') {
+        event.sender.send('curriculum:skeleton_regenerated', {
+          slug, regen_count: regenCount + 1, lessonPlan: newPlan,
+        });
+      }
+    } catch (_) {}
+
+    return { ok: true, lessonPlan: newPlan, phases: r.phases, trajectory: r.trajectory, regen_count: regenCount + 1 };
+  } catch (err) {
+    return { ok: false, error: (err && err.code) || 'UNKNOWN', message: (err && err.message) || String(err) };
+  }
 });
 
 // Per-lesson session storage helpers (Day 2.9 refactor).
@@ -1871,7 +3158,7 @@ function _listSessionsForLesson(slug, idx) {
 // listener receives chunks. Per-session jsonl path; renderer passes
 // sessionFile (or omits → first call generates new file + returns it).
 const _hyphaLessonAbort = new Map();
-ipcMain.handle('llm:lesson', async (event, { noteRel, userMsg, requestId, sessionFile } = {}) => {
+ipcMain.handle('llm:lesson', async (event, { noteRel, userMsg, requestId, sessionFile, currentState } = {}) => {
   if (!noteRel || !requestId) return { ok: false, error: 'noteRel + requestId required' };
   const settings = _hyphaSettings();
   const ac = new AbortController();
@@ -1884,6 +3171,24 @@ ipcMain.handle('llm:lesson', async (event, { noteRel, userMsg, requestId, sessio
   const slug = fm.topic_slug || (noteRel.split(/[\\/]/)[0]);
   const idx = parseInt(fm.lesson_idx, 10);
   if (isNaN(idx)) { _hyphaLessonAbort.delete(requestId); return { ok: false, error: 'note missing lesson_idx' }; }
+  // v0158q — Hypha Learn opt-in. Mode lives on the lesson note's frontmatter
+  // (set by curriculum:create); fall back to 'classic' so legacy notes are
+  // byte-identical. Renderer may also pass `currentState` to override the
+  // self-derived state — frontend tracks across turns.
+  // 2026-05-05 — added 'raw' (Pure CLI radio, claude-cli only); raw skips
+  // Hypha tutor scaffolding entirely (same effect as provider=claude-cli auto-
+  // pure path, but explicit and persisted in frontmatter for future logic).
+  const learnMode = (fm.learn_mode === 'learn') ? 'learn'
+                  : (fm.learn_mode === 'raw')   ? 'raw'
+                  : 'classic';
+  // 2026-05-05 (Appendix C) — claude-cli pure passthrough. Triggers when:
+  //   (a) provider === 'claude-cli' (auto, regardless of mode), OR
+  //   (b) frontmatter.learn_mode === 'raw' (explicit user choice via Pure CLI
+  //       radio in TabContent — only shown for claude-cli provider)
+  // Either way: Hypha bypasses tutor system + STAKE + state + leak guard;
+  // claude-cli uses its default Claude Code system. Sandbox env still blocks
+  // Victor universe + global agents.
+  const _isPureCli = (settings && settings.provider === 'claude-cli') || (learnMode === 'raw');
 
   const sources = vault.readJSON(`${slug}/sources.json`, []);
   const state = vault.readJSON(`${slug}/state.json`, { mastered: [], gaps: [], lastIdx: -1, lessonRels: [] });
@@ -1968,6 +3273,47 @@ ipcMain.handle('llm:lesson', async (event, { noteRel, userMsg, requestId, sessio
     ? (vault.readJSON('data/profile.json', null) || { name: '', about: '' })
     : { name: '', about: '' };
 
+  // v0158q — Hypha Learn substrate. Build the STAKE block once and derive
+  // currentState (renderer override > last-turn marker parse > HOOK initial).
+  // STAKE block is empty-string when learnMode='classic' so designLesson keeps
+  // its existing path. Build is async but cheap; never blocks classic mode.
+  let stakeBlock = '';
+  let derivedCurrentState = _hyphaLearnSM.initialState();
+  let priorStateHistory = [];
+  // 2026-05-05 (Appendix C) — when claude-cli pure mode active, skip the
+  // entire Hypha Learn substrate (STAKE / state machine / leak guard).
+  // Pure mode = let CLI use its default system + run conversation cleanly.
+  // Hypha tutor scaffolding becomes no-ops; rendering also short-circuits.
+  if (learnMode === 'learn' && !_isPureCli) {
+    const lastTutor = vault.readJSONL(sessionRel)
+      .filter(t => t.idx === idx && t.role === 'tutor')
+      .map(t => t.text);
+    for (const txt of lastTutor) {
+      const parsed = _hyphaLearnSM.parseStateMarker(txt || '');
+      if (parsed && parsed.state) priorStateHistory.push(parsed.state);
+    }
+    if (typeof currentState === 'string' && currentState.trim()) {
+      derivedCurrentState = currentState.trim().toUpperCase();
+    } else if (priorStateHistory.length) {
+      // Use last tutor's `next` if present, else `state`. Final element wins.
+      const lastTxt = lastTutor[lastTutor.length - 1];
+      const last = _hyphaLearnSM.parseStateMarker(lastTxt || '');
+      derivedCurrentState = last.next || last.state || _hyphaLearnSM.initialState();
+    }
+    try {
+      stakeBlock = await _hyphaLearnStake.buildStakeBlock({
+        transcript,
+        vaultRoot: vault.resolveRoot(),
+        eventLogPath: path.join(vault.resolveRoot(), 'events.jsonl'),
+        curriculum: { lessons: (state.lessonRels || []).map((_r, i) => ({
+          id: String(i),
+          title: '',
+          state: i < idx ? 'settled' : (i === idx ? 'open' : 'pending'),
+        })) },
+      });
+    } catch (_) { stakeBlock = ''; }
+  }
+
   // Build system prompt from lesson-start template (first turn) or use rolling context (subsequent).
   const systemPrompt = await _hyphaAgent.designLesson({
     topic: slug, idx, sequence, sources, state, priorNotes,
@@ -1976,6 +3322,13 @@ ipcMain.handle('llm:lesson', async (event, { noteRel, userMsg, requestId, sessio
     agentProfile,
     userProfile,
     archetype: state.archetype,
+    // v0158q — learn-mode passthroughs; designLesson ignores them when mode='classic'.
+    mode: learnMode,
+    currentState: derivedCurrentState,
+    stateHistory: priorStateHistory,
+    stakeBlock,
+    transcript,
+    latestUserMsg: (userMsg && userMsg !== '__begin__') ? userMsg : '',
   }, settings);
 
   let acc = '';
@@ -1987,8 +3340,186 @@ ipcMain.handle('llm:lesson', async (event, { noteRel, userMsg, requestId, sessio
     try { event.sender.send('llm:deepen-progress', { requestId, status: 'chunk', stage: 'lesson', text }); } catch (_) {}
   };
 
+  // 2026-05-05 (Appendix C) — when pure CLI mode active and this is the
+  // session opener (__begin__ or empty userMsg), enrich the placeholder with
+  // topic + lesson goal so claude-cli has explicit context. Without this the
+  // CLI sees only "[Lesson start. Begin with your first question.]" and has
+  // no idea what to teach. Subsequent turns rely on transcript continuity.
+  let _effectiveUserMsg = userMsg;
+  // 2026-05-05 (Appendix D v0.3.0) — claude-cli session continuity. Read
+  // claude_session_id from session jsonl meta row. If set, this is a
+  // continuation turn and we'll pass --resume (model has own history). If
+  // unset, this is the first turn → spawn fresh, capture session_id via
+  // callback, write to meta.
+  let _claudeSessionId = null;
+  if (_isPureCli && !isNewSession) {
+    try {
+      const _existingRows = vault.readJSONL(sessionRel);
+      // Find the meta row that actually carries claude_session_id (may not
+      // be the first meta row — initial mode='fresh' meta is written before
+      // session_id is captured, then a second meta row with claude_session_id
+      // is appended once stream-json emits the system event).
+      const _metaRow = _existingRows.find(r => r && r.role === 'meta' && r.idx === idx
+        && typeof r.claude_session_id === 'string' && r.claude_session_id);
+      if (_metaRow) {
+        _claudeSessionId = _metaRow.claude_session_id;
+      }
+    } catch (_) { /* ignore — fresh path */ }
+  }
+  if (_isPureCli && (!userMsg || userMsg === '__begin__')) {
+    // v0.3.0 opener (O-2 minimal) — let model decide form (plan / Socratic /
+    // story). Removes v0.2.0's "design 1500-2000 word plan" framing that
+    // over-constrained the model.
+    // v0.4.2 — persona + SVG additions. Pure CLI bypasses designLesson's
+    // system-prompt persona injection, so persona was being silently dropped
+    // (Karpathy / Feynman / etc. all produced identical output). Re-route
+    // persona name + 1-line style hint via user-message opener so the model
+    // honors the curriculum's chosen tutor identity. SVG line authorizes
+    // diagrams (constitution carries this for SDK paths; Pure CLI needs its
+    // own copy since constitution is filtered out).
+    const _topicLabel = fm.title || (note.body && note.body.match(/^# (.+)$/m)?.[1]) || slug;
+    const _goalLabel = fm.learn_goal || '';
+    const _curriculumLang = (state && typeof state.language === 'string' && state.language.trim())
+      ? state.language.trim() : '';
+    // 2026-05-05 v0.4.3 — Goal upgraded from informational ("Goal: X") to
+    // binding directive. Default Hypha path (Pure CLI) was treating goal as
+    // sidebar info and falling into industrial-pedagogy default (define → quiz
+    // → next definition). Pre-attach the binding directive that the
+    // constitution carries for SDK paths but Pure CLI strips.
+    const _goalLine = _goalLabel ? `Working toward: ${_goalLabel}\n` : '';
+    const _langLine = _curriculumLang ? `Respond in ${_curriculumLang}.\n` : '';
+    let _personaLine = '';
+    let _customLine = '';
+    try {
+      const personas = require('./lib/personas');
+      const p = personas.getPersona && personas.getPersona((agentProfile && agentProfile.persona) || 'socratic');
+      if (p && p.label) {
+        const shortDesc = p.short || (p.prompt ? p.prompt.slice(0, 220) : '');
+        _personaLine = `Tutor style: ${p.label}${shortDesc ? ' — ' + shortDesc : ''}\n`;
+      }
+    } catch (_) { /* personas module missing — degrade silently */ }
+    const _customInstr = (agentProfile && typeof agentProfile.customInstructions === 'string')
+      ? agentProfile.customInstructions.trim() : '';
+    if (_customInstr) _customLine = `Tutor extras: ${_customInstr}\n`;
+    const _svgLine =
+      `\nVISUAL AID: when the topic genuinely earns a diagram (vectors, geometry, function shapes, network architectures, state transitions, etc.), output it as an inline \`\`\`svg fenced markdown block. Hypha renders SVG inline as an actual image. Use diagrams when they pull weight, not as decoration.\n`;
+    // 2026-05-05 v0.4.3 — anti-industrial-pedagogy directive. Without this,
+    // the model defaults to define-then-quiz textbook patterns. We need
+    // explicit Feynman-test framing so it teaches APPLICATION, not recitation.
+    const _goalBindingLine = _goalLabel
+      ? `\nGOAL BINDING: I'm here for ONE reason — ${_goalLabel}. Every concept must trace back to enabling this. Don't drill definitions for memorization; drill APPLICATION on instances that connect to my goal. Feynman test: knowing the name of a bird is not knowing the bird.\n\nAnti-pattern (forbidden): definition → quick comprehension check → next definition. That's an exam, not a lesson. Each concept goes: introduce → apply to instance touching my goal → I operate it → only then move on.\n`
+      : `\nGOAL BINDING: drill APPLICATION on instances, not recitation of definitions. Feynman test: knowing the name of a bird is not knowing the bird. Each concept: introduce → apply to instance → I operate it → only then move on.\n`;
+    _effectiveUserMsg =
+      `Topic: ${_topicLabel}\n` +
+      _goalLine +
+      _langLine +
+      _personaLine +
+      _customLine +
+      _svgLine +
+      _goalBindingLine +
+      `\nHelp me learn this.`;
+  }
+
+  // 2026-05-05 (Appendix D) — onSessionId callback persists claude-cli session
+  // ID into the session jsonl meta row, allowing subsequent turns to use
+  // --resume <id> instead of replaying transcript. Skips when not pure-CLI
+  // mode (no session continuity available). Idempotent — only writes on first
+  // capture per session.
+  let _capturedSessionId = null;
+  const _onSessionIdCb = _isPureCli ? (sid) => {
+    if (_capturedSessionId) return;
+    _capturedSessionId = sid;
+    try {
+      vault.appendJSONL(sessionRel, {
+        ts: new Date().toISOString(),
+        idx,
+        role: 'meta',
+        claude_session_id: sid,
+      });
+    } catch (_) { /* meta-row failure is non-fatal */ }
+  } : null;
+
   try {
-    await _hyphaAgent.streamTurn({ systemPrompt, history: transcript, userMsg, settings, signal: ac.signal }, onChunk);
+    await _hyphaAgent.streamTurn({
+      systemPrompt,
+      history: transcript,
+      userMsg: _effectiveUserMsg,
+      settings,
+      signal: ac.signal,
+      resumeSessionId: _claudeSessionId,
+      onSessionId: _onSessionIdCb,
+    }, onChunk);
+    // v0158q — Hypha Learn post-stream pipeline: parse state marker, run
+    // answer-leak guard (single regen on LEAK), then record events. Classic
+    // mode skips this entire block — behavior identical to pre-v0158q.
+    // Appendix C 2026-05-05 — claude-cli pure mode also skips (no state
+    // markers will be emitted, leak guard is meaningless without state).
+    let regenAttempts = 0;
+    let leakedFinal = false;
+    let parsedNext = null;
+    if (learnMode === 'learn' && !ac.signal.aborted && !_isPureCli) {
+      try {
+        const guardRes = await _hyphaLearnGuard.checkAnswerLeak({
+          state: derivedCurrentState,
+          response: acc,
+          lessonGoal: fm.learn_goal || '',
+          settings,
+        });
+        if (guardRes && guardRes.leaked) {
+          regenAttempts = 1;
+          // One-shot regen with hint as a system addendum. We discard the
+          // first acc and re-stream; the renderer sees the second draft.
+          const hintedSystem = `${systemPrompt}\n\n${guardRes.hint || _hyphaLearnGuard.buildRegenHint(derivedCurrentState)}`;
+          acc = '';
+          try { event.sender.send('llm:deepen-progress', { requestId, status: 'regen', stage: 'lesson' }); } catch (_) {}
+          await _hyphaAgent.streamTurn({ systemPrompt: hintedSystem, history: transcript, userMsg, settings, signal: ac.signal }, onChunk);
+          // Best-effort second check; if still leaked we accept + log.
+          try {
+            const second = await _hyphaLearnGuard.checkAnswerLeak({
+              state: derivedCurrentState, response: acc,
+              lessonGoal: fm.learn_goal || '', settings,
+            });
+            leakedFinal = !!(second && second.leaked);
+          } catch (_) { leakedFinal = false; }
+          try { _hyphaAppendEvent('leak_regen', { slug, idx, lesson_id: noteRel, state: derivedCurrentState, leaked_after_regen: leakedFinal }); } catch (_) {}
+        }
+      } catch (_) { /* guard infra fail-safe — never block lesson */ }
+      try {
+        // MEOW Gate A Patch 1 (2026-05-08): wire validateTransition. Previously
+        // accepted any LLM-emitted parsedNext as authoritative — 8-state machine
+        // was purely cosmetic. Now: clamp invalid jumps against TRANSITIONS
+        // reachability table + log state_transition_invalid for monitoring.
+        const parsed = _hyphaLearnSM.parseStateMarker(acc || '');
+        const requested = (parsed && (parsed.next || parsed.state)) || null;
+        const fromState = derivedCurrentState;
+        const allowedTargets = Object.values(_hyphaLearnSM.TRANSITIONS[fromState] || {});
+        let toState;
+        let transitionValid = true;
+        if (requested) {
+          if (allowedTargets.includes(requested)) {
+            toState = requested;
+            parsedNext = requested;
+          } else {
+            transitionValid = false;
+            const alwaysFallback = (_hyphaLearnSM.TRANSITIONS[fromState] || {}).always;
+            toState = alwaysFallback || fromState;
+            parsedNext = (toState && toState !== fromState) ? toState : null;
+            _hyphaAppendEvent('state_transition_invalid', {
+              slug, idx, lesson_id: noteRel,
+              from: fromState, requested, clamped_to: toState,
+            });
+          }
+        } else {
+          const alwaysNext = (_hyphaLearnSM.TRANSITIONS[fromState] || {}).always;
+          toState = alwaysNext || fromState;
+          parsedNext = (toState && toState !== fromState) ? toState : null;
+        }
+        _hyphaAppendEvent('state_transition', {
+          slug, idx, lesson_id: noteRel,
+          from: fromState, to: toState, valid: transitionValid,
+        });
+      } catch (_) {}
+    }
     vault.appendJSONL(sessionRel, { ts: new Date().toISOString(), idx, role: 'tutor', text: acc });
     _hyphaLessonAbort.delete(requestId);
     if (ac.signal.aborted) {
@@ -1998,6 +3529,15 @@ ipcMain.handle('llm:lesson', async (event, { noteRel, userMsg, requestId, sessio
     try { event.sender.send('llm:deepen-progress', { requestId, status: 'done', stage: 'lesson', text: acc }); } catch (_) {}
     // Return sessionFile basename so caller can persist + reuse for next turn.
     const usedFile = sessionRel.split(/[\\/]/).pop();
+    if (learnMode === 'learn') {
+      return {
+        ok: true, text: acc, sessionFile: usedFile, isNewSession,
+        currentState: derivedCurrentState,
+        nextState: parsedNext,
+        leaked: leakedFinal,
+        regenAttempts,
+      };
+    }
     return { ok: true, text: acc, sessionFile: usedFile, isNewSession };
   } catch (err) {
     _hyphaLessonAbort.delete(requestId);
@@ -2591,6 +4131,11 @@ async function _materializeNextGhost(slug, state, justIdx, settled, settings, ev
     delete newFmMap.ghost;
     newFmMap.learn_goal = JSON.stringify(next.learnGoal);
     newFmMap.date_created = today;
+    newFmMap.title = JSON.stringify(next.title);
+    // v0158m — propagate concept_id when proposeNextLesson emitted one.
+    if (typeof next.conceptId === 'string' && next.conceptId.trim()) {
+      newFmMap.concept_id = JSON.stringify(next.conceptId.trim());
+    }
     const newFm = ['---', ...Object.entries(newFmMap).map(([k, v]) => `${k}: ${v}`), '---'].join('\n');
     const newBody = `${newFm}\n\n# ${next.title}\n\n## 课程基础\n\n*This lesson hasn't been taught yet. Open the Tutor to begin.*\n\n## 用户灵感\n\n`;
     vault.write(nextRel, newBody);
@@ -3268,6 +4813,33 @@ ipcMain.handle('lesson:finish', async (_e, { rel, userInsight, sessionFile, mode
       half_life_ms: _conceptAfter.half_life_estimate_ms,
     });
 
+    // v0158m P6 — parse `<!-- p6: introduced concept_id=X -->` marker from
+    // tutor turns BEFORE state.json write so the new concepts entry persists.
+    // If found, state.concepts[X] = { introduced_at, prior_layer:'P6', ... }.
+    try {
+      const tutorTurnsText = sessionTurns
+        .filter(t => t.role === 'tutor')
+        .map(t => t.text || '')
+        .join('\n');
+      const p6Match = tutorTurnsText.match(/<!--\s*p6:\s*introduced\s+concept_id=([a-zA-Z0-9_\-]+)\s*-->/);
+      if (p6Match && p6Match[1]) {
+        const cid = p6Match[1].toLowerCase();
+        const cur = newState.concepts || {};
+        cur[cid] = {
+          ...(cur[cid] || {}),
+          introduced_at: new Date().toISOString(),
+          prior_layer: 'P6',
+          method: 'expose-first',
+          introduced_in_lesson: idx,
+          user_force_expose: false, // clear one-shot force flag
+        };
+        newState.concepts = cur;
+        console.log(`[lesson:finish] P6 marker captured: concept_id=${cid} (lesson ${idx})`);
+      }
+    } catch (err) {
+      console.log('[lesson:finish] P6 marker parse failed (non-fatal):', err.message);
+    }
+
     vault.writeJSON(`${slug}/state.json`, newState);
 
     // v0.2 — Variance Card. Compute the just-finished lesson's drift from
@@ -3350,6 +4922,40 @@ ipcMain.handle('lesson:finish', async (_e, { rel, userInsight, sessionFile, mode
         llmCall,
       }).catch(() => {});
     } catch (_) {}
+    // v0158m — proactive JIT-recast of L_(n+1). Previously _materializeNextGhost
+    // ran only via renderer-side `lessons:adapt-after-finish` chain (NoteView.jsx
+    // → IPC → IPC), which left a window where user navigates to L_(n+1) and
+    // sees ghost "pending" stub until the chain completes. Now main.js fires it
+    // inline at lesson:finish (fire-and-forget); idempotent because
+    // _materializeNextGhost checks isGhost first. settled[] is the atlas-settled
+    // concepts, optional but improves recast quality. Failures swallowed so
+    // they don't break finish.
+    (async () => {
+      try {
+        const atlasNow = vault.readJSON(_atlasPath(slug, idx), null);
+        const settledList = atlasNow && atlasNow.concepts
+          ? Object.entries(atlasNow.concepts)
+              .filter(([_, c]) => c && c.state === 'settled')
+              .map(([term]) => term)
+          : [];
+        const m = await _materializeNextGhost(slug, newState, idx, settledList, settings, _e);
+        if (m && m.title) {
+          // toast renderer that L_(n+1) is now real — fire UI-side via a custom
+          // event the chain views already listen to. Uses 'hypha:next-lesson-recast'
+          // (new) so we can target a brief italic Garamond toast in NoteView.
+          try {
+            _e.sender.send('hypha:next-lesson-recast', {
+              topic: slug,
+              nextIdx: idx + 1,
+              title: m.title,
+              learnGoal: m.learnGoal || '',
+            });
+          } catch (_) {}
+        }
+      } catch (err) {
+        console.log('[lesson:finish] JIT-recast failed (non-fatal):', err.message);
+      }
+    })();
     // Phase 3.1 — adapt-after-finish trigger lives renderer-side (NoteView.jsx
     // calls window.ptor.hypha.lessonsAdapt(rel) after this IPC resolves).
     // Renderer-driven keeps the call-site visible and avoids self-import.
@@ -3358,6 +4964,68 @@ ipcMain.handle('lesson:finish', async (_e, { rel, userInsight, sessionFile, mode
     _hyphaAppendEvent('lesson_finish_error', { topic: slug, idx, error: err.message });
     return { ok: false, error: err.message };
   }
+});
+
+// v0158m — P6 user override IPCs. Two chips in lesson view (千金 marginalia
+// register, no chrome) toggle these. Both write to state.concepts[concept_id]
+// in the lesson's curriculum state.json.
+
+// concept:get — read state.concepts[concept_id] entry for the curriculum that
+// owns this lesson rel. Returns the entry or null. Used by NoteView to decide
+// which override chip (skip vs force-expose) to render.
+ipcMain.handle('concept:get', async (_e, { rel, conceptId } = {}) => {
+  if (!rel || !conceptId) return null;
+  try {
+    const note = vault.read(rel);
+    if (!note) return null;
+    const fm = note.frontmatter || {};
+    const slug = fm.topic_slug || rel.split(/[\\/]/)[0];
+    const state = vault.readJSON(`${slug}/state.json`, null);
+    if (!state || !state.concepts) return null;
+    return state.concepts[conceptId] || null;
+  } catch (_) { return null; }
+});
+
+// concept:skip-prior-install — student says "I already know this concept, just probe me".
+// Writes user_skipped=true → P6 will not fire on this lesson OR any future lesson
+// that references the same concept_id.
+ipcMain.handle('concept:skip-prior-install', async (_e, { rel, conceptId } = {}) => {
+  if (!rel || !conceptId) return { ok: false, error: 'rel + conceptId required' };
+  try {
+    const note = vault.read(rel);
+    if (!note) return { ok: false, error: 'note not found' };
+    const fm = note.frontmatter || {};
+    const slug = fm.topic_slug || rel.split(/[\\/]/)[0];
+    const state = vault.readJSON(`${slug}/state.json`, null);
+    if (!state) return { ok: false, error: 'state.json missing' };
+    const cur = state.concepts || {};
+    cur[conceptId] = { ...(cur[conceptId] || {}), user_skipped: true, user_skipped_at: new Date().toISOString() };
+    state.concepts = cur;
+    vault.writeJSON(`${slug}/state.json`, state);
+    console.log(`[concept:skip-prior-install] ${conceptId} → user_skipped=true (slug=${slug})`);
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// concept:force-expose — student says "lecture me on this even if state says I know".
+// Writes user_force_expose=true (one-shot, cleared after current lesson finishes
+// via the P6 marker capture path which sets it back to false).
+ipcMain.handle('concept:force-expose', async (_e, { rel, conceptId } = {}) => {
+  if (!rel || !conceptId) return { ok: false, error: 'rel + conceptId required' };
+  try {
+    const note = vault.read(rel);
+    if (!note) return { ok: false, error: 'note not found' };
+    const fm = note.frontmatter || {};
+    const slug = fm.topic_slug || rel.split(/[\\/]/)[0];
+    const state = vault.readJSON(`${slug}/state.json`, null);
+    if (!state) return { ok: false, error: 'state.json missing' };
+    const cur = state.concepts || {};
+    cur[conceptId] = { ...(cur[conceptId] || {}), user_force_expose: true, user_force_expose_at: new Date().toISOString() };
+    state.concepts = cur;
+    vault.writeJSON(`${slug}/state.json`, state);
+    console.log(`[concept:force-expose] ${conceptId} → user_force_expose=true (slug=${slug})`);
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
 });
 
 // v0.11.0 — manual reflection trigger. Mirror of the auto-fired block in
@@ -3871,6 +5539,8 @@ ipcMain.handle('settings:test', async () => {
 ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, priorConsistency, failedAttempts, answers, tier, customLessons, uploadedSource } = {}) => {
   if (!goal || !String(goal).trim()) return { ok: false, error: 'goal required' };
   const settings = _hyphaSettings();
+  // 2026-05-05 (Appendix B) — lift legacy single-file uploadedSource if present.
+  uploadedSource = require('./lib/source-extractor')._normalizeUploadedSource(uploadedSource);
   const lang = /[一-龥]/.test(String(goal)) ? 'zh' : 'en';
   const emit = (stage, extra = {}) => {
     try { event.sender.send('hypha:chain-progress', { stage, ...extra }); } catch (_) {}
@@ -3926,6 +5596,31 @@ ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, prio
       lang,
     }, settings);
 
+    // v0.3 chain-folder — diagnostic safety net per BLUEPRINT §1.1 路径熵减.
+    // planChain at heroic tier × 6-10 links can produce 700+ lessons; this
+    // computes role-capped + fold-merged metadata + NEEDS_REROUTE signal. UI
+    // surfaces in chain header (C-4). Diagnostic-only in v0.3.0: chain.links
+    // remains planChain's raw output for chain:accept compat. v0.3.1 may
+    // promote `fold.folded_links` to authoritative.
+    const chainFolder = require('./lib/chain-folder');
+    const learningMode = ((safeAnswers || []).find(a => a && a.id === 'learning_model') || {}).value || 'Growth';
+    const foldResult = chainFolder.foldChain({
+      links: (chain && chain.links) || [],
+      mode: learningMode,
+      tier: userPacingTier,
+      archetype: chainArchetype,
+    });
+    const foldMeta = {
+      status: foldResult.status,
+      mode: learningMode,
+      soft_cap: chainFolder.SOFT_CAPS[learningMode] || chainFolder.SOFT_CAPS.Growth,
+      hard_cap: chainFolder.HARD_CAP,
+      total_before: chainFolder.totalLessons((chain && chain.links) || []),
+      total_after: chainFolder.totalLessons(foldResult.folded),
+      decisions: foldResult.foldDecisions,
+      folded_links: foldResult.folded,
+    };
+
     const slug = String(goal).toLowerCase().trim().replace(/[^a-z0-9一-龥]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'chain';
     const chainData = {
       slug, ultimate_goal: goal, lang, created_at: new Date().toISOString(),
@@ -3934,7 +5629,7 @@ ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, prio
       // can pass them into _runCurriculumCreate per link. Previously the chain
       // forgot the user's chosen lesson count + dropped the uploaded PDF.
       customLessons: (typeof customLessons === 'number' && customLessons >= 1) ? customLessons : null,
-      uploadedSource: (uploadedSource && Array.isArray(uploadedSource.chapters)) ? uploadedSource : null,
+      uploadedSource: (uploadedSource && Array.isArray(uploadedSource.files) && uploadedSource.files.length > 0) ? uploadedSource : null,
       // v0.6.8 — persist archetype so chain:accept's per-link stubs + chain:advance
       // can pick the right phase template without re-running classifyArchetype.
       archetype: chainArchetype || 'TECH-CONCEPT',
@@ -3943,6 +5638,7 @@ ipcMain.handle('chain:create', async (event, { goal, timeWeeks, dailyHours, prio
       questionnaire: safeAnswers,
       feasibility: verdict,
       plans, chain,
+      fold: foldMeta,
     };
     // v0.6.7 — flag the chain's vault folder as a meta directory so VaultTree
     // can hide it (or render specially). Empty 0-node folders confuse users.
@@ -4611,6 +6307,202 @@ ipcMain.handle('curriculum:list', () => {
     }
     return out;
   } catch (_) { return []; }
+});
+
+// curriculum:archive — single-verb soft-delete a course. v0.5.x ship 2026-05-09
+// per /tr council (Lung divergent + Muse aesthetic + Scout frontier) + MUSE
+// 顶级审美大师 1100ms cubic-bezier fog spec. Surface = screen-home.jsx course-row
+// long-press gesture (千金 visible + complementary to existing HandscrollNav.jsx
+// 长按 0.5s on brass-stroke rail which stays as power-user shortcut).
+//
+// Behavior: (1) Stamps state.json with `lifecycle:'deprecated'` + `archived_ts`
+// BEFORE moving the slug dir to vault/.trash/<slug>-<unixMs>/. (2) Reuses
+// existing vault.del → 7d retention + restoreFromTrash recovery. (3) Returns
+// {ok, error?, trashedAs?} envelope; renderer surfaces failure in italic toast
+// — NO silent-catch (Muse #2 attack: 5 existing callsites already silent-catch
+// vault.del; this NEW path explicitly does not).
+//
+// DEFERRED to v0.5.x+1:
+//   - DAG inbound-edge scan (Muse #1) — chain-link / atlas / cross-spark refs
+//     to this slug. Currently 7d trash window IS the safety net; restore brings
+//     refs back. TODO: add `curriculum:dag-inbound` scanner before commit so
+//     UI can hint "3 课与此相连".
+//   - Active-stream lock (Muse #3) — _hyphaLessonAbort is keyed by requestId
+//     not slug; mapping requestId→slug requires note-rel→slug derivation per
+//     entry. TODO: track slug at request:start time. For now, if user archives
+//     a slug mid-stream, the dir-rename will likely fail and {ok:false} fires;
+//     graceful enough for first ship.
+ipcMain.handle('curriculum:archive', (_e, { slug } = {}) => {
+  if (!slug || typeof slug !== 'string') {
+    return { ok: false, error: 'slug required' };
+  }
+  // Sanity: slug must not contain path traversal characters.
+  if (slug.includes('/') || slug.includes('\\') || slug.includes('..') || slug.startsWith('.')) {
+    return { ok: false, error: 'invalid slug shape' };
+  }
+  const stateRel = `${slug}/state.json`;
+  const state = vault.readJSON(stateRel, null);
+  if (!state) {
+    return { ok: false, error: 'state.json not found — slug may not exist' };
+  }
+  // Stamp lifecycle — Schema-Grounded Memory pattern (arXiv 2604.27906) per
+  // Scout: deletion = state transition, not row removal. atlas / chain-readers
+  // can read deprecated state for ghost rendering on restore.
+  state.lifecycle = 'deprecated';
+  state.archived_ts = new Date().toISOString();
+  try {
+    vault.writeJSON(stateRel, state);
+  } catch (e) {
+    return { ok: false, error: `lifecycle write failed: ${e.message}` };
+  }
+  // Now move the whole slug dir into vault/.trash/<slug>-<unixMs>/ via vault.del.
+  // vault.del returns {ok, reason?, trashedAs?} — we forward the envelope.
+  const r = vault.del(slug);
+  if (!r || r.ok !== true) {
+    // Best-effort rollback: state.json was rewritten with lifecycle but the
+    // dir move failed. Restore prior fields (lifecycle/archived_ts removed).
+    delete state.lifecycle;
+    delete state.archived_ts;
+    try { vault.writeJSON(stateRel, state); } catch (_) { /* if even rollback fails, surface the original error anyway */ }
+    return { ok: false, error: (r && r.reason) || 'vault.del failed' };
+  }
+  return { ok: true, trashedAs: r.trashedAs || null, slug };
+});
+
+// curriculum:list-deprecated — Apple-Mail-style 已搁置 list. Walks vault/.trash/
+// for entries shaped `<slug>-<unixMs>/state.json`, returns metadata sorted desc
+// by archive timestamp. Used by SetAsideList in screen-home.jsx.
+ipcMain.handle('curriculum:list-deprecated', () => {
+  const root = vault.resolveRoot();
+  const trashDir = path.join(root, '.trash');
+  if (!fs.existsSync(trashDir)) return [];
+  const out = [];
+  try {
+    const entries = fs.readdirSync(trashDir, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      // Expected name pattern: <slug>-<unixMs>
+      const m = e.name.match(/^(.+)-(\d{10,16})$/);
+      if (!m) continue;
+      const originalSlug = m[1];
+      const archivedAt = parseInt(m[2], 10);
+      if (!Number.isFinite(archivedAt)) continue;
+      // Filter to course-shaped entries only (must contain a state.json with
+      // a lessonRels array). Skips other trashed file types (notes, sessions).
+      const stateRel = `.trash/${e.name}/state.json`;
+      const state = vault.readJSON(stateRel, null);
+      if (!state || !Array.isArray(state.lessonRels)) continue;
+      out.push({
+        trashName: e.name,
+        originalSlug,
+        archivedAt,
+        topic: originalSlug,
+        lastIdx: state.lastIdx ?? -1,
+        totalLessons: state.lessonRels.length,
+        archived_ts: state.archived_ts || null,
+      });
+    }
+  } catch (_) { /* return what we have */ }
+  out.sort((a, b) => b.archivedAt - a.archivedAt);
+  return out;
+});
+
+// curriculum:restore — wraps vault.restoreFromTrash. Returns {ok, error?, rel?}.
+// If the original slug now exists (user created a new course with same name
+// since archive), refuses with explicit error so renderer can prompt user.
+ipcMain.handle('curriculum:restore', (_e, { trashName } = {}) => {
+  if (!trashName || typeof trashName !== 'string') {
+    return { ok: false, error: 'trashName required' };
+  }
+  if (trashName.includes('/') || trashName.includes('\\') || trashName.includes('..')) {
+    return { ok: false, error: 'invalid trashName shape' };
+  }
+  let r;
+  try {
+    r = vault.restoreFromTrash(trashName);
+  } catch (e) {
+    return { ok: false, error: `restoreFromTrash threw: ${e.message}` };
+  }
+  if (!r || r.ok !== true) {
+    return { ok: false, error: (r && r.reason) || 'restore failed' };
+  }
+  // Strip lifecycle field on the restored state.json — back to active.
+  const stateRel = `${r.rel}/state.json`;
+  try {
+    const state = vault.readJSON(stateRel, null);
+    if (state && state.lifecycle === 'deprecated') {
+      delete state.lifecycle;
+      delete state.archived_ts;
+      vault.writeJSON(stateRel, state);
+    }
+  } catch (_) { /* non-fatal: restore succeeded, lifecycle strip is cosmetic */ }
+  return { ok: true, rel: r.rel };
+});
+
+// v0.5.2 — Frontier Cron IPCs. Single-verb start/stop (NOT cron-toggle).
+// Backend = app/scripts/frontier-cron.js. Persists `frontierCronEnabled` +
+// `frontierCronInterval` into settings.app so the choice survives restart.
+// Returns {ok, error?} envelope; no silent-catch.
+ipcMain.handle('frontier:cron-start', (_e, args = {}) => {
+  const { dryRun = false, intervalHours } = args || {};
+  const cur = _hyphaSettings();
+  const requested = Number.isFinite(intervalHours)
+    ? intervalHours
+    : (cur && cur.app && Number.isFinite(cur.app.frontierCronInterval) ? cur.app.frontierCronInterval : 6);
+  if (!Number.isFinite(requested) || requested < 6) {
+    return { ok: false, error: 'interval >= 6h required' };
+  }
+  let cron;
+  try {
+    cron = require('./scripts/frontier-cron');
+  } catch (err) {
+    return { ok: false, error: `frontier-cron require failed: ${err.message}` };
+  }
+  let r;
+  try {
+    r = cron.start({ intervalHours: requested, settings: cur, dryRun });
+  } catch (err) {
+    return { ok: false, error: `cron.start threw: ${err.message}` };
+  }
+  if (!r || r.ok !== true) {
+    return { ok: false, error: (r && r.error) || 'cron start failed' };
+  }
+  // Persist user intent so a restart can auto-resume cron.
+  try {
+    const next = { ...cur, app: { ...(cur.app || APP_DEFAULTS), frontierCronEnabled: true, frontierCronInterval: requested } };
+    delete next.userProfile;
+    vault.writeJSON('settings.json', next);
+  } catch (err) {
+    // Settings write failed — surface but keep cron running (user-visible UX
+    // is "cron is on", not "cron persisted"). Log to events.jsonl.
+    _hyphaAppendEvent('frontier_cron_settings_write_failed', { reason: err.message });
+  }
+  return { ok: true, intervalMs: r.intervalMs, alreadyRunning: !!r.alreadyRunning };
+});
+
+ipcMain.handle('frontier:cron-stop', () => {
+  let cron;
+  try {
+    cron = require('./scripts/frontier-cron');
+  } catch (err) {
+    return { ok: false, error: `frontier-cron require failed: ${err.message}` };
+  }
+  let r;
+  try {
+    r = cron.stop();
+  } catch (err) {
+    return { ok: false, error: `cron.stop threw: ${err.message}` };
+  }
+  // Persist enabled=false even if not running, so restart doesn't auto-resume.
+  try {
+    const cur = _hyphaSettings();
+    const next = { ...cur, app: { ...(cur.app || APP_DEFAULTS), frontierCronEnabled: false } };
+    delete next.userProfile;
+    vault.writeJSON('settings.json', next);
+  } catch (err) {
+    _hyphaAppendEvent('frontier_cron_settings_write_failed', { reason: err.message });
+  }
+  return { ok: true, alreadyStopped: !!(r && r.alreadyStopped) };
 });
 
 app.on('before-quit', () => {

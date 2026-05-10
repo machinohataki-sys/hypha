@@ -1,0 +1,242 @@
+Andrej Karpathy’s Keynote at Microsoft Build 2023
+Tony Tong
+Follow
+14 min read
+·
+May 27, 2023
+
+48
+
+2
+
+Press enter or click to view image in full size
+Andrej Karpathy’s Keynote at Microsoft Build 2023
+
+Andrej Karpathy gave a great keynote on Microsoft Build 2023 giving a review of GPT as well as large language models (LLM)’s history and state of the development. I used the Conversation1st.ai to analyze the presentation video ( https://www.youtube.com/watch?v=bZQun8Y4L2A ).
+
+Get Tony Tong’s stories in your inbox
+
+Join Medium for free to get updates from this writer.
+
+Subscribe
+
+Remember me for faster sign in
+
+(Please note Conversation1st.ai is still in early beta testing… and this is part of the testing and iterative improvement process.)
+
+Press enter or click to view image in full size
+Conversation1st.ai
+
+Sample interactive processes:
+
+Press enter or click to view image in full size
+Press enter or click to view image in full size
+
+In the following, I will just direct cite the AI generated summaries for each important section.
+
+Here is list of key topics covered in the presentation
+
+1. State of GPT and large language models (LLMs) ecosystem
+— Rapid growth and development of LLMs
+— Increasing capabilities and potential applications
+
+2. Recipe for training LLMs
+— Pretraining stage (majority of computational work)
+— Supervised finetuning stage
+— Reward modeling stage
+— Reinforcement learning stage
+
+3. Evolution of GPT-1, GPT-2, and GPT-3
+— Progression in model size and capabilities
+— Introduction of new techniques and applications
+
+4. Difference between base models and assistant models
+— Base models: pretrained on large-scale datasets
+— Assistant models: fine-tuned for specific applications
+
+5. Supervised fine-tuning and reinforcement learning from human feedback
+— Techniques to improve LLM performance
+— Balancing human input and model autonomy
+
+6. Prompt engineering and few-shot prompts
+— Strategies to elicit better responses from LLMs
+— Providing context and examples for improved understanding
+
+7. Reward modeling and reinforcement learning for GPT assistants
+— Methods to optimize LLM performance
+— Balancing exploration and exploitation
+
+8. SFT (supervised fine-tuning) vs. RLHF (reinforcement learning with human feedback)
+— Comparing different fine-tuning techniques
+— Challenges and complexities of RLHF
+
+9. Cognitive differences between human brains and language models
+— Limitations of LLMs compared to human cognition
+— Strategies to overcome these limitations
+
+10. Techniques for prompting language models
+— Detailed prompts with task content and instructions
+— Encouraging self-consistency and step-by-step reasoning
+
+11. Optimizing performance of language models (e.g., transformers)
+— Exploring lower-capacity models and shorter prompts
+— Fine-tuning and prompt engineering
+
+12. Importance of prompt engineering for LLM performance
+— Maximizing LLM capabilities through effective prompting
+— Utilizing techniques like Python Glue code and multiple prompts
+
+13. Limitations and potential biases of LLMs
+— Biases, hallucinations, reasoning errors, and knowledge cut-offs
+— Susceptibility to attacks and manipulation
+
+14. GPT-4 capabilities and thriving ecosystem
+— Most capable model to date
+— Growing ecosystem of tools, plugins, and applications
+
+15. Example of prompting GPT-4 for Microsoft Build 2023
+— Demonstrating the power and versatility of GPT-4
+— Generating an inspiring message for a conference audience
+
+Press enter or click to view image in full size
+GPT-4 as the most advanced LLM as of today
+State of GPT and large language models (LLMs) ecosystem
+
+— Rapid growth and development of LLMs:
+— Over the past few years, there has been a significant increase in the scale and complexity of LLMs, such as GPT-1, GPT-2, GPT-3, and GPT-4.
+— The growth in LLMs has been fueled by advancements in machine learning, natural language processing, and the availability of large-scale datasets and computational resources.
+— Researchers and developers are continually pushing the boundaries of LLMs, resulting in improvements in their capabilities, performance, and the range of tasks they can handle.
+
+— Increasing capabilities and potential applications:
+— LLMs have demonstrated impressive performance across a wide variety of tasks, such as text generation, question-answering, summarization, translation, and code generation.
+— As LLMs continue to evolve, their capabilities are expanding to include more complex and nuanced tasks, such as reasoning, problem-solving, and creative writing.
+— The growing ecosystem of LLMs has led to the development of numerous applications, tools, and plugins that leverage their capabilities, making it easier for developers and users to access and utilize these powerful models.
+— Despite their impressive capabilities, LLMs still have limitations, such as biases, hallucinations, and reasoning errors. However, ongoing research and development are expected to address these issues and further enhance their performance and applicability.
+
+GPT Assistant training pipeline
+Press enter or click to view image in full size
+
+Recipe for training LLMs
+
+Pretraining stage (majority of computational work)
+
+- Large-scale datasets are gathered from sources like CommonCrawl, Wikipedia, GitHub, and others.
+- Text is tokenized into sequences of integers, which serve as the input for the transformer model.
+- Models are pretrained using language modeling, predicting the next token in a sequence given the context.
+- Pretraining requires significant computational resources, such as thousands of GPUs and months of training time.
+
+Supervised finetuning stage
+
+- Small, high-quality datasets are collected, consisting of prompt and ideal response pairs created by human contractors.
+- Language modeling is still used, but the training set is swapped for the high-quality prompt-response data.
+- After training, the resulting model (SFT model) can be deployed as an assistant that works to some extent.
+
+Reward modeling stage
+
+- Data collection shifts to comparisons, where multiple completions from the SFT model are ranked by human contractors.
+- The transformer model is trained to predict rewards for each completion based on the ground truth from the human rankings.
+- Reward models allow scoring the quality of any arbitrary completion for a given prompt.
+
+Reinforcement learning stage
+
+- Reinforcement learning is performed with respect to the fixed reward model.
+- Completions generated by the model are weighed by the rewards indicated by the reward model.
+- After several iterations, the model learns to generate completions that score high according to the reward model.
+
+Base models vs. Assistant models
+Press enter or click to view image in full size
+Press enter or click to view image in full size
+
+On differences between base models and assistant models:
+
+1. Base Models:
+— Pretrained on large-scale datasets: Base models are trained on massive datasets that include text from sources like CommonCrawl, Wikipedia, GitHub, and more. They learn general language representations by predicting the next token in a sequence.
+— Document completion focus: Base models are designed to complete documents rather than answer questions or perform specific tasks. They are more focused on generating coherent text that follows the structure and context of the input.
+— Less task-specific: Base models are not fine-tuned for specific tasks or applications, which means they may not provide optimal performance when used directly for problem-solving or question-answering tasks without further fine-tuning or prompting.
+
+2. Assistant Models:
+— Fine-tuned for specific applications: Assistant models are created by further fine-tuning the base models on smaller, high-quality datasets that consist of prompt and ideal response pairs. These datasets are tailored for specific tasks or applications, making the assistant models more adept at handling those tasks.
+— Task-oriented: Assistant models are designed to perform specific tasks, such as answering questions, providing recommendations, or generating code. They are more focused on providing helpful, truthful, and harmless responses to user prompts.
+— Better performance for tasks: Assistant models generally provide better performance in task-specific applications compared to base models, as they have been fine-tuned to understand and respond to user prompts more effectively.
+
+In summary, base models are pretrained on large-scale datasets and focus on completing documents, while assistant models are fine-tuned on smaller, task-specific datasets to perform specific applications. Assistant models generally provide better performance for tasks compared to base models, as they have been optimized to understand and respond to user prompts more effectively.
+
+Press enter or click to view image in full size
+Press enter or click to view image in full size
+Press enter or click to view image in full size
+Differences between SFT models and RLHF models
+
+On the differences between SFT (Supervised Fine-Tuning) and RLHF (Reinforcement Learning with Human Feedback):
+
+1. Supervised Fine-Tuning (SFT):
+— Task-specific data: SFT involves training the model on smaller, high-quality datasets containing prompt and ideal response pairs. These datasets are tailored for specific tasks or applications, making the model more adept at handling those tasks.
+— Language modeling objective: SFT continues to use the language modeling objective, but the training set is swapped out for the task-specific dataset. The focus is on generating responses that closely match the ideal responses provided in the dataset.
+— Accessible and relatively straightforward: SFT is more accessible and easier to implement compared to RLHF, as it builds upon the language modeling objective and requires fewer changes to the training process.
+
+2. Reinforcement Learning with Human Feedback (RLHF):
+— Reward modeling: In RLHF, a reward model is trained to predict the quality of model-generated completions based on human rankings. Human contractors are asked to rank multiple completions generated by an SFT model, and the reward model learns to predict these rankings.
+— Policy optimization: Once the reward model is trained, it is used to guide the training of the model through reinforcement learning. The model is optimized to generate completions that receive higher rewards from the reward model.
+— Improved performance: RLHF models generally perform better than SFT models, as they leverage human judgment in a more computationally efficient manner. Humans are better at comparing and ranking completions than generating them, which helps improve the model’s performance.
+— More challenging and complex: RLHF is more challenging to implement than SFT, as it involves multiple stages of training, including reward modeling and reinforcement learning. It requires more technical expertise and may be less stable and more difficult to train compared to SFT.
+
+In summary, SFT is a more accessible and straightforward method for fine-tuning large language models on task-specific datasets, using the language modeling objective. It is easier to implement and can provide good performance improvements for specific tasks. However, it may not always be the best option when the task requires more nuanced understanding or when the model needs to adapt to human preferences better.
+
+On the other hand, RLHF is a more complex and challenging technique that leverages human feedback to train a reward model and optimize the model’s performance using reinforcement learning. While it may be more difficult to implement and less stable during training, RLHF can lead to significant performance improvements and better alignment with human preferences. This makes RLHF particularly useful for tasks that require a higher level of understanding or when the model needs to generate more contextually appropriate responses.
+
+Ultimately, the choice between SFT and RLHF depends on the specific requirements of the application, the resources available, and the desired level of performance. Both techniques have their merits, and understanding their differences can help guide the decision-making process when fine-tuning large language models for various tasks.
+
+Using Chain-of-Thought / Tree-of-Thought for solving complex problems
+Press enter or click to view image in full size
+Press enter or click to view image in full size
+Press enter or click to view image in full size
+
+In Andrej Karpathy’s talk, he mentions “Tree of Thought” as a recent advancement in prompting techniques for Large Language Models (LLMs) like GPT-4. “Chain of Thought” can be considered a simpler version of this idea, where you sequentially link multiple prompts together. Let’s explore these concepts in more detail:
+
+1. Chain of Thought: This approach involves breaking down a complex task into a series of smaller, more manageable steps, and guiding the LLM through each step sequentially. By doing so, you can help the model understand and solve the problem more effectively. This can involve using multiple prompts, possibly combined with Python code, to create a more structured approach to problem-solving.
+
+2. Tree of Thought: This concept is introduced in a recent paper and takes the “Chain of Thought” idea further by maintaining multiple completions for any given prompt and scoring them along the way. In this technique, the LLM generates multiple possible responses to a prompt, and then the model evaluates each response to select the best one or continue expanding on the most promising options. This is similar to how the AlphaGo algorithm uses Monte Carlo Tree Search to explore multiple possible moves in the game of Go before selecting the best one.
+
+The “Tree of Thought” approach allows the LLM to explore different reasoning paths and potentially correct its mistakes or avoid dead ends in its reasoning process. This technique is particularly useful when dealing with complex tasks that require the LLM to think more deeply and consider multiple possibilities before arriving at a solution.
+
+By utilizing these advanced prompting techniques, such as “Chain of Thought” and “Tree of Thought,” you can create more effective interactions with LLMs like GPT-4, allowing you to harness their full potential and improve their performance in solving complex problems.
+
+Press enter or click to view image in full size
+
+In Andrej Karpathy’s talk, “Chains, agents, pipelines, state machines” refers to various techniques and approaches for effectively using Large Language Models (LLMs) like GPT-4 to solve problems. These techniques involve breaking down tasks into smaller steps, linking prompts together, and leveraging external tools to improve the performance of the LLM. Let’s dive into each of these concepts:
+
+1. Chains: Chains refer to the idea of breaking down a complex task into a series of smaller, more manageable steps. By doing so, you can guide the LLM through each step, making it easier for the model to understand and solve the problem. This can involve using multiple prompts or even combining prompts with Python code to create a more structured approach to problem-solving.
+
+2. Agents: In this context, agents refer to the LLMs themselves, which act as intelligent assistants that can be prompted to perform tasks. By treating the LLM as an agent, you can design prompts and interactions that help the model understand its role in solving a particular problem. This can involve asking the model to think step-by-step, consider itself an expert, or even acknowledge its limitations in certain areas.
+
+3. Pipelines: Pipelines refer to the sequential process of using multiple prompts or tools to solve a problem. In a pipeline, the output of one prompt or tool is used as the input for the next, allowing you to create a more guided and structured approach to problem-solving. This can involve using external tools like calculators or code interpreters alongside the LLM to offload difficult tasks and combine their results to arrive at a solution.
+
+4. State Machines: State machines are a more advanced concept that involves using a structured approach to manage the flow of information and control the behavior of the LLM. In a state machine, the model transitions between different states based on the input it receives and the rules defined for each state. This can help create a more controlled and predictable interaction with the LLM, making it easier to manage complex tasks and maintain context throughout the problem-solving process.
+
+These techniques can be combined and adapted to create more effective interactions with LLMs like GPT-4, allowing you to harness their full potential and improve their performance in solving complex problems.
+
+Press enter or click to view image in full size
+Tools and Plugins
+
+In Andrej Karpathy’s talk, he discusses the importance of using tools and plugins to offload tasks that are difficult for Large Language Models (LLMs) like GPT-4 to handle natively. These tools and plugins can help improve the performance of LLMs by providing them with additional capabilities or resources. Let’s explore some of the tools and plugins mentioned in the talk:
+
+1. Calculators: Since LLMs may not be very good at mental arithmetic, you can provide them with calculators to perform complex calculations. In the prompt, you can instruct the model to use the calculator whenever it needs to perform arithmetic tasks. This can help the LLM generate more accurate and reliable results.
+
+2. Code Interpreters: LLMs can generate code, but they may not be able to interpret or run the code themselves. By providing a code interpreter as a tool, the LLM can use it to execute the generated code and provide the results. This can be particularly useful when working with tasks that require code execution, such as programming assignments or debugging.
+
+3. Search Tools: While LLMs have vast knowledge stored in their parameters, they may not always have the most up-to-date or specific information. By providing search tools or access to external databases, you can help the LLM retrieve relevant information that may not be present in its pre-trained knowledge. This can improve the quality of the generated responses and make them more accurate and relevant to the task at hand.
+
+4. Retrieval-Augmented Models: These models combine LLMs with external information retrieval systems to provide more accurate and relevant responses. In this approach, relevant documents are indexed and embedded as vectors in a vector store. At test time, a query is made to the vector store to fetch relevant chunks of information, which are then incorporated into the prompt for the LLM. This can help improve the model’s performance by providing it with additional context and information from external sources.
+
+5. Constraint Prompting: Techniques like Guidance from Microsoft allow you to enforce a specific output template for the LLM’s response. By constraining the model’s output to a particular format, such as JSON, you can ensure that the generated responses are more structured and easier to process.
+
+By incorporating these tools and plugins into your interactions with LLMs like GPT-4, you can improve their performance and make them more effective in solving complex tasks. These additional resources help the LLM overcome its limitations and provide more accurate, reliable, and relevant results.
+
+Summary and Outlook
+
+Andrej Karpathy’s outlook on the LLM space is optimistic, acknowledging the rapid growth and development of large language models like GPT-4. He highlights the impressive capabilities of these models and the thriving ecosystem of tools and techniques being built around them. However, he also emphasizes the limitations and challenges that LLMs currently face, such as biases, hallucination, reasoning errors, and susceptibility to various attacks.
+
+From a research and development perspective, he points out the ongoing advancements in prompt engineering, reward modeling, reinforcement learning, and fine-tuning techniques. He also mentions the exploration of more general techniques, such as using Python Glue code and stringing together multiple prompts, as well as the development of retrieval-augmented models and constraint prompting.
+
+When it comes to applications, Andrej recommends using LLMs in low-stakes situations and combining them with human oversight. He suggests thinking of LLMs as sources of inspiration and co-pilots, rather than fully autonomous agents. This approach acknowledges the current limitations of LLMs and ensures that their outputs are carefully reviewed and curated by human experts.
+
+In summary, Andrej Karpathy’s outlook on the LLM space is one of excitement and anticipation for the continued growth and development of these models. However, he also emphasizes the importance of being aware of their limitations and using them responsibly in practical applications.

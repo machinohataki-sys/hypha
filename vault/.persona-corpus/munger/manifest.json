@@ -1,0 +1,43 @@
+{
+  "persona_id": "munger",
+  "display_name": "Charlie Munger",
+  "compiled_date": "2026-05-09",
+  "purpose": "HYPHA tutor persona corpus distillation, v0.5.1 lane, 3rd persona (Machino-G batch)",
+  "sources": {
+    "twitter": {
+      "file": null,
+      "note": "Munger never used social media. N/A."
+    },
+    "blog": {
+      "dir": null,
+      "note": "Munger did not blog. All material is in talks/ (speech transcripts and revised written speeches)."
+    },
+    "talks": {
+      "dir": "talks/",
+      "transcripts": [
+        {"slug": "usc-2007-singju",            "title": "USC Law School Commencement Address (2007-05-13)",  "source": "singjupost.com/full-transcript-charlie-mungers-speech-at-usc-commencement-2007", "chars": 28883, "words": 5272, "verbatim": true, "weight": "very high — canonical late-life speech, full deserved-trust + iron-prescription manifesto"},
+        {"slug": "usc-2007-vlw",               "title": "USC Law School Commencement Address — Value Investing World mirror", "source": "valueinvestingworld.com/2007/05/charlie-munger-usc-law-school.html", "chars": 15381, "words": 2772, "verbatim": true, "weight": "high — partial transcript, useful for cross-check"},
+        {"slug": "usc-2007-jamesclear",        "title": "USC 2007 — James Clear excerpt page",               "source": "jamesclear.com/great-speeches/2007-usc-law-school-commencement-address-by-charlie-munger", "chars": 76, "words": 11, "verbatim": false, "weight": "low — page-frame text only; full text behind link"},
+        {"slug": "psychology-misjudgment-fs",  "title": "The Psychology of Human Misjudgment (revised, ~2005)", "source": "fs.blog/great-talks/psychology-human-misjudgment", "chars": 142000, "words": 24615, "verbatim": true, "weight": "very high — full revised text of the magnum-opus speech, source of lollapalooza / latticework / iron-prescription / Planck-knowledge canon"},
+        {"slug": "psychology-misjudgment-jc",  "title": "Psychology of Human Misjudgment — James Clear text", "source": "jamesclear.com/great-speeches/psychology-of-human-misjudgment-by-charlie-munger", "chars": 64000, "words": 10832, "verbatim": true, "weight": "high — alternative mirror; partial overlap with fs.blog version, useful for cross-check"},
+        {"slug": "art-of-stock-picking-novel", "title": "The Art of Stock Picking — Novel Investor analysis", "source": "novelinvestor.com/charlie-mungers-art-stock-picking-worldly-wisdom", "chars": 16000, "words": 2619, "verbatim": "partial", "weight": "medium — extended quotes embedded in 3rd-party analysis; canonical talk on multidisciplinary mental models"}
+      ],
+      "total_words": 46121,
+      "total_words_verbatim": 43500
+    }
+  },
+  "total_corpus_chars": 266340,
+  "total_word_equivalent_estimate": 43500,
+  "primary_language": "en",
+  "distillation_target": {
+    "schema": "Character Contract per app/lib/agent-character/contracts/karpathy.json (18 fields, schema-locked)",
+    "output_path": "app/lib/agent-character/contracts/munger.json",
+    "wisdom_md": "vault/.persona-wisdom/munger.md"
+  },
+  "deferred": [
+    "Berkshire shareholder-meeting Q&A transcripts (1994-2023, buffett.cnbc.com archive) — question-answer cadence, real-time hedging.",
+    "Daily Journal annual meeting transcripts (2014-2023) — late-life voice with explicit behavioral-economics references.",
+    "Wesco shareholder Q&A — partnership-design specificity.",
+    "Berkshire Hathaway 2014 annual letter Munger commentary — 2014ltr.pdf returned binary via WebFetch; deferred to v0.2 with proper PDF parser route."
+  ]
+}

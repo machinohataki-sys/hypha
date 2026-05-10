@@ -1,12 +1,20 @@
-# Hypha — the NOTE AGENT
+# Hypha — Private University Operating System
 
-> For self-directed researchers and bachelor-foundation learners.
+> For self-directed learners breaking industrial education and knowledge monopoly.
 >
 > Internal codename: `ptor2`. Public brand: **Hypha**.
 
 Hypha is the 4th agent category alongside image / code / workflow agents.
 
-You input a learning intent. Hypha harvests top sources (Nobel-rich uni / GitHub / HN), synthesizes a sequential pseudo-curriculum, and runs each lesson as a Socratic dialog. Each session auto-distills into a dual-layer note: course foundation + your insights.
+**North star** (see [BLUEPRINT.md](./BLUEPRINT.md) for full spec): a goal-locked, evidence-driven, cadence-controlled, note-revival, entropy-reducing, creation-feedback, commons-replenishing private university OS with a low-disturbance companion layer.
+
+You input a learning intent. Hypha harvests top sources (Nobel-rich uni / GitHub / HN), synthesizes a sequential pseudo-curriculum, and runs each lesson as a Socratic dialog. Each session auto-distills into a dual-layer note: course foundation + your insights. Knowledge then flows back into your own creation pool — the things you are actually building.
+
+**Minimum loop**: `Goal → Lesson → Evidence → Note → Feedback → Next Lesson`.
+
+**Ideal loop**: `Goal Contract → Mode Router → Bibliography Grounding → Curriculum / Library / Commons / Research Radar → Dynamic Lesson → Live Capture → Learning Evidence → Mastery Map → Living Note Reactivation → Creation Pool → Product Spark → Pack → Commons → Better Next Lesson`.
+
+See [ROADMAP.md](./ROADMAP.md) for the v0.1 → v3.0 evolution path.
 
 ## Run
 

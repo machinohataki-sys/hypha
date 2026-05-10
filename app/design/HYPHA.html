@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HYPHA · A Private University</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:wght@400;500;600&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Manrope:wght@400;500;600&family=Cardo:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <link rel="icon" type="image/png" href="brand-mark.png"/>
+</head>
+<body style="background-color: rgb(255, 244, 220); font-family: &quot;DM Sans&quot;">
+  <!-- Oil-paint SVG filters (referenced via CSS .oil / .oil-strong / .oil-canvas) -->
+  <svg width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+    <defs>
+      <filter id="oil-paint" x="-5%" y="-5%" width="110%" height="110%" colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.018 0.024" numOctaves="2" seed="3" result="noise"/>
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="9" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+      <filter id="oil-paint-strong" x="-8%" y="-8%" width="116%" height="116%" colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.008 0.014" numOctaves="3" seed="7" result="noise"/>
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="34" xChannelSelector="R" yChannelSelector="G" result="disp"/>
+        <feGaussianBlur in="disp" stdDeviation="0.6"/>
+      </filter>
+      <filter id="canvas-grain" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="1.6" numOctaves="2" seed="5" stitchTiles="stitch"/>
+        <feColorMatrix values="0 0 0 0 0.18  0 0 0 0 0.13  0 0 0 0 0.08  0 0 0 0.55 0"/>
+      </filter>
+      <filter id="brush-edge" x="-3%" y="-3%" width="106%" height="106%" colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.06 0.08" numOctaves="2" seed="11" result="noise"/>
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- Canvas-weave overlay (locked to viewport, sits above content for grain) -->
+  <div aria-hidden="true" style="position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.12;background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22260%22 height=%22260%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%222%22 seed=%224%22 stitchTiles=%22stitch%22/><feColorMatrix values=%220 0 0 0 0.20  0 0 0 0 0.13  0 0 0 0 0.06  0 0 0 0.85 0%22/></filter><rect width=%22260%22 height=%22260%22 filter=%22url(%23n)%22/></svg>');"></div>
+
+  <div id="root"></div>
+
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="watercolor.jsx"></script>
+  <script type="text/babel" src="components.jsx"></script>
+  <script type="text/babel" src="screen-home.jsx"></script>
+  <script type="text/babel" src="screen-lesson.jsx"></script>
+  <script type="text/babel" src="screen-lesson-chat.jsx"></script>
+  <script type="text/babel" src="screen-atlas-notebook.jsx"></script>
+  <script type="text/babel" src="screen-library-workshop.jsx"></script>
+  <script type="text/babel" src="screen-onboarding.jsx"></script>
+  <script type="text/babel" src="app.jsx"></script>
+</body>
+</html>

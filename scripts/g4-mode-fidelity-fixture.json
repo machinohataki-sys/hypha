@@ -1,0 +1,74 @@
+{
+  "_comment": "G4 v0.1 acceptance gate fixture — Mode behavior fidelity (Option A reinterpretation).",
+  "_design": "10 Goal Contracts spanning Exam (4), Growth (4), Hybrid (2). For each, the runner generates a lesson plan and scores whether mode-specific signals appear in plan.objective + plan.path + plan.micro_proof.",
+  "_pass_criteria": "≥9/10 contracts produce a plan that aligns with their chosen mode (combined keyword + LLM-tagger score ≥ 60).",
+  "_runner": "scripts/g4-mode-fidelity-run.cjs",
+  "contracts": [
+    {
+      "name": "exam-1-kaoyan-math",
+      "goal": { "north_star_goal": "考研数学 6 月", "main_creation": "考研数学 130+ 卷面分", "learning_model": "Exam" },
+      "audience": "本科应届, 数学基础扎实但久未练考研真题",
+      "learner_state": { "known": ["微积分基础", "线性代数"], "unknown": ["考研真题套路", "时间管理", "高频考点"] },
+      "deadline": "2026-06-01"
+    },
+    {
+      "name": "exam-2-aws-saa",
+      "goal": { "north_star_goal": "AWS Solutions Architect Associate 4 周拿证", "main_creation": "SAA 通过证书", "learning_model": "Exam" },
+      "audience": "5 年后端工程师, 用过 EC2 + S3, 没系统学过 AWS",
+      "learner_state": { "known": ["EC2", "S3", "VPC 基础"], "unknown": ["IAM 细节", "考点分布", "well-architected pillar"] },
+      "deadline": "2026-06-05"
+    },
+    {
+      "name": "exam-3-jlpt-n1",
+      "goal": { "north_star_goal": "JLPT N1 12 月通过", "main_creation": "N1 合格证", "learning_model": "Exam" },
+      "audience": "在日本住 3 年, 日常会话流利, N2 已过 1 年",
+      "learner_state": { "known": ["N2 词汇 8000", "日常会话"], "unknown": ["N1 阅读高级句法", "听力学术词", "考试时间分配"] },
+      "deadline": "2026-12-07"
+    },
+    {
+      "name": "exam-4-gmat-740",
+      "goal": { "north_star_goal": "GMAT 740 by Sep", "main_creation": "740+ 分申请 MBA", "learning_model": "Exam" },
+      "audience": "金融分析师, 数学基础好, 英语弱",
+      "learner_state": { "known": ["数学心算", "基础英语"], "unknown": ["sentence correction", "critical reasoning", "IR 题型"] },
+      "deadline": "2026-09-15"
+    },
+    {
+      "name": "growth-1-rsc",
+      "goal": { "north_star_goal": "学 React Server Components 不为考试为做产品", "main_creation": "用 RSC 重构我自己的 SaaS dashboard", "learning_model": "Growth" },
+      "audience": "前端工程师, 8 年 React 经验, 没用过 RSC",
+      "learner_state": { "known": ["React hooks", "Next.js 13"], "unknown": ["server/client 边界", "streaming", "data fetching pattern"] }
+    },
+    {
+      "name": "growth-2-bayes",
+      "goal": { "north_star_goal": "理解贝叶斯到能向同事讲清", "main_creation": "公司内部 1 小时 tech talk slides", "learning_model": "Growth" },
+      "audience": "数据分析师, 用过 sklearn 但贝叶斯只会调包",
+      "learner_state": { "known": ["概率基础", "Python"], "unknown": ["先验后验直觉", "MCMC 何时用", "分层模型"] }
+    },
+    {
+      "name": "growth-3-whisper",
+      "goal": { "north_star_goal": "搞懂 Whisper 架构能 fork 改", "main_creation": "fork Whisper 加自己的 LoRA 层", "learning_model": "Growth" },
+      "audience": "ML 工程师, 训过 BERT, 没碰过 audio model",
+      "learner_state": { "known": ["transformer 基础", "PyTorch"], "unknown": ["mel spectrogram", "encoder-decoder for audio", "Whisper 训练 trick"] }
+    },
+    {
+      "name": "growth-4-system-design",
+      "goal": { "north_star_goal": "学 system design 直到能 1h 白板 design Twitter", "main_creation": "通过 staff-level 面试", "learning_model": "Growth" },
+      "audience": "senior 后端 6 年, 单体应用经验多, 分布式弱",
+      "learner_state": { "known": ["REST API", "PostgreSQL"], "unknown": ["sharding", "consistent hashing", "feed fanout 策略"] }
+    },
+    {
+      "name": "hybrid-1-saa-iam",
+      "goal": { "north_star_goal": "3 月内拿 AWS SAA 但要真懂 IAM 用在我自己 SaaS", "main_creation": "SAA 证 + 自家 SaaS IAM 重构", "learning_model": "Hybrid" },
+      "audience": "独立开发者, 自有 SaaS 用户增长中",
+      "learner_state": { "known": ["AWS 基础", "Node.js 后端"], "unknown": ["IAM policy 语法", "scope 设计", "考试细节"] },
+      "deadline": "2026-08-10"
+    },
+    {
+      "name": "hybrid-2-macroeconomics",
+      "goal": { "north_star_goal": "申请截止前 2 月把 macroeconomics 学到能讨论政策", "main_creation": "MPA 申请文书 + 政策讨论能力", "learning_model": "Hybrid" },
+      "audience": "金融行业 3 年, 申 MPA 项目",
+      "learner_state": { "known": ["金融基础", "GDP 概念"], "unknown": ["Phillips curve", "quantitative easing 真懂", "财政 vs 货币"] },
+      "deadline": "2026-09-01"
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "_meta": {
+    "version": "v0.4.0",
+    "compiled_at": "2026-05-08",
+    "purpose": "L2 Pedagogy Design substrate — 7 codified teaching principles distilled from CMU Eberly Center / Vanderbilt CFT / Michigan CRLT / Harvard Bok / Stanford Teaching Commons. Read by app/agent.js:designLesson via _selectPedagogyForLesson() to inject 2-3 archetype-and-stage-weighted principles per turn as PEDAGOGY GUARDRAILS.",
+    "refresh_policy": "Manual quarterly review. citation_url retained per principle for re-distillation. Do NOT auto-crawl — academic teaching center pages drift slowly and content is not API-stable.",
+    "schema_version": 1
+  },
+  "principles": [
+    {
+      "id": "backward-design",
+      "name": "Backward Design (UbD)",
+      "source": "Wiggins & McTighe; Vanderbilt CFT",
+      "citation_url": "https://cft.vanderbilt.edu/guides-sub-pages/understanding-by-design/",
+      "distilled_rule": "Plan in reverse: identify desired learning outcome FIRST, then specify the evidence that would prove the learner reached it, only THEN design the activity that produces that evidence. Activities-first planning yields curricula that 'cover material' without producing demonstrable learning.",
+      "hypha_application": "designSequence MUST emit learn_goal + micro_proof BEFORE lesson body. designLesson treats micro_proof.expected_signal as the planned evidence; the body serves that proof, not vice versa. If the lesson body cannot articulate how the body produces the proof, scrap and redesign — do not patch.",
+      "archetype_weights": { "TECH-CONCEPT": 2, "TECH-PROC": 2, "HUMANITIES": 1, "MINDSET": 2, "DECL-MASS": 1, "LANG-ACQ": 1 },
+      "lesson_stage_weights": { "HOOK": 2, "EXPOSE": 1, "EXPOSE_PRIME": 1, "VERIFY": 2, "EXTEND": 1, "CONNECT": 1, "LATCH": 2, "END": 0 }
+    },
+    {
+      "id": "constructive-alignment",
+      "name": "Constructive Alignment",
+      "source": "John Biggs; CMU Eberly Center alignment triangle",
+      "citation_url": "https://www.cmu.edu/teaching/designteach/design/learningobjectives.html",
+      "distilled_rule": "Learning objectives, instructional activities, and assessment must form a triangle where each vertex reinforces the others. If the objective says 'learner can apply X to a new instance', the activity must give them practice applying X, and the assessment must require them to apply X to an unseen instance — not recall its definition. Misalignment at any vertex collapses the whole.",
+      "hypha_application": "Audit each lesson for triangle integrity: does the body's central activity exercise what learn_goal promises? Does micro_proof test that exact capacity? If learn_goal says 'apply' but body teaches definition + recall test, flag the lesson as misaligned and rewrite.",
+      "archetype_weights": { "TECH-CONCEPT": 2, "TECH-PROC": 2, "HUMANITIES": 2, "MINDSET": 1, "DECL-MASS": 2, "LANG-ACQ": 2 },
+      "lesson_stage_weights": { "HOOK": 1, "EXPOSE": 1, "EXPOSE_PRIME": 1, "VERIFY": 2, "EXTEND": 2, "CONNECT": 1, "LATCH": 2, "END": 0 }
+    },
+    {
+      "id": "prior-knowledge",
+      "name": "Activate Prior Knowledge",
+      "source": "Ambrose et al., How Learning Works; CMU Eberly",
+      "citation_url": "https://www.cmu.edu/teaching/principles/learning.html",
+      "distilled_rule": "Learners do not arrive empty. Prior knowledge — accurate, partial, or actively wrong (misconceptions) — determines what new content can attach to. Surface and probe what the learner already believes BEFORE introducing new material; new material must hook into existing schema or it floats away within hours.",
+      "hypha_application": "HOOK and EXPOSE_PRIME states MUST elicit the learner's current belief or guess about the concept BEFORE teaching it. Use FORCED COMMIT (predict a number/direction/word) to extract the prior. If the learner's prior is uniform (no opinion), P6 PRIOR-INSTALL takes over — install a structured frame before probing.",
+      "archetype_weights": { "TECH-CONCEPT": 2, "TECH-PROC": 1, "HUMANITIES": 2, "MINDSET": 2, "DECL-MASS": 2, "LANG-ACQ": 1 },
+      "lesson_stage_weights": { "HOOK": 2, "EXPOSE": 2, "EXPOSE_PRIME": 2, "VERIFY": 1, "EXTEND": 0, "CONNECT": 1, "LATCH": 0, "END": 0 }
+    },
+    {
+      "id": "cognitive-load",
+      "name": "Manage Cognitive Load",
+      "source": "John Sweller; Mayer Multimedia Learning; Harvard Bok Center",
+      "citation_url": "https://bokcenter.harvard.edu/cognitive-load",
+      "distilled_rule": "Working memory holds roughly 4 chunks at once. Intrinsic load (concept difficulty) cannot be reduced; extraneous load (poor presentation, jargon, off-topic asides, dense slabs of text) MUST be reduced. Germane load (effortful integration with prior schema) should be preserved. Dump too much novelty in one turn and the learner retains nothing.",
+      "hypha_application": "One STATE per turn (already enforced). Within a state, cap at 3 new terms or 1 new mechanism. Body metaphor before symbol. When introducing a multi-part concept (e.g. Q/K/V), enumerate the parts but defer their interactions to a later turn. Long monologue = extraneous load — break with a question.",
+      "archetype_weights": { "TECH-CONCEPT": 2, "TECH-PROC": 2, "HUMANITIES": 1, "MINDSET": 1, "DECL-MASS": 2, "LANG-ACQ": 2 },
+      "lesson_stage_weights": { "HOOK": 1, "EXPOSE": 2, "EXPOSE_PRIME": 2, "VERIFY": 1, "EXTEND": 2, "CONNECT": 1, "LATCH": 1, "END": 0 }
+    },
+    {
+      "id": "practice-feedback",
+      "name": "Effortful Practice with Targeted Feedback",
+      "source": "Hattie Visible Learning; Ericsson deliberate practice; Michigan CRLT",
+      "citation_url": "https://crlt.umich.edu/feedback",
+      "distilled_rule": "Knowledge is built through retrieval, not exposure. Every concept needs at least one apply-instance — a chance for the learner to use it on a fresh case — followed by feedback that names what they got right, what they missed, and how to bridge the gap. Praise without specificity, or correction without bridge, both fail.",
+      "hypha_application": "VERIFY state requires a forced commit (specific number/word/direction). After the learner replies, the response MUST: (1) name what they got right, (2) if they missed, frame as 'twin / cousin / related quantity' (saving-face protocol), (3) bridge their answer to the canonical with one sentence showing the link. Generic 'good' or 'not quite' is banned.",
+      "archetype_weights": { "TECH-CONCEPT": 2, "TECH-PROC": 2, "HUMANITIES": 1, "MINDSET": 1, "DECL-MASS": 2, "LANG-ACQ": 2 },
+      "lesson_stage_weights": { "HOOK": 0, "EXPOSE": 0, "EXPOSE_PRIME": 1, "VERIFY": 2, "EXTEND": 2, "CONNECT": 1, "LATCH": 1, "END": 0 }
+    },
+    {
+      "id": "metacognition",
+      "name": "Metacognition / Desirable Difficulty",
+      "source": "Robert & Elizabeth Bjork; Stanford Teaching Commons",
+      "citation_url": "https://teachingcommons.stanford.edu/teaching-guides/metacognition",
+      "distilled_rule": "Learners are systematically miscalibrated about what they know. Fluent recognition (re-reading notes, watching the lecture twice) feels like mastery but does not produce it. Effortful retrieval, spacing, interleaving, and self-explanation produce real learning while feeling slower and harder. The tutor's job includes correcting the learner's miscalibration.",
+      "hypha_application": "After the learner asserts they understand, do not accept the assertion — require a Feynman test: 'apply X to a fresh instance you haven't seen' or 'explain X to someone who knows nothing'. If they pass, name it; if they stumble, name the specific gap (not 'try again') and re-teach that gap only.",
+      "archetype_weights": { "TECH-CONCEPT": 2, "TECH-PROC": 1, "HUMANITIES": 2, "MINDSET": 2, "DECL-MASS": 1, "LANG-ACQ": 1 },
+      "lesson_stage_weights": { "HOOK": 0, "EXPOSE": 0, "EXPOSE_PRIME": 1, "VERIFY": 1, "EXTEND": 2, "CONNECT": 2, "LATCH": 2, "END": 1 }
+    },
+    {
+      "id": "transfer",
+      "name": "Transfer / Application to New Context",
+      "source": "Perkins & Salomon; CMU Eberly transfer guide",
+      "citation_url": "https://www.cmu.edu/teaching/designteach/teach/instructionalstrategies/transfer.html",
+      "distilled_rule": "Knowledge that does not transfer is decoration. After a concept lands in its original context, the learner must explicitly bridge it to a NEW context — preferably one they care about (their own project, their domain, their question). Without an explicit transfer prompt, learners default to context-bound recall and the knowledge does not generalize.",
+      "hypha_application": "EXTEND and CONNECT states MUST surface a transfer prompt: 'where in your own work would this apply?' or 'name a case in your domain where this mechanism would change the outcome'. Reference user_profile.about and product_pool when selecting the transfer target. CONNECT links to a vault note when one exists.",
+      "archetype_weights": { "TECH-CONCEPT": 1, "TECH-PROC": 2, "HUMANITIES": 1, "MINDSET": 2, "DECL-MASS": 1, "LANG-ACQ": 1 },
+      "lesson_stage_weights": { "HOOK": 0, "EXPOSE": 0, "EXPOSE_PRIME": 0, "VERIFY": 0, "EXTEND": 2, "CONNECT": 2, "LATCH": 2, "END": 1 }
+    }
+  ]
+}

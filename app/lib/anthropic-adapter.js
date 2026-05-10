@@ -65,17 +65,40 @@ function _systemWithCache(systemText) {
   }];
 }
 
+// v0158x — Extended thinking. Anthropic Messages API: when `thinking` param
+// is set, model produces internal reasoning tokens BEFORE visible output.
+// Significantly improves output quality on conceptually-deep prompts (council
+// 2026-05-04 diagnosis: lesson "不够深思熟虑" root cause). Constraints:
+// - temperature MUST be 1.0 when thinking enabled (Anthropic hard rule)
+// - budget_tokens deprecated on Opus 4.6 / Sonnet 4.6 future models, but works now
+// - Stream emits thinking_delta events; runStream filters them out (kept silent)
+// Cost impact: budget_tokens 8000 ≈ +$0.04/turn Sonnet, +$0.16/turn Opus 4.7.
+function _applyThinking(params, opts) {
+  const enableThinking = opts && opts.thinking !== false;
+  if (!enableThinking) return params;
+  return {
+    ...params,
+    temperature: 1.0,  // hard requirement
+    thinking: {
+      type: 'enabled',
+      budget_tokens: opts.thinking_budget || 8000,
+    },
+  };
+}
+
 // Non-streaming call. Returns the assistant text reply as a string (matches
 // the contract llmJSON expects from CLI / OpenAI-SDK paths).
 async function runOnce(messages, settings, opts = {}) {
   const c = _client(settings);
   const { system, messages: msgs } = _splitMessages(messages);
-  const params = {
+  let params = {
     model: settings.model || 'claude-opus-4-7',
-    max_tokens: opts.max_tokens || 4000,
+    max_tokens: opts.max_tokens || 6000,
     temperature: opts.temperature ?? 0.7,
     messages: msgs.length ? msgs : [{ role: 'user', content: '...' }],
   };
+  // v0158x — apply extended thinking (default ON; opts.thinking=false to disable)
+  params = _applyThinking(params, opts);
   const sysBlock = _systemWithCache(system);
   if (sysBlock) params.system = sysBlock;
 
@@ -96,13 +119,15 @@ async function runOnce(messages, settings, opts = {}) {
 async function runStream(messages, settings, onChunk, opts = {}) {
   const c = _client(settings);
   const { system, messages: msgs } = _splitMessages(messages);
-  const params = {
+  let params = {
     model: settings.model || 'claude-opus-4-7',
-    max_tokens: 1500,
-    temperature: 0.8,
+    max_tokens: opts.max_tokens || 6000,  // v0158x — was 1500, often truncated
+    temperature: opts.temperature ?? 0.8,
     messages: msgs.length ? msgs : [{ role: 'user', content: '...' }],
     stream: true,
   };
+  // v0158x — apply extended thinking (default ON for tutor depth)
+  params = _applyThinking(params, opts);
   const sysBlock = _systemWithCache(system);
   if (sysBlock) params.system = sysBlock;
 
@@ -110,8 +135,10 @@ async function runStream(messages, settings, onChunk, opts = {}) {
   const stream = await c.messages.create(params, requestOpts);
   for await (const event of stream) {
     // Anthropic stream emits typed events; we want content_block_delta with
-    // text_delta to surface visible text. Other event types (message_start,
-    // content_block_start, message_delta, message_stop, ping) ignored.
+    // text_delta to surface visible text. v0158x — thinking_delta events
+    // (the model's internal reasoning) are FILTERED out — they're meant to
+    // be invisible to user; passing them to onChunk would dump reasoning
+    // monologue into the chat bubble.
     if (event && event.type === 'content_block_delta'
         && event.delta && event.delta.type === 'text_delta'
         && typeof event.delta.text === 'string') {

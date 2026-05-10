@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+  <head>
+  <link href="http://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+
+  <!-- Enable responsiveness on mobile devices-->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+
+  <title>
+    
+      GPU集群折腾手记——2015 &middot; Mu's Blog
+    
+  </title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="/public/css/poole.css">
+  <link rel="stylesheet" href="/public/css/syntax.css">
+  <link rel="stylesheet" href="/public/css/lanyon.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=PT+Serif:400,400italic,700%7CPT+Sans:400">
+
+  <!-- Icons -->
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/public/apple-touch-icon-precomposed.png">
+  <link rel="shortcut icon" href="/public/favicon.ico">
+
+  <!-- RSS -->
+  <link rel="alternate" type="application/rss+xml" title="RSS" href="/atom.xml">
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">
+  
+  <script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-73424372-1', 'auto');
+  ga('send', 'pageview');
+  </script>
+</head>
+
+
+  <body>
+
+    <!-- Wrap is the content to shift when toggling the sidebar. We wrap the
+         content to avoid any CSS collisions with our real content. -->
+    <div class="wrap">
+      <div class="masthead">
+        <div class="container">
+          <h3 class="masthead-title">
+            <a href="/" title="Home">Mu's Blog</a>
+            <small></small>
+          </h3>
+        </div>
+      </div>
+
+      <div class="container content">
+        <div class="post">
+  <h1 class="post-title">GPU集群折腾手记——2015</h1>
+  <span class="post-date">17 Jan 2016</span>
+  <div class="message">
+- 2/6/2016 文末更新了购买推荐
+</div>
+
+<p>整个2015年都在买买买。。。买GPU。于是整整一年都在各处比较，下单，拆，装，维护。为了省点钱煞费苦心，荒废了很多其他重要事情。所以想把经验教训写下来供各位DIY玩家参考。</p>
+
+<p>我们买GPU的目的是用来做<strong>科学计算</strong>，例如针对深度学习。另外两个GPU主要用途——游戏，挖矿——则不在此文讨论范围。而且此文针对性价比敏感人士，对于土豪人群，推荐直接上大厂整体GPU集群解决方案，可省去大量力气。</p>
+
+<h2 id="gpu">买什么样的GPU</h2>
+
+<p>对于很多科学计算而言，性能主要决定于GPU的浮点运算能力。特别是对深度学习任务来说，主要是<strong>单精度</strong>浮点运算（未来可能默认用更低的精度，例如16bit）。而其他因素，例如CPU速度，内存大小，通讯带宽，对目前大多数深度学习任务而言，只要过了某个合理的阈值不够成性能瓶颈就行。</p>
+
+<p>对于GPU而言，简单来看有三个重要参数，<strong>浮点运算能力</strong>，<strong>价格</strong>与<strong>功耗</strong>。下面两个图比较了Nvidia Tesla，Geforce 700和900系列各卡的这三个参数（前两个参考了wikipedia，后一个是查询了amazon/newegg上的当前价格）。</p>
+
+<p><img src="https://raw.githubusercontent.com/mli/mli.github.io/master/imgs/gpu-watt.png" alt="" style="width:500px; display:block; margin-left:auto; margin-right:auto" />
+<img src="https://raw.githubusercontent.com/mli/mli.github.io/master/imgs/gpu-price.png" alt="" style="width:500px; display:block; margin-left:auto; margin-right:auto" /></p>
+
+<p>整体来看浮点运算和功耗成正比。在价格上，如不考虑土豪用Tesla系列话，N厂在消费级别卡上是一分钱一分货。目前的购买建议是优先考虑Titan X，但如果不是特别需要其12GB内存的话，则考虑浮点运算性价比更好的980 TI（6GB 内存）。但如果嫌980 TI功耗比过高的话，则考虑980. 除非有特别的理由，不推荐980之下的卡了。因为达到同样的计算能力，使用更便宜的卡会增加机器数量，可能导致其他配套成本（例如CPU，电源，主板）和维护成本的增加。（下面将会有血与泪的教训）。</p>
+
+<div class="message">
+GPU更新换代快，不宜大规模采购超出现在需求的机器。例如Nvidia下一代号称3D内存可能会带来新的加速，通常认为性价比更高的AMD也将会推出新的编译器来更好支持科学计算。
+</div>
+
+<p>选好了GPU后便可以配套其他了，与正常装机无异。但有两点需要额外考虑。一是供电。一块GPU很可能有200w，4卡则800w了，加上CPU内存，电源至少要个1kw才行。二是散热。GPU发热巨大，将多块GPU并排放会导致很严重的散热问题。此外，如果大量安装GPU机器，机房供电和散热也会是需要考虑。</p>
+
+<h2 id="section">折腾手记</h2>
+
+<p>下面我具体分享下15年折腾过的机器。按照时间顺序一一介绍：</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>GPU</th>
+      <th>CPU</th>
+      <th style="text-align: right">内存</th>
+      <th style="text-align: right">尺寸</th>
+      <th style="text-align: right">单价 ($)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>2 x GTX 980</td>
+      <td>2 x E5-2680 v2</td>
+      <td style="text-align: right">128G</td>
+      <td style="text-align: right">2U</td>
+      <td style="text-align: right">12k</td>
+    </tr>
+    <tr>
+      <td>2 x GTX 970</td>
+      <td>i5-3437</td>
+      <td style="text-align: right">32G</td>
+      <td style="text-align: right">mid tower</td>
+      <td style="text-align: right">1.3k</td>
+    </tr>
+    <tr>
+      <td>4 x GTX 980</td>
+      <td>E5-1650</td>
+      <td style="text-align: right">64G</td>
+      <td style="text-align: right">super tower</td>
+      <td style="text-align: right">6.5k</td>
+    </tr>
+    <tr>
+      <td>4 x GTX 750 TI</td>
+      <td>i7-4790</td>
+      <td style="text-align: right">16G</td>
+      <td style="text-align: right">full tower</td>
+      <td style="text-align: right">1k</td>
+    </tr>
+    <tr>
+      <td>4 x K40</td>
+      <td>2 x E5-2670</td>
+      <td style="text-align: right">64G</td>
+      <td style="text-align: right">4U</td>
+      <td style="text-align: right">free</td>
+    </tr>
+    <tr>
+      <td>4 x Titan X</td>
+      <td>2 x E5-2630 v3</td>
+      <td style="text-align: right">128G</td>
+      <td style="text-align: right">1U</td>
+      <td style="text-align: right">11k</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="gtx-980">双GTX 980集群</h3>
+
+<p>此集群是土豪系统组买的。配了当时最好的CPU之一，双40GB网络，光是交换机就花了10W刀。买回来后半年没人拆封，但被alex意外发现了。。。（下图是alex拆了一台在看配置）</p>
+
+<p><img src="https://raw.githubusercontent.com/mli/mli.github.io/master/imgs/alex_2u.jpg" alt="" style="width:400px; display:block; margin-left:auto; margin-right:auto" /></p>
+
+<p>于是我们厚脸皮的跑去说“来，我们帮你们装上，顺便出钱升级电源和买GPU，到时候共享给我们用一下就好了”。最后是alex从ebay上的某香港卖家买电源，dave去newegg买了卡。</p>
+
+<p>这个集群是我个人最爱，安装简单，2天全搞定。网络快到飞起，很适合做分布式运算。（下图是集群背部，红线是光钎网线）</p>
+
+<p><img src="https://raw.githubusercontent.com/mli/mli.github.io/master/imgs/mass_back.jpg" alt="" style="width:400px; display:block; margin-left:auto; margin-right:auto" /></p>
+
+<p>因为是从CPU集群改装而来，CPU过于的好了，只能插双卡（因为不是为GPU设计，所以即使是2U机器也最多插双卡，而且是掰断了中间某个部件的情况下），内存对于双卡来说过于大了，网络也是过于土豪，根本用不完。而且经常长时间跑大任务，曾把电源给烧了。。。</p>
+
+<p><img src="https://raw.githubusercontent.com/mli/mli.github.io/master/imgs/fired.jpg" alt="" style="width:300px; display:block; margin-left:auto; margin-right:auto" /></p>
+
+<h3 id="gtx-970">双GTX 970集群</h3>
+
+<p>情人节那天alex惊喜的掏出一板巧克力一样的东西，说“看，intel送的！”。当时我就震惊了。后来发现原来是一打CPU，用冰箱里制冰块一样的板子装着，一个坑填一块CPU，活像一板巧克力。但送的是n年前被淘汰的CPU，做CPU集群太弱，于是我们准备去折腾个便宜的GPU集群。</p>
+
+<p>下面是前三台订单，基本什么都是挑的最便宜的</p>
+
+<p><img src="https://raw.githubusercontent.com/mli/mli.github.io/master/imgs/dual970order.png" alt="" style="width:600px; display:block; margin-left:auto; margin-right:auto" /></p>
+
+<p>之后又陆续买了几台，然后忽悠别组老师也投资买了几台。于是好一阵子组会都是装机大会。</p>
+
+<p><img src="https://raw.githubusercontent.com/mli/mli.github.io/master/imgs/upgrade_cpu.jpg" alt="" style="width:400px; display:block; margin-left:auto; margin-right:auto" /></p>
+
+<p><img src="https://raw.githubusercontent.com/mli/mli.github.io/master/imgs/build_hydrogen.jpg" alt="" style="width:400px; display:block; margin-left:auto; margin-right:auto" /></p>
+
+<p>这个集群的优点是便宜，十台机器1W刀左右搞定（一个phd学生一年要花费老板10W+刀）。但由于是分多批买的，每次买都是挑当时最便宜的硬件，例如电源有4种（后来我们发现电源接GPU线是不通用的）。虽然GPU都是970，但来自4个不同的牌子，msi，evga, pny， gigabyte. 便宜硬件出错率高，不同牌子的硬件的维护是个噩梦。另外一个问题是机箱占地方，大小基本等价一个4U的机器了，而且就插了2卡，而4U机器现在基本可以插到8卡了。一开始没想到会买一大批，结果现在它占了我们小机房四分之一的空间。</p>
+
+<p><img src="https://raw.githubusercontent.com/mli/mli.github.io/master/imgs/hydrogen.jpg" alt="" style="width:400px; display:block; margin-left:auto; margin-right:auto" /></p>
+
+<h3 id="gtx-980-1">四卡GTX 980</h3>
+
+<p>折腾得最多的机器，但仍然是最爱。当时装了一堆便宜机器后，想去弄个高大上点的：</p>
+
+<p><img src="https://raw.githubusercontent.com/mli/mli.github.io/master/imgs/beast_order.png" alt="" style="width:600px; display:block; margin-left:auto; margin-right:auto" /></p>
+
+<p>alex手艺高超的把大把GPU，内存，硬盘晒进了一个mid tower，装完是这样的：</p>
+
+<p><img src="https://raw.githubusercontent.com/mli/mli.github.io/master/imgs/build_beast.jpg" alt="" style="width:400px; display:block; margin-left:auto; margin-right:auto" /></p>
+
+<p>结果发现散热是个大问题。一机箱太满，二机箱风扇不给力，三显卡风扇不给力。之后做了无数次测试，升级，期间烧坏了两快卡。目前机箱大了很多，从full tower变成了super tower，前后装满了风扇，硬盘都卸了，第一块坏的卡送修了，第二块懒得动了，现在跛着脚三卡在跑。</p>
+
+<h3 id="gtx-750-ti">四卡GTX 750 TI</h3>
+
+<p>这是dave用来挖矿的机器。一开始是裸的，就是主板接电源插GPU一字排开趟在dave的地下室挖矿，顺便当地暖用。后面挖矿不赚钱了dave发现入不敷出了，于是我们装上了机箱重新利用一下。但发现这些机器用的游戏主板专为windows优化，而且又是来自不同厂家。花了整整两天才摸清怎么pxe启动装上centos（其实现在还是有一台没弄好）。</p>
+
+<h3 id="k40">四卡K40机器</h3>
+
+<p>Intel送了一个4U的机器，Nvidia送了4快K40。半个小时搞定，一切都挺好。</p>
+
+<h3 id="titan-x">四卡Titan X机器</h3>
+
+<p>刚买没几天。起因是上个月的NIPS我找N厂哭穷，人家见我长得眉清目秀（误）便送了一块卡。回来献给老板，老板因为国内某大厂赞助了些钱大手一挥补齐了剩下。往Supermicro 1U机器里塞了4快卡，内部空间寸土必争，花好几个小时才装好，一切都是刚好fit，特别治愈强迫症。</p>
+
+<p><img src="https://raw.githubusercontent.com/mli/mli.github.io/master/imgs/quad_titan_x.jpg" alt="" style="width:600px; display:block; margin-left:auto; margin-right:auto" /></p>
+
+<p>因为没有什么剩余空间，且是长的串行结构散热（散热顺序是单GPU，双CPU，三GPU），所以风扇功率很大，噪音跟轰炸机一样。有点耗电，全力跑电流需要10A。不过其他没发现什么问题。用上它了之后小伙伴们就死活不下来去用的机器了。</p>
+
+<h2 id="section-1">总结</h2>
+
+<p>折腾硬件就跟其他很多事情一样，要么有钱，要么得有时间折腾。对一般玩家的建议是，如果只是上一两台，可以在newegg上多选多看；但如果是准备买数十台，建议还是用rack集群，模块化的设计不仅省空间，而且维护简单。不过最重要的还是，高兴就好。happy hacking!</p>
+
+<p>最后感谢alex，dave和各位小伙伴。下图拍于16年元旦夜。</p>
+
+<p><img src="https://raw.githubusercontent.com/mli/mli.github.io/master/imgs/zhuangjixiaohuoban.jpg" alt="" style="width:500px; display:block; margin-left:auto; margin-right:auto" /></p>
+
+<h2 id="section-2">附录：购买推荐</h2>
+
+<h3 id="section-3">2/6/16更新</h3>
+
+<p>使用下来对supermicro的4卡1U机器很是喜欢，一是占地小，二是性价比高，散热也没发现是大问题。下面推荐的4卡机器是之前买的便宜版，总价不到7K。相比之前的区别是</p>
+
+<ul>
+  <li>使用了老型号的CPU。据说是因为facebook处理了一大批机器，所以这个型号的翻新便宜到爆（几个月前的事情，前天才发现。。）。但性能对于GPU机器来说足够了。</li>
+  <li>因为CPU的缘故，可以使用老型号的主板。</li>
+  <li>128G内存完全没必要，64G绰绰有余。因为神经网络耗内存的是中间结果，那些不需要传回主内存。</li>
+</ul>
+
+<p>已经定了三台， 过些天再发体验报告.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th> </th>
+      <th>型号</th>
+      <th>个数</th>
+      <th>总价 ($)</th>
+      <th>购买</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>机箱</td>
+      <td>Supermicro SYS-1027GR-TQFT</td>
+      <td>1</td>
+      <td>1477</td>
+      <td><a href="http://www.wiredzone.com/supermicro-servers-1u-barebone-dual-processor-sys-1027gr-tqft-10021982">wiredzone</a></td>
+    </tr>
+    <tr>
+      <td>GPU</td>
+      <td>GTX Titan X</td>
+      <td>4</td>
+      <td>4488</td>
+      <td><a href="http://www.amazon.com/EVGA-GeForce-GAMING-Graphics-12G-P4-2992-KR/dp/B00UXTN5P0/ref=sr_1_1?s=pc&amp;ie=UTF8&amp;qid=1454810016&amp;sr=1-1&amp;keywords=titan+x">amazon</a></td>
+    </tr>
+    <tr>
+      <td>CPU</td>
+      <td>Intel E5-2670</td>
+      <td>2</td>
+      <td>200</td>
+      <td><a href="http://www.deepdiscountservers.com/intel-xeon-e5-2670-2-6ghz-3-3ghz-turbo-20mb-l3-cache-lga2011-115w-eight-core.html">dds</a></td>
+    </tr>
+    <tr>
+      <td>内存</td>
+      <td>Kingston 16GB</td>
+      <td>4</td>
+      <td>403</td>
+      <td><a href="http://www.wiredzone.com/kingston-components-memory-ddr3-kth-pl316k4-64g-32028349">wiredzone</a></td>
+    </tr>
+    <tr>
+      <td>SSD</td>
+      <td>samsung 850 500GB</td>
+      <td>1</td>
+      <td>153</td>
+      <td><a href="http://www.newegg.com/Product/Product.aspx?Item=N82E16820147373">amazon</a></td>
+    </tr>
+    <tr>
+      <td>HDD</td>
+      <td>samsung 2TB 5400 RPM</td>
+      <td>2</td>
+      <td>188</td>
+      <td><a href="http://www.newegg.com/Product/Product.aspx?Item=N82E16822178627">amazon</a></td>
+    </tr>
+  </tbody>
+</table>
+
+</div>
+
+<div class="related">
+  <h2>Related Posts</h2>
+  <ul class="related-posts">
+    
+      <li>
+        <h3>
+          <a href="/2016/06/14/new-pascal/">
+            Nvidia新的Pascal值不值得买（升级）
+            <small>14 Jun 2016</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/2015/12/03/mxnet-overview/">
+            MXNet设计和实现简介
+            <small>03 Dec 2015</small>
+          </a>
+        </h3>
+      </li>
+    
+      <li>
+        <h3>
+          <a href="/2013/03/24/the-end-of-feature-engineering-and-linear-model/">
+            大数据：“人工特征工程+线性模型”的尽头
+            <small>24 Mar 2013</small>
+          </a>
+        </h3>
+      </li>
+    
+  </ul>
+</div>
+
+
+        
+  <!-- Add Disqus comments. -->
+  <div id="disqus_thread"></div>
+  <script type="text/javascript">
+      /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+      var disqus_shortname = 'dmlc-blog'; // required: replace example with your forum shortname
+      /* * * DON'T EDIT BELOW THIS LINE * * */
+      (function() {
+          var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+          dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+          (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+      })();
+  </script>
+  <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+  <!-- <a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a> -->
+
+
+      </div>
+    </div>
+  </body>
+</html>

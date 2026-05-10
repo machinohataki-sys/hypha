@@ -2,6 +2,30 @@
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
+// HYPHA · sub-step D bridge — Lesson Skeleton generator (v0.1).
+//
+// ⚠ Naming note (v0.3 pivot): the IPC method `generateLessonPlan` returns a
+// per-lesson SKELETON, not curriculum-level Plan (latter = `agent.js:planChain`).
+// Method name retained for ABI compat; rename deferred to v0.4+ migration.
+//
+// Renderer calls window.hypha.generateLessonPlan(payload) and gets back
+// { ok, plan } or { ok: false, error, message }. Schema validated server-side.
+contextBridge.exposeInMainWorld('hypha', {
+  generateLessonPlan: (payload) => ipcRenderer.invoke('lesson:generatePlan', payload),
+  generateLessonBody: (payload) => ipcRenderer.invoke('lesson:generateBody', payload),
+  scoreMicroProof: (payload) => ipcRenderer.invoke('score:microProof', payload),
+  depositLessonNote: (payload) => ipcRenderer.invoke('note:deposit', payload),
+  composeFeedback: (payload) => ipcRenderer.invoke('feedback:compose', payload),
+  getProviderHealth: () => ipcRenderer.invoke('llm:healthReport'),
+  generateConfession: (payload) => ipcRenderer.invoke('lesson:generateConfession', payload),
+  computeGap: (payload) => ipcRenderer.invoke('lesson:computeGap', payload),
+  computePersonaCoherence: (payload) => ipcRenderer.invoke('persona:computeCoherence', payload),
+  prosecuteJudgeRewrite: (payload) => ipcRenderer.invoke('lesson:prosecuteJudgeRewrite', payload),
+  auditableSummary: (payload) => ipcRenderer.invoke('lesson:auditableSummary', payload),
+  runFullPipeline: (payload) => ipcRenderer.invoke('lesson:runFullPipeline', payload),
+  loadQualitySamples: (kind) => ipcRenderer.invoke('lesson:loadQualitySamples', { kind }),
+});
+
 contextBridge.exposeInMainWorld('windowControls', {
   minimize: () => ipcRenderer.invoke('window:minimize'),
   toggleMaximize: () => ipcRenderer.invoke('window:toggleMaximize'),
@@ -167,6 +191,13 @@ contextBridge.exposeInMainWorld('ptor', {
       return () => ipcRenderer.removeListener('agent:chunk', handler);
     },
   },
+  // v0158m P6 — concept-level overrides. User chips in lesson view 〔已知此概念，
+  // 直问〕 / 〔讲一遍再问〕 toggle these. Persistent (skip) vs one-shot (force).
+  concept: {
+    get: (rel, conceptId) => ipcRenderer.invoke('concept:get', { rel, conceptId }),
+    skipPriorInstall: (rel, conceptId) => ipcRenderer.invoke('concept:skip-prior-install', { rel, conceptId }),
+    forceExpose: (rel, conceptId) => ipcRenderer.invoke('concept:force-expose', { rel, conceptId }),
+  },
   // v0158c — "Install LLM in Hypha" UX. Replaces "configure provider" mental
   // model with "install / test / uninstall" lifecycle. Wraps existing settings.
   install: {
@@ -184,6 +215,20 @@ contextBridge.exposeInMainWorld('ptor', {
       const handler = (_e, payload) => cb(payload);
       ipcRenderer.on('cli:install-progress', handler);
       return () => ipcRenderer.removeListener('cli:install-progress', handler);
+    },
+    // v0158o — slash-command auth dispatch. Used by lesson chat + Spotlight
+    // when user types `/login` / `/logout` / `/status`. Same sandbox as lesson
+    // dispatch so token state stays consistent across surfaces.
+    authLogin: () => ipcRenderer.invoke('cli:auth-login'),
+    authLogout: () => ipcRenderer.invoke('cli:auth-logout'),
+    authStatus: () => ipcRenderer.invoke('cli:auth-status'),
+    // v0158p — OAuth token paste (Anthropic-blessed headless auth path).
+    setOauthToken: (token) => ipcRenderer.invoke('claude:set-oauth-token', { token }),
+    clearOauthToken: () => ipcRenderer.invoke('claude:clear-oauth-token'),
+    onAuthProgress: (cb) => {
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on('cli:auth-progress', handler);
+      return () => ipcRenderer.removeListener('cli:auth-progress', handler);
     },
   },
   // Hypha-specific extensions on top of ptor namespace.
@@ -203,9 +248,55 @@ contextBridge.exposeInMainWorld('ptor', {
     curriculumCreate: (topic, level, opts) => ipcRenderer.invoke('curriculum:create', { topic, level, ...(opts || {}) }),
     curriculumCancel: (topic) => ipcRenderer.invoke('curriculum:cancel', { topic }),
     curriculumList: () => ipcRenderer.invoke('curriculum:list'),
+    // v0.5.x — 搁置课程 (D · 长按褪去) lane 2026-05-09. Backend at main.js
+    // `curriculum:archive / list-deprecated / restore`. Consumed by
+    // screen-home.jsx course-row long-press gesture + SetAsideList. All three
+    // return {ok, error?} envelope; renderer surfaces failure in italic toast.
+    curriculumArchive: (slug) => ipcRenderer.invoke('curriculum:archive', { slug }),
+    curriculumListDeprecated: () => ipcRenderer.invoke('curriculum:list-deprecated'),
+    curriculumRestore: (trashName) => ipcRenderer.invoke('curriculum:restore', { trashName }),
+    // v0.5.2 — Frontier scheduler bridges. Backend persists enabled flag + interval
+    // into settings.app; returns {ok, error?, intervalMs?}. Single-verb start/stop.
+    frontierCronStart: (opts) => ipcRenderer.invoke('frontier:cron-start', opts || {}),
+    frontierCronStop: () => ipcRenderer.invoke('frontier:cron-stop'),
+    // v0.3 — 2-stage flow. Renderer drives: harvest_and_skeleton →
+    // PreviewCard → (regenerate_skeleton up to 3x) → approve_and_body →
+    // tutor opens. See `project_hypha_v03_2stage_gen` memory + main.js v0.3
+    // section. Legacy curriculumCreate above stays for chain advance + any
+    // pre-v0.3 caller; new code paths use these three.
+    curriculumHarvestAndSkeleton: (topic, level, options) =>
+      ipcRenderer.invoke('curriculum:harvest_and_skeleton', { topic, level, options: options || {} }),
+    curriculumApproveAndBody: (slug, lessonIdx) =>
+      ipcRenderer.invoke('curriculum:approve_and_body', { slug, lessonIdx: lessonIdx || 0 }),
+    curriculumRegenerateSkeleton: (slug, userFeedback) =>
+      ipcRenderer.invoke('curriculum:regenerate_skeleton', { slug, userFeedback }),
+    // v0.3 — body-ready + skeleton-regen event subscriptions. PreviewCard
+    // listens for body_ready to switch to lesson chat surface; subscribes to
+    // skeleton_regenerated to re-render the lesson list after a regen lands.
+    onCurriculumBodyReady: (cb) => {
+      if (typeof cb !== 'function') return () => {};
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on('curriculum:body_ready', handler);
+      return () => ipcRenderer.removeListener('curriculum:body_ready', handler);
+    },
+    onCurriculumSkeletonRegenerated: (cb) => {
+      if (typeof cb !== 'function') return () => {};
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on('curriculum:skeleton_regenerated', handler);
+      return () => ipcRenderer.removeListener('curriculum:skeleton_regenerated', handler);
+    },
+    // v0.2 Surface Finishing Track B — pre-lesson body v2 (11-field) bridges.
+    // generate: produces + persists vault/<slug>/lesson-N.body.json.
+    // get: reads existing body.json if present; returns null body when absent.
+    lessonBodyGenerate: (args) => ipcRenderer.invoke('lesson:body:generate', args || {}),
+    lessonBodyGet: (slug, idx) => ipcRenderer.invoke('lesson:body:get', { slug, idx }),
+    // v0.2.1 — preview-and-approve regen. Frontend PreviewCard "需要修改" path.
+    lessonBodyRegenerate: (slug, idx, feedback) => ipcRenderer.invoke('curriculum:body:regenerate', { slug, lessonIdx: idx, userFeedback: feedback }),
     // v0.5.0 — source-document upload for the curriculum's corpus.
     sourcePick: () => ipcRenderer.invoke('source:pick'),
+    sourcePickMultiple: () => ipcRenderer.invoke('source:pickMultiple'),
     sourceExtract: (filePath) => ipcRenderer.invoke('source:extract', { filePath }),
+    urlFetchBatch: (urls) => ipcRenderer.invoke('url:fetchBatch', { urls }),
     // For drag-drop files: get filesystem path from a dropped File. Electron
     // 32+ moved this off the File prototype; webUtils.getPathForFile is the
     // supported route under context isolation.
@@ -247,6 +338,15 @@ contextBridge.exposeInMainWorld('ptor', {
       const handler = (_e, payload) => cb(payload);
       ipcRenderer.on('lesson:reharvest-complete', handler);
       return () => ipcRenderer.removeListener('lesson:reharvest-complete', handler);
+    },
+    // v0158m — JIT-recast notification. main.js fires this from lesson:finish
+    // after _materializeNextGhost successfully re-writes L_(n+1) title +
+    // learn_goal. NoteView surfaces it as a brief italic Garamond toast.
+    onNextLessonRecast: (cb) => {
+      if (typeof cb !== 'function') return () => {};
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on('hypha:next-lesson-recast', handler);
+      return () => ipcRenderer.removeListener('hypha:next-lesson-recast', handler);
     },
     // Smart Gate (council 2026-05-01 option B): runs feasibility classifiers
     // after Learn-flow Q&A; renderer interrupts curriculum-create if tier is
