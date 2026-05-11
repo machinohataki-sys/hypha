@@ -24,6 +24,18 @@ Two artifacts, neither of which is the application itself.
 
 If neither artifact ships, the experiment failed. That failure will be documented in the same dev-log.
 
+## First calibration release
+
+`vault/.calibration/2026-05-31/` — parameter-frozen corpus snapshot, code-channel evaluation set, and a thirty-minute reproducibility script. Ships ahead of the week-16 deadline because the code channel locked early; the broader release at week 16 will extend coverage to additional channels.
+
+## Numbers, with caveats
+
+Three measurements come out of `v0.5-substrate` D20. Each is reported with its source path. Each is qualified, because the figure on its own is misleading without the qualification.
+
+- **Substrate F1 on code domain (mutation-test) — 0.9659.** The verifier was tested against 96 mutations of 20 correct candidates. Recall 1.0, precision 0.934. This is the real substrate signal: it measures whether the exec-cell channel discriminates real correctness from cargo-cult correctness on perturbed code. Source: `vault/.evaluator/runs/d20-mutation-test.json`.
+- **Internal consistency F1 (verifier determinism) — 1.0000.** The same verifier auto-judged the original 60 (item, candidate) pairs against author-declared expected_pass labels. F1 is tautological here because the verifier is being asked whether it agrees with the labels it was built to enforce; report it only as a determinism baseline, not as evidence of substrate quality. Source: `vault/.evaluator/runs/d20-pivot-exec-channel.json`.
+- **IRR Cohen's κ — not applicable this release.** The sealed-rubric prose path was dropped after a documented rubric design flaw was caught at philosophy item 13. κ on the code channel is meaningless because there is no human rater. The flaw and the decision to archive items 1-12 are written up in `vault/.evaluator/golden/philosophy/_ARCHIVE.md` and the pivot is part of the methodology log at `vault/.dev-log/2026-05-22.md`.
+
 ## What is being tested
 
 A claim with one falsifier.
@@ -33,6 +45,13 @@ A claim with one falsifier.
 If the four-week test passes, week 5 through week 16 attempts the same with ten design partners and a hundred-item evaluation set, ¥1.5 per tuple cost ceiling, F1 ≥ 0.75 on out-of-distribution held-out split.
 
 If either falsifier fires, the work pauses. The dev-log records why.
+
+## What Hypha does today vs eventually
+
+- **Today.** A methodology log, a fifty-item evaluator, and an exec-cell verifier with a measurable robustness profile on code-domain learning. Reproducible end-to-end on commodity hardware in under thirty minutes.
+- **Eventually.** A tutor that compounds across sessions, with verified transfer-hold and cross-domain coverage (proof channel, sealed-rubric channel redesigned, additional substrate channels as they become defensible).
+
+No promise about the second bullet until measurements support it.
 
 ## Run
 
@@ -56,6 +75,10 @@ Discarded. Old course state archived to `vault/.archive-pre-v0.5/2026-05-10/` an
 ## What this repo does not claim
 
 It does not claim to be a private university. It does not claim to teach better than other tools. It does not claim that language-model judgments of learning are reliable. The point of the exercise is to find out whether a different substrate works, and to be specific about how that question is being answered.
+
+## Contributing
+
+See `CONTRIBUTING.md` for how to add a golden item, how to add a verification channel, how to run the evaluator, and how to read the κ and F1 numbers.
 
 ## Plan
 

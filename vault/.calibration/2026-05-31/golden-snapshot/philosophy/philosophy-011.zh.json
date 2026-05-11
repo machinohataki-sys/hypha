@@ -1,0 +1,48 @@
+{
+  "item_id": "philosophy-011",
+  "source_hash": "67d1419b85ce2ed5192714d39e2f3a3eb116e68fecdb60225522a4185909de6a",
+  "translated_at": "2026-05-11T01:31:18.451Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "instance_zh": "康德区分了先天 (a priori) 与后天 (a posteriori) 知识，以及分析 (analytic) 与综合 (synthetic) 命题，从而产生四种组合。说明为何先天综合 (synthetic a priori) 是哲学上重要的范畴，并给出一个康德声称是先天综合的数学命题。指出一个21世纪读者可能不同意的理由。",
+  "features_zh": [
+    {
+      "id": "f1",
+      "statement_zh": "先天综合 (synthetic a priori) 是超越纯粹逻辑和纯粹观察的第三种知识来源。",
+      "alt_phrasings_zh": [
+        "信息性的且独立于经验",
+        "超越逻辑与观察"
+      ]
+    },
+    {
+      "id": "f2",
+      "statement_zh": "例子：7+5=12（或类似的算术命题）被视为先天综合 (synthetic a priori)。",
+      "alt_phrasings_zh": [
+        "7加5等于12",
+        "算术例子"
+      ]
+    },
+    {
+      "id": "f3",
+      "statement_zh": "弗雷格/罗素的逻辑主义 (logicism) 会将算术还原为逻辑，使其成为分析 (analytic) 命题。",
+      "alt_phrasings_zh": [
+        "逻辑主义将数学还原为逻辑",
+        "弗雷格·罗素的反对"
+      ]
+    }
+  ],
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "先天综合 (synthetic a priori) 将是超越逻辑与观察的第三种知识来源。康德说7+5=12是一个例子。现代读者可能不同意，因为弗雷格和罗素将算术还原为逻辑，使其成为分析 (analytic) 命题。"
+    },
+    {
+      "id": "c2",
+      "text_zh": "康德很难读。"
+    },
+    {
+      "id": "c3",
+      "text_zh": "它是信息性且独立于经验的范畴。7+5=12。但逻辑主义 (logicism) 挑战了这一点。"
+    }
+  ]
+}

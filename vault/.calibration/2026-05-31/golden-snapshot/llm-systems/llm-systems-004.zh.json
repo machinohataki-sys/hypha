@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-004",
+  "source_hash": "6c6813db5d50ce07cd7d7a507e3c761b0bfe40b0c4084c07f75f7927ea895d21",
+  "translated_at": "2026-05-11T02:00:46.272Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const x=[1,2,3,4]; const m=x.reduce((a,b)=>a+b)/x.length; const s=Math.sqrt(x.reduce((a,b)=>a+(b-m)**2,0)/x.length); console.log(JSON.stringify(x.map(xi=>((xi-m)/s).toFixed(4))));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log([1,2,3,4]);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"[\\\"-1.3416\\\",\\\"-0.4472\\\",\\\"0.4472\\\",\\\"1.3416\\\"]\");"
+    }
+  ],
+  "prompt_text_zh": "对特征向量 [1, 2, 3, 4] 应用层归一化 (layer normalization)：减去均值，除以总体标准差 (population stddev，使用 N 作为除数)，保留 4 位小数精度。将结果打印为一个由 4 位小数字符串组成的 JSON 数组。"
+}

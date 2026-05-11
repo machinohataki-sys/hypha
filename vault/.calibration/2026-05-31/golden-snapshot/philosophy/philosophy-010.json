@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-010",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Hume Treatise Book I Part III §6; Enquiry §IV",
+  "instance": "Hume argues induction cannot be justified non-circularly. Construct the circular argument explicitly. State how a working scientist responds in practice and why that response is not a refutation of Hume.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "circular argument: induction has worked before, but THAT inference is itself inductive",
+      "alt_phrasings": [
+        "justification uses induction itself",
+        "circularity stated",
+        "self-referential justification",
+        "begging the question",
+        "induction justified by induction",
+        "circular reasoning identified",
+        "petitio principii"
+      ],
+      "phrasing_hashes": [
+        "c9adc7e6e86194331c2c5a636750c84f51c72ec30631e9079bed51708e5bff00",
+        "2f355412a2843c52efa79005a90c5aa332a075d404af61ecec61bcc559eb6e95",
+        "be65e8d6b4aca35414dca986b40e77e6e3600a628a78b18cfbd38d666da16717",
+        "1efed2d08f1f3ac02957fddbbf76fee54fe48a4cba25061d996f55bff8bd85cd",
+        "487ec7a77d1cfc671270431c0a10b0f5951821061a518e8d530931a5d599bad9",
+        "22813cab8becf2146701bf86ab753c5a121a942773c452af4cabe96ecdc844d9",
+        "f5322025ff4de53ee31c31b05f282e6bf3ba080d21c7d09d8516361af84a6644",
+        "3579515e072328c2b5f563c7c02e03b36eafac63cfc560d096caecfc1ab1c4eb"
+      ],
+      "claim_hash": "c9adc7e6e86194331c2c5a636750c84f51c72ec30631e9079bed51708e5bff00"
+    },
+    {
+      "id": "f2",
+      "claim": "scientist response: methodological commitment, not proven theorem",
+      "alt_phrasings": [
+        "pragmatic acceptance",
+        "methodological not proven",
+        "works in practice",
+        "practical posture",
+        "methodological assumption",
+        "working hypothesis",
+        "taken as policy not proof"
+      ],
+      "phrasing_hashes": [
+        "077e7789cfbc4a66ded31aa21f788534a3b9539c31765115cf774257fd85ea79",
+        "f52fc1d51b9ca48ec8de12551ddd8340f565a88eceb84f5eae18cce61647e9e6",
+        "a68fd99fb3925fad5ff8a2e73f2ad99f19093a3a93293876fea764103c79ad21",
+        "e081ee37f66a0fc5dff4c88673633b45a5165ccbfbffc97f38e196089b930238",
+        "720f9f110327de6be46c05d67a670ddf1cbbb951fa1b9ee22ebe27b6748c8c91",
+        "9faa14d9d85ed33a5e073dec4ee14ce1ab5f350d3be2f0a324a6ae6c4a904f3b",
+        "227908bed1df56e8366aaf1e9b12ee8b837165d71a6d2c04836b41bbf42fee3c",
+        "f752221beb35e837afa1c5e2ffea1d080d98809c937c3d12f3d2077445e1ed63"
+      ],
+      "claim_hash": "077e7789cfbc4a66ded31aa21f788534a3b9539c31765115cf774257fd85ea79"
+    },
+    {
+      "id": "f3",
+      "claim": "not a refutation: Hume conceded induction works, only denied deductive justification",
+      "alt_phrasings": [
+        "Hume did not deny effectiveness",
+        "concedes one denies the other",
+        "addresses different question",
+        "Hume granted it works",
+        "effectiveness vs deductive justification",
+        "separate claims",
+        "distinct questions"
+      ],
+      "phrasing_hashes": [
+        "66fffc32750e85734d057dbbc47262d5f2ae6dffafcb43589b86c9b399f5a618",
+        "73b6a0af4bc01bff20c24884a201c91fa5597892f445f03add8cd97f11e433dd",
+        "c0ee7b3db271ffd4f6b8e0e97972430eb491676de2065032b886de832a62f52a",
+        "0b4dd15e6d1db491fad1b620a0e2c220144c37d5cce66890e133b62eeacd38a7",
+        "e94f4f6426aba50e8cd264060f7a21d7db660d7100a3c2210d141e1ce6e1e590",
+        "8ead39ecf6877681643bc41c867c5f842dd66ee667134dd43b25b33f2c66e07f",
+        "32d186e0fca3cbb0905b436b7b72be754150c4501ea50972234e5fec6635bd6f",
+        "9c9c9a779fb2c1998f7c56c828fa033bbe4d504904d4752395ca490fb1e593e1"
+      ],
+      "claim_hash": "66fffc32750e85734d057dbbc47262d5f2ae6dffafcb43589b86c9b399f5a618"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Circular: to justify induction we cite that it worked, but THAT itself is inductive. Scientists treat induction as methodological commitment, not proven theorem. This is not refutation because Hume only denied deductive justification, never effectiveness.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Hume was a skeptic and science still works.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "The justification is circular. Scientists pragmatically accept it. They are addressing a different question than Hume.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T12:51:54.612Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

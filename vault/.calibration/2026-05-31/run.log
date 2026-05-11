@@ -1,0 +1,45 @@
+V0.5 E0 First Calibration Release — 2026-05-31
+branch: v0.5-substrate @ 3809de337d5cbea9e27e68dc0ec5a0a1b2e714b6
+
+Substrate F1 (mutation-test, primary signal):
+  F1 = 0.9659  precision 0.9340  recall 1.0000
+  TP=99 FP=7 FN=0 TN=89  (n_c1=20, n_tests=195)
+  source: vault/.evaluator/runs/d20-mutation-test.json
+  interpretation: 7 FPs all output-invariance (shift-invariant softmax,
+  JS modulo sign rule, argmax non-extremal perturbation,
+  threshold-insensitive uniforms). Effective strictness 96/96 when
+  output-invariance is excluded from numerator.
+
+Internal consistency F1 (auto-judge, sanity check):
+  F1 = 1.0000  precision 1.0000  recall 1.0000
+  TP=20 FP=0 FN=0 TN=40  (n_items=20, n_candidates=60)
+  source: vault/.evaluator/runs/d20-pivot-exec-channel.json
+  interpretation: tautological by construction (verifier vs
+  author-claim where author-claim was forced to match verifier
+  at seed time). Validates verifier determinism only.
+
+IRR Cohen's kappa: N/A (pivot dropped sealed-rubric philosophy IRR)
+
+Cost: median $0.0042 USD per logged call. Total $0.0042 USD across
+  74 calls in window 2026-05-10T07:59:20Z to 2026-05-11T02:09:39Z.
+  Only the seed-time lesson_plan smoke call carried token + cost
+  metadata; the 72 translateZh harvest calls logged latency only
+  (provider response did not return usage block). Median and total
+  therefore reflect a single instrumented call and are not yet a
+  meaningful operating cost. Token + cost metering for translateZh
+  is queued for E1.
+  source: vault/.evaluator/index.db model_calls table.
+
+Verification channels operational: code (exec-cell), sealed_rubric
+  (sealed-rubric on philosophy archived as pre-bug-recognition baseline),
+  proof (lean-check stub, deferred to E2).
+
+Golden set: 30 philosophy items + 20 llm-systems items = 50 total.
+  philosophy 1-12 rater_a archived per _ARCHIVE.md.
+  philosophy 13-30 unrated (rubric design flaw, deferred).
+  llm-systems 20 items x 3 candidates = 60 (item, candidate) pairs
+  on exec-cell auto-judge.
+
+Gate decision: PASS subject to MEOW R3 review on Day 28.
+
+How to reproduce: ./repro.sh or .\repro.ps1

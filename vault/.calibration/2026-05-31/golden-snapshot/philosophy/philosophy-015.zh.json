@@ -1,0 +1,48 @@
+{
+  "item_id": "philosophy-015",
+  "source_hash": "f011a7c64413a3f3cf359472ea614dfcc26ec967e2c08d09fae16b26adb0eac2",
+  "translated_at": "2026-05-11T01:35:37.110Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "instance_zh": "奥古斯丁关于恶的论述将其视为善的缺乏 (privatio boni)，并将责任奠基于意志的自愿转向。分三步重构这一缺乏 (privation) 推理，然后陈述它如何约束何种形式的问题“世界上为何存在X恶”可算作一个融贯的问题。",
+  "features_zh": [
+    {
+      "id": "f1",
+      "statement_zh": "缺乏 (privation) 推理：恶不是实体，而是应有之善的缺失或失序",
+      "alt_phrasings_zh": [
+        "恶是缺乏 (privation) 而非实体",
+        "应有之善的缺失"
+      ]
+    },
+    {
+      "id": "f2",
+      "statement_zh": "奠基于意志：自愿地从较高之善转向较低之善",
+      "alt_phrasings_zh": [
+        "意志转向较低之善",
+        "自愿背离上帝"
+      ]
+    },
+    {
+      "id": "f3",
+      "statement_zh": "约束：问题“X（作为实体的恶）为何存在”将亏缺误作实体",
+      "alt_phrasings_zh": [
+        "问题预设了肯定的恶",
+        "重构为为何此处善缺失"
+      ]
+    }
+  ],
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "第一步：恶是善的缺乏 (privatio boni)——不是实体，仅仅是应有之善的匮乏。第二步：道德恶奠基于意志从较高之善向较低之善的转向。第三步：追问肯定的实体恶为何存在是范畴错误；唯一融贯的问题形式是为何特定的善在此处缺失或失序。"
+    },
+    {
+      "id": "c2",
+      "text_zh": "奥古斯丁说万物皆上帝的计划。"
+    },
+    {
+      "id": "c3",
+      "text_zh": "恶是缺乏 (privation)，意志错误转向。因此问题必须重构为为何应有之善缺失，而非为何恶之实体存在。"
+    }
+  ]
+}

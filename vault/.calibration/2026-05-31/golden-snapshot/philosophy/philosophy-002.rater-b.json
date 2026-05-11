@@ -1,0 +1,36 @@
+{
+  "rater_id": "b",
+  "name": "wolf",
+  "ts": "2026-05-10T12:53:24.223Z",
+  "ratings": {
+    "c1": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "Candidate correctly identifies conserved identity, variant content, and git as an engineered system tracking identity across changes.",
+      "ts": "2026-05-10T12:53:20.924Z"
+    },
+    "c2": {
+      "features_hit": [],
+      "verdict": "fail",
+      "justification": "Candidate dismisses the philosophical concept without addressing conserved/variant quantities or providing an engineered system.",
+      "ts": "2026-05-10T12:53:22.608Z"
+    },
+    "c3": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "Candidate explicitly mentions pattern conservation (f1), water as variant (f2), and database row identity tracking (f3).",
+      "ts": "2026-05-10T12:53:24.223Z"
+    }
+  },
+  "wolf_baseline": true,
+  "model": "glm-direct:glm-4.5-air",
+  "cost_estimate_yuan": 0.015
+}

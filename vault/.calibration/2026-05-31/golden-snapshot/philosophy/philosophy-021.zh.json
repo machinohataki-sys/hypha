@@ -1,0 +1,48 @@
+{
+  "item_id": "philosophy-021",
+  "source_hash": "613430d17be96978df54fae3b4afffee35ee63472637c913004d8155fe632aa5",
+  "translated_at": "2026-05-11T01:40:59.225Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "instance_zh": "密尔的功利主义 (utilitarianism)（最大幸福原则 (greatest happiness principle)）与伤害原则 (harm principle)（仅涉己行为 (self-regarding actions) 免受强制）可能导向不同方向。构建一个二者裁决分歧的现实案例，并指出在密尔自身的理论架构 (architecture) 中，他将何者置于优先地位。",
+  "features_zh": [
+    {
+      "id": "f1",
+      "statement_zh": "功利框架：总合幸福或快乐的极大化",
+      "alt_phrasings_zh": [
+        "最大幸福原则 (greatest happiness principle)",
+        "总合效用 (aggregate utility)"
+      ]
+    },
+    {
+      "id": "f2",
+      "statement_zh": "伤害原则框架：强制仅在防止对他人伤害时方具正当性",
+      "alt_phrasings_zh": [
+        "仅防止对他人伤害",
+        "涉己行为 (self-regarding actions) 免受强制"
+      ]
+    },
+    {
+      "id": "f3",
+      "statement_zh": "在密尔的架构中，自由 (liberty) 被视为一种高阶效用 (high-order utility)，因此伤害原则 (harm principle) 是一项保护长期效用 (long-run utility) 的预先承诺 (precommitment)",
+      "alt_phrasings_zh": [
+        "自由作为长期效用 (long-run utility)",
+        "伤害原则 (harm principle) 是预先承诺 (precommitment)"
+      ]
+    }
+  ],
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "分歧案例：一个社会可通过家长式干预 (paternalistically) 限制涉己选择（例如，休闲风险行为）来增加总合幸福 (aggregate happiness)。纯粹功利 (utility) 主张允许该限制；伤害原则 (harm principle) 主张禁止该限制。密尔通过将自由 (liberty) 本身视为一种高阶效用 (high-order utility) 来解决此问题——伤害原则是一项使长期总合幸福极大化的规则层面预先承诺 (rule-level precommitment)。"
+    },
+    {
+      "id": "c2",
+      "text_zh": "密尔是一名快乐主义者 (hedonist)。"
+    },
+    {
+      "id": "c3",
+      "text_zh": "总合效用 (aggregate utility) 可使家长式干预 (paternalism) 具正当性；伤害原则 (harm principle) 则阻却之。密尔将表层的功利裁决置于从属地位，而诉诸本身服务于长期效用 (long-run utility) 的自由规则 (liberty rule)。"
+    }
+  ]
+}

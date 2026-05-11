@@ -1,0 +1,36 @@
+{
+  "rater_id": "b",
+  "name": "wolf",
+  "ts": "2026-05-10T12:55:41.411Z",
+  "ratings": {
+    "c1": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "All features are clearly and substantively addressed with proper distinctions and applications.",
+      "ts": "2026-05-10T12:55:20.091Z"
+    },
+    "c2": {
+      "features_hit": [],
+      "verdict": "fail",
+      "justification": "Candidate fails to state the distinction, identify prohairetic responsibilities, or identify externals.",
+      "ts": "2026-05-10T12:55:21.771Z"
+    },
+    "c3": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "Candidate clearly states the control distinction, identifies prohairetic responsibilities, and correctly identifies externals.",
+      "ts": "2026-05-10T12:55:41.411Z"
+    }
+  },
+  "wolf_baseline": true,
+  "model": "glm-direct:glm-4.5-air",
+  "cost_estimate_yuan": 0.015
+}

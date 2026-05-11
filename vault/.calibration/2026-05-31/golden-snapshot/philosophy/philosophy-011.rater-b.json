@@ -1,0 +1,36 @@
+{
+  "rater_id": "b",
+  "name": "wolf",
+  "ts": "2026-05-10T12:56:54.337Z",
+  "ratings": {
+    "c1": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "Candidate hits all features: mentions third knowledge source, provides 7+5=12 example, and notes Frege/Russell logicism objection.",
+      "ts": "2026-05-10T12:56:45.463Z"
+    },
+    "c2": {
+      "features_hit": [],
+      "verdict": "fail",
+      "justification": "Candidate does not mention synthetic a priori, any example, or logicism objection.",
+      "ts": "2026-05-10T12:56:49.423Z"
+    },
+    "c3": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "Candidate states synthetic a priori is informative and independent of experience (f1), gives 7+5=12 (f2), and mentions logicism challenge (f3).",
+      "ts": "2026-05-10T12:56:54.337Z"
+    }
+  },
+  "wolf_baseline": true,
+  "model": "deepseek-direct:deepseek-v4-flash",
+  "cost_estimate_yuan": 0.015
+}

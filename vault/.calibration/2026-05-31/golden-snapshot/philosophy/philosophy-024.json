@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-024",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Rawls A Theory of Justice §§3-4 (original position + veil of ignorance) + §§11-13 (two principles + difference principle); SEP \"John Rawls\" §3-4",
+  "instance": "Rawls's original position uses a veil of ignorance to derive two principles of justice, with the difference principle (inequalities permitted only if they benefit the least well-off). State why the veil is supposed to do justificatory work, and identify one structural objection to the move from \"what would be chosen behind the veil\" to \"what is just.\"",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "veil strips information about one's particular position, forcing a fairness-symmetric choice",
+      "alt_phrasings": [
+        "removes knowledge of one's position",
+        "forces symmetric reasoning",
+        "no one knows their own social position",
+        "impartial choice procedure",
+        "strips identifying features",
+        "symmetry-forcing device",
+        "erases position-specific bias"
+      ],
+      "phrasing_hashes": [
+        "18f479cc582a629afdee34db55cc02116abeb74d82c5dfa6473052716f34bdfc",
+        "feaf77f453e902035bb096e81f65ccaa42240a03d0a31dc5de18f7a6b90ccb43",
+        "028e2eb92a01111a41b8e915cddbdcc36dce8f5a57859ecb5bebe9bdea277024",
+        "dc83c72b9069c12e11de7601f7d6b23c5f4f25f0ee8147493d4df181131071a2",
+        "9a571d251fa8ea7f27c408d274ea16b264c963f559d1ca188b74f7f85cc4f65e",
+        "409ae80b4feab71c6ee84393a94034c49d29e45502493c2c1fb14656b7843c18",
+        "73942a572bc79d2f6f16b442a9cf11cbd7e350db6f3f12ec7593264fc714880c",
+        "d41937adb39d281451f80a5f178f1c73604d44003ec9edc99a9201967e2abf42"
+      ],
+      "claim_hash": "18f479cc582a629afdee34db55cc02116abeb74d82c5dfa6473052716f34bdfc"
+    },
+    {
+      "id": "f2",
+      "claim": "difference principle: inequalities permitted only if they benefit the least advantaged",
+      "alt_phrasings": [
+        "inequalities only if they help the worst off",
+        "benefit the least well-off",
+        "maximize the minimum",
+        "maximin shape",
+        "least-advantaged is the test",
+        "inequality justified only by benefit to bottom",
+        "tilted in favor of worst off"
+      ],
+      "phrasing_hashes": [
+        "405101a9d72341cc67276f35bff536db9ffc47280f20a7e4f60f9dd4dfe1082c",
+        "e6613ef10c8a12fa2044aeb5deb28db60d52d5bb8d2c23fb9e751540fe2507c9",
+        "1d5ecde4e37d099e1fabd94b0cead334b4e8cd2c2a584cf908efa091158b6320",
+        "47d8b119a1bf70c4c20fa23c4ceba0254731c3e401cd84567bee71f0bdb8471f",
+        "eaa1ed5d5a00c5c43a64f268497d1a96742a869344603cd75e470345e4c82062",
+        "c2bf395688d120d166842c541e4ecbbb9526485cd422db4912ab711eb4f63e39",
+        "3eddea241b9537e2498d6e55a818bf1f495e8c0c8436c6d8e2c2b4f1484e81f5",
+        "b6fa9cbbb3d45ffd8f01588d47607a3bce7df200d1d30f47b6bd46599478add9"
+      ],
+      "claim_hash": "405101a9d72341cc67276f35bff536db9ffc47280f20a7e4f60f9dd4dfe1082c"
+    },
+    {
+      "id": "f3",
+      "claim": "objection: hypothetical-consent does not bind actual people; or veil-modeling smuggles in risk-aversion assumptions",
+      "alt_phrasings": [
+        "hypothetical consent is not actual consent",
+        "veil smuggles risk-aversion",
+        "maximin assumes specific risk attitude",
+        "no binding force from hypothetical agreement",
+        "why must actual people be bound by behind-veil agreement",
+        "risk-aversion assumption baked in",
+        "gap between hypothetical choice and actual obligation"
+      ],
+      "phrasing_hashes": [
+        "e1c53e42490cc0b08dece178aba2a4c1b2fe348f1d75cc9a5d81ea46088115cb",
+        "b169983dfc799083517add9d0c7340e9f51aad687bd0fa5bc057ed8fdf00a26e",
+        "7b769c8d4d9fca56b6a2b827dfedffc6ff40c891b8ba740d84cd66dab1eba686",
+        "8d4d98ea2f42bfcf0594d486e5c23bc7508ee92d9ce7921a05eefedfd2e63d9b",
+        "373c8eac8a0bf5df726713a98604921c622453c3f0c4a511d0440d57ca01d364",
+        "3731a3e1c0a5dffa2b6f4e1c7dfc7e5ea2b62a3e9ef29408a6e0c4119221fc98",
+        "9934e329760a62b4df789511c2122e2850fb9d7888592105f8193d4d6ff15ded",
+        "f3eb236634fb91cfd3eeda448d45f23169a9b23d7f5036341402089734b1dcac"
+      ],
+      "claim_hash": "e1c53e42490cc0b08dece178aba2a4c1b2fe348f1d75cc9a5d81ea46088115cb"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "The veil strips knowledge of one's particular position so the choice cannot be tilted by self-interest; this forces symmetric reasoning. The difference principle says inequalities are permissible only if they benefit the least advantaged. A standard objection is that hypothetical consent behind the veil does not by itself bind actual people, and that the maximin shape smuggles in a specific risk-aversion assumption.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Rawls is the most important political philosopher of the 20th century.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Veil forces symmetric reasoning, difference principle privileges the worst off. The standard worry is that hypothetical consent does not bind actual persons.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:18:15.251Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

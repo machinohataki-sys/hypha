@@ -1,0 +1,29 @@
+{
+  "rater_id": "b",
+  "name": "test_b",
+  "ts": "2026-05-10T10:03:39.868Z",
+  "ratings": {
+    "c1": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": ""
+    },
+    "c2": {
+      "features_hit": [],
+      "verdict": "fail",
+      "justification": ""
+    },
+    "c3": {
+      "features_hit": [
+        "f1",
+        "f2"
+      ],
+      "verdict": "pass",
+      "justification": "monism + naturalistic implied"
+    }
+  }
+}

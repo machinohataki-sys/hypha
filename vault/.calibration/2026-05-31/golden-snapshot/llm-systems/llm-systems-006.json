@@ -1,0 +1,47 @@
+{
+  "id": "llm-systems-006",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Jelinek et al. 1977 \"Perplexity — a measure of difficulty of speech recognition tasks\"; Brown et al. 1992 \"An Estimate of an Upper Bound for the Entropy of English\"",
+  "prompt_text": "Given per-token cross-entropy losses [2.1, 1.8, 2.3, 1.9, 2.0] (natural log base), compute perplexity = exp(mean(losses)). Print to 4 decimal places.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const losses=[2.1,1.8,2.3,1.9,2.0]; const mean=losses.reduce((a,b)=>a+b,0)/losses.length; const ppl=Math.exp(mean); console.log(ppl.toFixed(4));",
+    "expected_stdout_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: Math.E**mean phrasing instead of Math.exp(mean); same identifier names refactored.",
+      "code": "const ce_loss=[2.1,1.8,2.3,1.9,2.0]; const avg_loss=ce_loss.reduce((acc,x)=>acc+x,0)/ce_loss.length; const perplexity=Math.E**avg_loss; console.log(perplexity.toFixed(4));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: takes Math.exp of the SUM of losses rather than the MEAN — common bug when porting from log-prob land.",
+      "code": "const losses=[2.1,1.8,2.3,1.9,2.0]; const sum=losses.reduce((a,b)=>a+b,0); const ppl=Math.exp(sum); console.log(ppl.toFixed(4));",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: keeps perplexity / Math.exp / mean vocabulary, but computes exp of the mean of the LOG of the losses (treats losses as raw probabilities by mistake).",
+      "code": "const losses=[2.1,1.8,2.3,1.9,2.0]; const log_losses=losses.map(l=>Math.log(l)); const mean_log=log_losses.reduce((a,b)=>a+b,0)/log_losses.length; const perplexity=Math.exp(mean_log); console.log(perplexity.toFixed(4));",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T06:28:56.396Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "3a52bced5de6aa5b9dda8a3b483fcb3ee5fee5984dd6b84e318c8d74c4d29a7f",
+  "code_hash": "45ec452093fcc1784e814d7cba198de1fbd480e238b2695237a6ef7dae1f9fc0",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
+}

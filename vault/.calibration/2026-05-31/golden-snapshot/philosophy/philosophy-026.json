@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-026",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Russell \"On Denoting\" Mind 14 (1905) pp.479-493; Whitehead+Russell Principia Mathematica vol. I *14 (1910); SEP \"Bertrand Russell\" §3.2",
+  "instance": "Russell's theory of descriptions analyzes \"the present King of France is bald\" without commitment to a non-existent referent, by reading the definite description as a quantified claim. Reconstruct the analysis in three logical steps and identify the puzzle it solves about empty names.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "definite description rewritten as quantified claim (existence + uniqueness + predicate)",
+      "alt_phrasings": [
+        "existential quantifier rewrite",
+        "there exists exactly one x",
+        "unique x with property",
+        "quantified paraphrase",
+        "rewrite as exists-and-unique",
+        "three-part quantified form",
+        "iota operator unpacked"
+      ],
+      "phrasing_hashes": [
+        "6cdf22f69e73159240f899c0f77d83f100fc74c4f6281c87a7b417eb72d0e964",
+        "7f2e71f199335025b425ec2d6df5452a10d928a8534052a2d0faf593931b2da0",
+        "7f61af048423250fe32be81c9ddaa25b61f8c5735f900b5164f4995e2613ebf8",
+        "cbe7ae10d021b0bed681bbe3d5cb04b6b573de995a6e356bd50d0697306eac13",
+        "d5b6f2f85c02227180384c328f7a32696d9adac85fe1f92043a9fc04e68e3c41",
+        "267cad51558a442abc69e58031a3cbfce1f04b3200dff620a9d6d4ca7960c2af",
+        "32cb0b0ad06e9ea0751d52a5422da9e1d88f1dc6ea4375365cb4ea584f561b52",
+        "de093628ca8e6f53970f7625872cb61dda62c27f88c49b11f1fe7df660d66533"
+      ],
+      "claim_hash": "6cdf22f69e73159240f899c0f77d83f100fc74c4f6281c87a7b417eb72d0e964"
+    },
+    {
+      "id": "f2",
+      "claim": "logical form: there is exactly one x such that x is K of F and x is bald",
+      "alt_phrasings": [
+        "exactly one x is K of F",
+        "x is unique and predicate holds",
+        "three conjuncts in scope of exists",
+        "existence uniqueness predication",
+        "standard E! and Bx form",
+        "forall y if K-of-F(y) then y=x",
+        "one x, only that x, and bald"
+      ],
+      "phrasing_hashes": [
+        "6d79d7acebd7ee0ce979d3b9ed68a94e3ca334e9dbcee68606f114cfa1ed7b6d",
+        "8d580a17e7d9892912c2a2deccd90fbf704fa1f747b5f5923f87e5bb777731f2",
+        "0c8a784d743e6bb61e6bd4c5e7cb661cc3d797885d452fca912279b50342b278",
+        "d0ffb52d156d2a4f3a6c398deae23cd27e73aae275aa90684f76a66a35036916",
+        "6b51fa3581744b1ef4d1f67894a4807da1d427f864791463aebc31c008ff6a8f",
+        "e46f45661297c0ab606973581c7481575d27c80479ca73d2d8cabc16fc383a65",
+        "b861e257a0aecc853cd9677357ff6d776adf7752298c5e3205f0f2dc25ee2ea5",
+        "855b021922f2812b8cd08cc7a20c9c80634480aa20d8bfa909aa77f1123f4512"
+      ],
+      "claim_hash": "6d79d7acebd7ee0ce979d3b9ed68a94e3ca334e9dbcee68606f114cfa1ed7b6d"
+    },
+    {
+      "id": "f3",
+      "claim": "puzzle solved: empty descriptions are false (not meaningless); no need for non-existent objects",
+      "alt_phrasings": [
+        "avoids Meinongian objects",
+        "sentence is false not gibberish",
+        "eliminates apparent reference to non-existents",
+        "no need for subsistent entities",
+        "preserves bivalence without ontological cost",
+        "empty subject yields false sentence",
+        "rejects Meinong jungle"
+      ],
+      "phrasing_hashes": [
+        "5a0a4981b030247c6077f5d7e6d2b9c65af0844b3f71436bffd11c24c8e3f71e",
+        "f4fcbf8acc4cc1925f2b18f16cbce57b4f42ba4e12cbeeb7df7e7524a8bf2aa1",
+        "53c9aab9e28954b6937c421b8685595d3c0e1512abb04b5a7a9f3a94c7d027f9",
+        "fc79a8e21fb88aa0f12b613a17265d7a96bdf1c71ed731af45d9282a814b26c5",
+        "bde65e7d5690622d9bf39b50e26d94d339d0ab573d45cc869dc3697360d7b1b4",
+        "1b8235e8070c1d5557dfad5835119449129bf5d19646a7bca1e3ef6a23147bb0",
+        "9748f26ed60f6cca573edc296da3da8be48ec746c7a9b93162331156f917cf52",
+        "2c2f2c09169a6afe0a82bf4f0569f01a6efa78bcfcbb7805c98443d9cf7e692a"
+      ],
+      "claim_hash": "5a0a4981b030247c6077f5d7e6d2b9c65af0844b3f71436bffd11c24c8e3f71e"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Step 1: rewrite the definite description as a quantified claim. Step 2: assert there exists exactly one x such that x is King of France and x is bald — three conjuncts: existence, uniqueness, predication. Step 3: since no x satisfies the K-of-F predicate, the whole sentence is simply false. The puzzle solved is that we no longer need a non-existent King to make sense of the sentence.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Russell says we should not talk about things that do not exist.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "The description unpacks into exists-and-unique-and-bald. Because no King of France exists, the sentence is false, with no Meinongian commitment.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-11T00:37:29.493Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

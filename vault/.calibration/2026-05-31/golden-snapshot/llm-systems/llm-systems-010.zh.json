@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-010",
+  "source_hash": "391a0973c562438e62b4dc38addf3f200698a759d6a951a4882004e7f0de1791",
+  "translated_at": "2026-05-11T02:04:03.893Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const L=[1.2,3.4,0.5,2.8,3.1]; console.log(L.indexOf(Math.max(...L)));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(0);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(1);"
+    }
+  ],
+  "prompt_text_zh": "在 temp=0 下的温度采样退化为 argmax。给定 logits [1.2, 3.4, 0.5, 2.8, 3.1]，打印 argmax 索引（从 0 开始）。"
+}

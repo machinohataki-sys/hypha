@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-030",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Quine \"Two Dogmas of Empiricism\" in From a Logical Point of View ch. II (1951/1953); Word and Object §§1-2 (1960); SEP \"Willard Van Orman Quine\" §3",
+  "instance": "Quine attacks the analytic-synthetic distinction and argues for a holistic web of belief facing experience as a whole. Reconstruct the holism claim in three steps and identify one practical methodological constraint it imposes on theory revision.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "rejection of strict analytic-synthetic split: every belief is in principle revisable",
+      "alt_phrasings": [
+        "no firm analytic-synthetic line",
+        "every statement revisable",
+        "no statement immune from revision",
+        "continuum not dichotomy",
+        "denies sharp analytic synthetic boundary",
+        "all beliefs in principle defeasible",
+        "dogma of analyticity rejected"
+      ],
+      "phrasing_hashes": [
+        "f8d645c9a013bf3f720410e2ca70adda1e11754a175e1f5289fd3cc162b6907c",
+        "12de7208f76a8c2f69cdeff5f4f5daab924ff3b06e39d484294f601da655fea2",
+        "58325329b848c66a969d1cb44a3ca6359054249adab4c2b8393971626b820bdb",
+        "029785380054fea3686876e8b445b8b7301dc527eed3d80423efcf23f3278f15",
+        "42fff3ee70d8277aafd9d0e0612206780820c3623e1c5cd845bb733a69fb2141",
+        "0724fa5bafda9bef44c2997e3e786d79d8ed63b8873c7919823edfb5ef75996c",
+        "b73426cc1b065fff3f75e1f8139b53a1d8ad923b7e4f46358ba6107854d8685e",
+        "5dfbdaab6e8d2af258c59e2e999f72bf6de8d796fccaf965f8751b63a1bafa18"
+      ],
+      "claim_hash": "f8d645c9a013bf3f720410e2ca70adda1e11754a175e1f5289fd3cc162b6907c"
+    },
+    {
+      "id": "f2",
+      "claim": "web of belief: theory faces experience as a whole, not statement by statement (Duhem-Quine confirmation holism)",
+      "alt_phrasings": [
+        "confirmation holism",
+        "Duhem-Quine thesis",
+        "theory faces tribunal as whole",
+        "no isolated statement test",
+        "web meets experience together",
+        "corporate body of statements",
+        "cannot test single sentence in isolation"
+      ],
+      "phrasing_hashes": [
+        "a4cf2e6b1a1ad570c758c5f0ac7f2f7f3712b725d629197e36142afb058edaff",
+        "bde4a0567ddcd7705ccc6ff11364533ed0a8c69d188738e9d4cb1453208c6f01",
+        "1933711f7af1266f17391ecb4708438b1689dbf26141839b8b9dd52ca2afec55",
+        "c3f7d8280625c5bda5e4cb6a753cec30d4124e6112ebbd043a7ede85c4b0f3b4",
+        "776e4736e3f9256332eb3de1fde1798e26814f52eed40de046a33aafa7c83813",
+        "998bc94b4d84914329fd76f2f04d06d0115c2a2677097a104325e3cd47d3b1b6",
+        "9cd4e2182d4ba1920f33d1f454b1530782beeb00d39583e8c281d5fa68330d75",
+        "91bd8296a1b5b5e9175559c5c305e86fa08ee599d321945d00808f60e62cff4a"
+      ],
+      "claim_hash": "a4cf2e6b1a1ad570c758c5f0ac7f2f7f3712b725d629197e36142afb058edaff"
+    },
+    {
+      "id": "f3",
+      "claim": "methodological constraint: under recalcitrant evidence we may revise anywhere, but conservatism + simplicity guide which beliefs to drop",
+      "alt_phrasings": [
+        "conservatism in revision",
+        "minimum mutilation",
+        "maxim of minimum mutilation",
+        "choose where to revise by simplicity and conservatism",
+        "pragmatic revision policy",
+        "least disturbance principle",
+        "protect periphery before center"
+      ],
+      "phrasing_hashes": [
+        "bcc596098d2e8c711dd3a730d64c61fe2b0b1381721eb59def34d22f58e4acc8",
+        "dc3739125df876b6c9f461126b7bf8eb8187907af969d28f36c13950c3538ff2",
+        "1d8a730fd02db5dba56afa346b7b8199e3b2079a8a93b7276d3ca95f1659f4f9",
+        "f44edcaee938091f01690f939e4febc0d65208ac11d4f5499360a7a21e2fff7d",
+        "32a55a2af9c3998d49f2ecfef2411cb78e6c5592f079795c84ec688e666518ad",
+        "90561bf949a0d3ac6b4ed97cd60db22fb3a2e00ece2e33b59c11ff088d7b6b58",
+        "3edc4208535d12ca2a351dbce3c32ccb367f5489719ac577902d389c8b67d55d",
+        "103c0a810bd616c1b4300de6a6009179c9da5d8ea06dd51722292340ff976187"
+      ],
+      "claim_hash": "bcc596098d2e8c711dd3a730d64c61fe2b0b1381721eb59def34d22f58e4acc8"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Step 1: no statement is strictly analytic and so immune from revision; the analytic-synthetic line is at best a matter of degree. Step 2: theory meets experience as a corporate body — the Duhem-Quine point that no single statement can be confirmed or refuted in isolation. Step 3: when evidence pushes back, we are free to revise anywhere in the web, but conservatism (minimum mutilation) and simplicity guide which beliefs to drop first.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Quine is an empiricist who denied analyticity.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Every belief is revisable. The web faces experience as a whole, not statement by statement. The constraint is to revise with minimum mutilation, preferring the periphery to the core.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-11T00:37:29.598Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

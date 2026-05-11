@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-018",
+  "source_hash": "38d2e9cc9b2bf7eaf92db33070f216a50ff27599aefa3069237552ec4f30fac8",
+  "translated_at": "2026-05-11T02:08:43.099Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const t=2; const c=Math.cos(t),s=Math.sin(t); console.log(JSON.stringify([c,-s,s,c].map(x=>x.toFixed(6))));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log([1,0,0,1]);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"[\\\"-0.416147\\\",\\\"-0.909297\\\",\\\"0.909297\\\",\\\"-0.416147\\\"]\");"
+    }
+  ],
+  "prompt_text_zh": "针对首个维度对 (dim_idx=0) 的旋转位置嵌入 (Rotary position embedding) 2x2 旋转块：给定 pos=2, d=4, base=10000, theta_0 = pos / base^(2*0/d) = 2，该块为 [[cos(theta_0), -sin(theta_0)], [sin(theta_0), cos(theta_0)]]。将四个条目 [m00, m01, m10, m11] 各保留至6位小数，以 JSON 数组形式打印。"
+}

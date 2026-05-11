@@ -1,0 +1,112 @@
+{
+  "id": "philosophy-016",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Thomas Aquinas Summa Theologiae I q.2 a.3 (Five Ways); I-II q.94 a.2 (natural law); SEP \"Aquinas's Moral, Political, and Legal Philosophy\" §1-2",
+  "instance": "Aquinas's Five Ways argue from observable features of the world to a first cause, and his natural law derives moral norms from rational apprehension of human goods. Pick ONE of the Five Ways, state it as a numbered argument with explicit premises and conclusion, and identify the most common modern objection to that specific way.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "the chosen way reconstructed with premises and conclusion (not paraphrased loosely)",
+      "alt_phrasings": [
+        "premise 1",
+        "premise 2",
+        "conclusion",
+        "argument structure",
+        "numbered premises",
+        "reconstructed deductively",
+        "inferential structure"
+      ],
+      "phrasing_hashes": [
+        "4ec4079a036f7067900c0b207bf651fff3c644f3bb8b6bc7c0f8e9b169f1bc7b",
+        "069bf955580db1b7291c0112e6e1d21407107d5ff0c589313bcacccbec4e0849",
+        "19ec03ddcb559bf62c57cd9642cae2f13bd6678b585348b2065060839934e24e",
+        "852408bfbc8333513e7cc815691cad3270bf9ee001d8dd3902a766bde30f73a6",
+        "855c45f41e8ad8f9d6f89dbafbfa834ef399f089bf85c8815631efc523355fca",
+        "67c3b43c980c107da0e995f236609c996e0f900965926167c585125ead400a6d",
+        "b63db3f08bbd0272d4268113bab95afcb683453a7e298a2e251a659f666b6d43",
+        "9cade40ff418340aac8cf84a7a51f3837099b3ac2220a5377f4f7039db4c1335"
+      ],
+      "claim_hash": "4ec4079a036f7067900c0b207bf651fff3c644f3bb8b6bc7c0f8e9b169f1bc7b"
+    },
+    {
+      "id": "f2",
+      "claim": "identifies the move from observed regularity to a first or necessary being",
+      "alt_phrasings": [
+        "from motion to first mover",
+        "from contingency to necessary being",
+        "from causes to first cause",
+        "from order to designer",
+        "from gradation to maximum",
+        "inference to first principle",
+        "climb to first cause"
+      ],
+      "phrasing_hashes": [
+        "e9731e54d79da2ba8cf4ae4e816807d14c8bdf81ff5be976b63a76b42231420d",
+        "2a588a400504135dd08b2e74eb1172d973c5e1404bb375b505d3ae5eab262228",
+        "d005315950c1308430991f42df71287898a84514b050c3d23b202eaafd2de397",
+        "5f83e8812f103bb9fb234771bcea17228edc36f9f93aa99406059736808c2c06",
+        "12363d78b3002be5671058d880fecabda7522796108cb4e437403b1b0966f35f",
+        "231e3d8843b3ab88d5aed5400f0be3846332442c3508eb90266438c445d73190",
+        "556ab8f788c4690c8ffae5039a41c95f6a802c0c2391b9d457f2912e41a8a848",
+        "9b312faa6924b5b77ee17b585b83b438edd42fec664dc98c6d44f3a259f99b84"
+      ],
+      "claim_hash": "e9731e54d79da2ba8cf4ae4e816807d14c8bdf81ff5be976b63a76b42231420d"
+    },
+    {
+      "id": "f3",
+      "claim": "standard modern objection (e.g., infinite regress is acceptable; quantifier shift; from each-cause to a-cause)",
+      "alt_phrasings": [
+        "quantifier shift fallacy",
+        "from each contingent to all contingent",
+        "infinite regress is harmless",
+        "modern cosmology objection",
+        "why first not just earlier",
+        "no need for terminator",
+        "composition or quantifier objection"
+      ],
+      "phrasing_hashes": [
+        "59a6997d0e552b722146e58650960d0a13e35d75d359800cc2a2c31187802bb0",
+        "70a12d9a123b15117c432a8012605b78fce67cbca3dd8591edaf575723033366",
+        "14ed77c7685c9af9c9f8b9948e82956521fddbff43677b3275e3a74fc64ec2b5",
+        "0a8ebd3740e4038e41c0802a234db213e268ee49a766c800d8339d62e924e23e",
+        "854fa546db0ac85a2c71f4c444fb7b7eb6d5e406624dfd78b2ce849800735a30",
+        "5f2f526a031fcf7d03a3e8e0b528e1a936dcd1f156da92cbf18fcf54203e95f5",
+        "0bdfe6bbf5b6b1e754ce3ac7939db33f4bfebb3994cef4d9973e76d92708d710",
+        "9d99b12433a7d329625c8c93d6ab29b2ffcf1d130d8aaf699ffdf33a84010dbe"
+      ],
+      "claim_hash": "59a6997d0e552b722146e58650960d0a13e35d75d359800cc2a2c31187802bb0"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Third Way (from contingency). Premise 1: some things are contingent (could not exist). Premise 2: if all things were contingent, at some past time nothing existed. Premise 3: from nothing, nothing comes. Conclusion: there must be a necessary being. Modern objection: this commits a quantifier shift — from \"each thing is contingent\" we cannot infer \"there is a time at which all are non-existent simultaneously.\"",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Aquinas proves God exists in five ways.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "First Way climbs from motion to a first mover. The standard objection is that an infinite regress of movers is acceptable, so we never need a first.",
+      "features_hit_truth": [
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:18:15.041Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

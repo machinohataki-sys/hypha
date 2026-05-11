@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-028",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Sartre L'existentialisme est un humanisme (1946); L'Etre et le Neant Part I ch. II \"La mauvaise foi\" (1943); SEP \"Jean-Paul Sartre\" §2.3",
+  "instance": "Sartre's claim that \"existence precedes essence\" combines with his analysis of bad faith (mauvaise foi) and radical freedom. State why bad faith is structurally different from a simple lie, and identify one concrete situation where someone uses it to evade the consequences of radical freedom.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "bad faith is self-deception: the same consciousness is both deceiver and deceived",
+      "alt_phrasings": [
+        "lie to oneself",
+        "self-deception structure",
+        "deceiver and deceived are one",
+        "one consciousness on both sides",
+        "reflexive deception",
+        "duplicity within a single subject",
+        "agent lies to itself"
+      ],
+      "phrasing_hashes": [
+        "220e2c351be1130c7ca1de3f9af73ea3e004c818dba2c2f4d6057096224252d7",
+        "ba1db61cf32c4d9bcdad16d6b9ab29775a485efb02d990c581aeea7c2c4c9301",
+        "11751888d787e221868e2c501ddb1d661be6bd50615276bfb104918c1a4f43f8",
+        "b2ae970e6f35dec077270b3ccb69f404c9a00e904d458a823425df7c4cb6a931",
+        "33273b25ac7eeeafd414120e73c37dc1be8bd828b4dedcd0ced2ae84cad3aab6",
+        "aae9fa8e5fcb77054cc267e9787880a91b0098f6849ab0dee16c0bfad9dc1755",
+        "8dbd37875d0019b33038b02c2000524d89e8ecd98908a96f486d69bc40f891ee",
+        "7a0e7b38f7ad1db882672f708f8da2b47d62472fdf9103233e24e6cdfc2eeb7d"
+      ],
+      "claim_hash": "220e2c351be1130c7ca1de3f9af73ea3e004c818dba2c2f4d6057096224252d7"
+    },
+    {
+      "id": "f2",
+      "claim": "differs from a plain lie: a liar knows the truth and conceals from another; bad faith conceals from self",
+      "alt_phrasings": [
+        "plain lie has two parties",
+        "bad faith collapses the parties",
+        "no second party to deceive",
+        "lie has audience bad faith does not",
+        "liar withholds from another bad faith withholds from self",
+        "audience-collapsed lie",
+        "distinct from interpersonal lying"
+      ],
+      "phrasing_hashes": [
+        "1f956dcb218ca3c2d4e32dae4f65714ce9a705786d7fc2b94317b1e57563d41f",
+        "93b47d0b899b9be101b5298dce43316dc844ac3bbe933d41f0c95dccf1a64d38",
+        "49d50360f3b1122a0aa3e803a147c380a4bc1c361d51c4939cac7ba49114aad7",
+        "6fba081b083f98410838caceec6381a9c4cdabb12a853986ee68348228d0a048",
+        "2466c220b34a3b26b3e844c29b52076e6b14fd63783cee42bc7644302f35907d",
+        "2acc249e0ec72ae79a31a666734df40b4b7983c55760464d59cfe5a2562bb374",
+        "18866d7aef0ce0f6da528e653f0bbb5eb2417e13d1b8e00bc250ba08e2066cd1",
+        "fcd840af84a33d156d41c1bf6096f591306fecbf89a962997d28d6a2bd9420e5"
+      ],
+      "claim_hash": "1f956dcb218ca3c2d4e32dae4f65714ce9a705786d7fc2b94317b1e57563d41f"
+    },
+    {
+      "id": "f3",
+      "claim": "concrete evasion: treating oneself as mere facticity (role / nature / past) to deny freedom (transcendence) — e.g., the waiter playing waiter, or \"I had no choice\"",
+      "alt_phrasings": [
+        "waiter playing waiter",
+        "I had no choice",
+        "collapses transcendence into facticity",
+        "plays a role to deny freedom",
+        "invokes nature or role to evade choice",
+        "denies the freedom to choose otherwise",
+        "flees transcendence into facticity"
+      ],
+      "phrasing_hashes": [
+        "cad13e5b3d94335f8e997dca409b5b02a8fa07c521d63cefdcb8b864ae39db6d",
+        "0e6b0a4990f06be638982779d88d745005b6a0ce1362127ff02ebc3621b38686",
+        "9da74e4c3ca9e0955d598f64fb7c9e6b3ad4c05b66ae77729e83c8ce25aad665",
+        "d7c1330a09aa2db6380cf0ce05d5eea0dc8cc79ed8a7778ab0bfe14e00932142",
+        "e0b179513a5e83d39d517c0abcb718a81002002d7c725934c03ce5cce3c14bac",
+        "3a33e9a144fcbbd6090b5d858ab1b87d1e2529d9f27cb40b7f90fe7db8eefdf3",
+        "b99838367346a14f5611103860ad1b8ae20bb9dd9b7aafc23a238f56f46a7ab4",
+        "18e7ad17c27157746e16b02901326127ee7a13c9435c9b2a6eed6c13fad0cecc"
+      ],
+      "claim_hash": "cad13e5b3d94335f8e997dca409b5b02a8fa07c521d63cefdcb8b864ae39db6d"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Bad faith is self-deception: the same consciousness is both deceiver and deceived, so unlike an ordinary lie there is no second party to whom the truth is concealed. A concrete case: the waiter who plays at being a waiter so completely that he treats his role as a fixed nature, evading the radical freedom that he must each moment choose to perform that role.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Sartre says we are condemned to be free, which is depressing.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "It is a lie to oneself, where the deceiver and the deceived are the same. People often deploy it by saying \"I had no choice\", collapsing transcendence into facticity to evade freedom.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-11T00:37:29.554Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}
