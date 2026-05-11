@@ -32,6 +32,12 @@ const App = () => {
   const [goal, setGoal] = useState(null); // payload from OnboardingScreen — drives sub-steps D+
   const [cmdOpen, setCmdOpen] = useState(false);
   const [yieldToast, setYieldToast] = useState(null);
+  // 2026-05-11 — Phase 0 wire: OnboardingScreen submit now awaits curriculum:create
+  // (previously local-state-only, see plan file fluffy-hugging-swan.md §"V0.5 E1 Opening — Path B-3").
+  const [isCreatingCurriculum, setIsCreatingCurriculum] = useState(false);
+  const [createStage, setCreateStage] = useState("");
+  const [createError, setCreateError] = useState(null);
+  const [pendingTopic, setPendingTopic] = useState("");
   // 2026-05-08 — vault-aware boot: when vault already holds curricula, skip
   // the OnboardingScreen and land on Home with a resumable list. Forced
   // onboarding-on-every-launch was reported as the #1 entry-friction bug.
@@ -152,10 +158,101 @@ const App = () => {
   })();
 
   if (!onboarded) {
-    return <OnboardingScreen onComplete={(payload) => {
-      setGoal(payload);
-      setOnboarded(true);
-      setRoute("lesson");
+    if (isCreatingCurriculum) {
+      return (
+        <div className="fade-in col" style={{
+          minHeight: "100vh",
+          padding: "80px 60px",
+          gap: 24,
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
+        }}>
+          <div className="serif italic" style={{ fontSize: 36, lineHeight: 1.2, color: "var(--ink-1)" }}>
+            正在备课
+          </div>
+          <div className="mono t-small" style={{ color: "var(--ink-3)", letterSpacing: ".15em" }}>
+            {pendingTopic}
+          </div>
+          <div className="mono t-small" style={{ color: "var(--ink-2)", minHeight: 18 }}>
+            {createStage || "starting harvest…"}
+          </div>
+          {createError && (
+            <div style={{ color: "var(--terracotta)", maxWidth: 600, textAlign: "center", marginTop: 16 }}>
+              {createError}
+            </div>
+          )}
+        </div>
+      );
+    }
+    return <OnboardingScreen onComplete={async (payload) => {
+      const gc = (payload && payload.goalContract) || {};
+      const topic = (gc.north_star_goal || "").trim();
+      const level = (gc.current_level || "").trim();
+      if (!topic) {
+        setCreateError("north_star_goal is required");
+        return;
+      }
+      setCreateError(null);
+      setPendingTopic(topic);
+      setIsCreatingCurriculum(true);
+      setCreateStage("starting…");
+
+      // Subscribe to curriculum:create:progress events so the user sees stages,
+      // not a frozen screen. Defensive — bridge may be absent in some build modes.
+      let unsubscribe = null;
+      try {
+        if (window.ptor && window.ptor.hypha && typeof window.ptor.hypha.onCurriculumProgress === "function") {
+          unsubscribe = window.ptor.hypha.onCurriculumProgress((evt) => {
+            if (evt && evt.stage) setCreateStage(String(evt.stage));
+          });
+        }
+      } catch (err) {
+        console.warn("[onboarding] could not subscribe to curriculum progress", err);
+      }
+
+      try {
+        const createFn = window.ptor && window.ptor.hypha && window.ptor.hypha.curriculumCreate;
+        if (typeof createFn !== "function") {
+          throw new Error("curriculumCreate IPC bridge not available");
+        }
+        const result = await createFn(topic, level, {
+          goal: (gc.main_creation || "").trim(),
+          lesson_mode: "learn",
+          goalContract: gc,
+          provider: payload.provider,
+          model: payload.model,
+        });
+        if (!result || result.ok === false) {
+          throw new Error((result && result.error) || "curriculum:create returned no result");
+        }
+        const slug = result.slug || result.topic;
+        const noteRel = (Array.isArray(result.lessonRels) && result.lessonRels[0]) || `${slug}/lesson-0`;
+        if (!slug) {
+          throw new Error("curriculum:create returned no slug — see DevTools console for raw result");
+        }
+        // Wire downstream LessonChat. noteRel points at lesson-0 so the
+        // SkeletonPreviewCard / body PreviewCard renders on the lesson screen.
+        setGoal({
+          noteRel,
+          goalContract: gc,
+          slug,
+          provider: payload.provider,
+          model: payload.model,
+        });
+        setOnboarded(true);
+        setIsCreatingCurriculum(false);
+        setRoute("lesson");
+      } catch (err) {
+        console.error("[onboarding] curriculum:create failed", err);
+        setCreateError((err && err.message) ? err.message : "curriculum create failed — see DevTools console");
+        // Leave isCreatingCurriculum=true so the user sees the error; they can
+        // refresh / restart to retry. Future polish: add a Retry button.
+      } finally {
+        if (typeof unsubscribe === "function") {
+          try { unsubscribe(); } catch (_) {}
+        }
+      }
     }} />;
   }
 
