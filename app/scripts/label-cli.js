@@ -100,6 +100,22 @@ function _listItems(topic, itemFilter) {
   return items;
 }
 
+// V0.5 E0 Phase 3 — bilingual sidecar reader. Returns parsed <id>.zh.json
+// or null when the sidecar is absent / malformed. Founder cannot rate English
+// items unaided; when a zh sidecar exists we render Chinese under each
+// English line in a dim register so the rater can verify meaning before
+// scoring features_hit.
+function _readZhSidecar(dir, itemId) {
+  const p = path.join(dir, `${itemId}.zh.json`);
+  if (!fs.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (err) {
+    console.warn(`[label-cli] zh sidecar ${itemId}.zh.json parse error: ${err.message}; rendering English-only`);
+    return null;
+  }
+}
+
 // D4 R1 fix: rater work lives in sidecar files <id>.rater-<a|b>.json,
 // not on the main item JSON. Eliminates the race condition where parallel
 // rater_a + rater_b runs on the same item file overwrite each other.
@@ -152,19 +168,48 @@ function _ensureRaterShape(item, raterField) {
   return item[raterField];
 }
 
+// Render the instance line bilingually when a zh sidecar is present. The
+// English instance is printed by the caller (existing `instance: ...` line);
+// this helper prints ONLY the zh follow-up line in italic-dim register. When
+// no sidecar, nothing prints (caller's English-only render is unchanged).
+function _renderInstanceZh(zhSidecar) {
+  if (!zhSidecar || typeof zhSidecar.instance_zh !== 'string' || !zhSidecar.instance_zh) return;
+  // italic + dim composed; on non-TTY both wraps become no-ops and the
+  // line stays plain. Prefix "[zh]    :" aligns column with "instance:".
+  console.log(_wrap(_ANSI.italic, _wrap(_ANSI.dim, `[zh]    : ${zhSidecar.instance_zh}`)));
+}
+
+// Render prompt_text_zh under the English prompt_text line for llm-systems
+// items that include exec_cell prompts. Same italic-dim register as instance.
+function _renderPromptTextZh(zhSidecar) {
+  if (!zhSidecar || typeof zhSidecar.prompt_text_zh !== 'string' || !zhSidecar.prompt_text_zh) return;
+  console.log(_wrap(_ANSI.italic, _wrap(_ANSI.dim, `[zh]    : ${zhSidecar.prompt_text_zh}`)));
+}
+
 // Render the answer_features definitions for a single item. Called ONCE per
 // item (not per candidate within the item), right before the first candidate
 // rating prompt. Format per spec:
 //   [<feature_id>] <statement>
+//                  <statement_zh>           ← if zh sidecar present
 //      alt: <phrasing 1>
+//           <alt_phrasings_zh[0]>           ← if zh sidecar present
 //      alt: <phrasing 2>
+//           <alt_phrasings_zh[1]>           ← if zh sidecar present
 // Uses cream/dim ANSI when TTY, plain otherwise. Falls back gracefully if
-// answer_features is missing or malformed.
-function _renderFeatureDefinitions(item) {
+// answer_features is missing or malformed. zh lines align under the English
+// content (after the `[fid] ` or `alt: ` prefix) for visual register.
+function _renderFeatureDefinitions(item, zhSidecar) {
   const features = Array.isArray(item.answer_features) ? item.answer_features : [];
   if (features.length === 0) {
     console.warn(`[label-cli] WARN: item ${item.id} has no answer_features to display`);
     return;
+  }
+  // Index zh features by id for safe lookup (resilient to ordering drift).
+  const zhFeaturesById = new Map();
+  if (zhSidecar && Array.isArray(zhSidecar.features_zh)) {
+    for (const fz of zhSidecar.features_zh) {
+      if (fz && fz.id) zhFeaturesById.set(fz.id, fz);
+    }
   }
   console.log(_wrap(_ANSI.dim, '— answer features —'));
   for (const f of features) {
@@ -172,9 +217,19 @@ function _renderFeatureDefinitions(item) {
     // Spec uses <statement>; the JSON schema field is `claim`. Same thing.
     const statement = (f.claim || f.statement || '').toString();
     console.log(_wrap(_ANSI.cream, `  [${fid}] ${statement}`));
+    const zhF = zhFeaturesById.get(fid);
+    if (zhF && typeof zhF.statement_zh === 'string' && zhF.statement_zh) {
+      // Align zh under English statement (4 spaces past `  [fid] ` prefix).
+      console.log(_wrap(_ANSI.dim, `       ${zhF.statement_zh}`));
+    }
     const alts = Array.isArray(f.alt_phrasings) ? f.alt_phrasings.slice(0, 2) : [];
-    for (const phrasing of alts) {
-      console.log(_wrap(_ANSI.dim, `     alt: ${phrasing}`));
+    const altsZh = zhF && Array.isArray(zhF.alt_phrasings_zh) ? zhF.alt_phrasings_zh.slice(0, 2) : [];
+    for (let i = 0; i < alts.length; i++) {
+      console.log(_wrap(_ANSI.dim, `     alt: ${alts[i]}`));
+      if (altsZh[i]) {
+        // Align under "alt: " (4 spaces + "     " preserves visual nest).
+        console.log(_wrap(_ANSI.dim, `          ${altsZh[i]}`));
+      }
     }
   }
   console.log(''); // blank line breather before candidate text
@@ -288,7 +343,15 @@ async function main() {
 
   let labeledCount = 0;
   let lastItemId = null; // tracks item transitions so per-item header prints ONCE per item
+  // Cache zh sidecars per item so we don't re-read across multiple candidates.
+  const zhSidecarByItem = new Map();
   for (const { obj, candidate, dir } of pairs) {
+    // Lazy-load + cache zh sidecar for this item (one fs hit per item, not per candidate).
+    let zhSidecar = zhSidecarByItem.get(obj.id);
+    if (zhSidecar === undefined) {
+      zhSidecar = _readZhSidecar(dir, obj.id);
+      zhSidecarByItem.set(obj.id, zhSidecar);
+    }
     const isNewItem = obj.id !== lastItemId;
     if (isNewItem) {
       const idx = itemIndexById.get(obj.id) || 0;
@@ -298,13 +361,27 @@ async function main() {
       console.log(`item: ${obj.id} (k_threshold=${obj.k_threshold})`);
       if (obj.source_anchor) console.log(`source: ${obj.source_anchor}`);
       console.log(`instance: ${obj.instance}`);
+      // V0.5 E0 Phase 3 — bilingual: zh under instance when sidecar present.
+      _renderInstanceZh(zhSidecar);
+      if (typeof obj.prompt_text === 'string' && obj.prompt_text) {
+        console.log(`prompt : ${obj.prompt_text}`);
+        _renderPromptTextZh(zhSidecar);
+      }
       // Feature definitions block — ONCE per item, replaces the old inline list.
-      _renderFeatureDefinitions(obj);
+      _renderFeatureDefinitions(obj, zhSidecar);
       lastItemId = obj.id;
     } else {
       console.log(''); // soft separator between candidates within the same item
     }
     console.log(`candidate ${candidate.id}: ${candidate.text}`);
+    // V0.5 E0 Phase 3 — bilingual: zh under candidate text when sidecar present.
+    if (zhSidecar && Array.isArray(zhSidecar.candidates_zh)) {
+      const cz = zhSidecar.candidates_zh.find((c) => c && c.id === candidate.id);
+      if (cz && typeof cz.text_zh === 'string' && cz.text_zh) {
+        // Align "[zh]: " under "candidate <id>: " visually.
+        console.log(_wrap(_ANSI.italic, _wrap(_ANSI.dim, `              [zh]: ${cz.text_zh}`)));
+      }
+    }
 
     const validIds = _validFeatureIds(obj);
     const raw = await _promptOne(rl, `features hit (e.g. f1,f2 or none or skip): `);

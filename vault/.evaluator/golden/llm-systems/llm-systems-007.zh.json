@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-007",
+  "source_hash": "d4af0dc45936b563a933954af67eee60b59c0bb799adf55560751d5dafb15c5b",
+  "translated_at": "2026-05-11T02:01:55.426Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const t='the quick brown fox jumps over the lazy dog'; console.log((t.length/t.split(/\\s+/).length).toFixed(4));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(5);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"4.7778\");"
+    }
+  ],
+  "prompt_text_zh": "对于应用于 \"the quick brown fox jumps over the lazy dog\" 的简单空白符分割分词器 (tokenizer)，计算每词元 (token) 的平均字节数 = utf8字节长度 / 词元数。打印至小数点后4位。"
+}

@@ -1,0 +1,48 @@
+{
+  "item_id": "philosophy-017",
+  "source_hash": "ed6b434ecdb5f2629a201254b326c7fb87468ae22acbf16606384ef6f024c912",
+  "translated_at": "2026-05-11T01:36:10.662Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "instance_zh": "斯宾诺莎的一元论 (substance monism) 与平行论 (parallelism)（同一实体在思维与广延的属性之下）否定了笛卡尔意义上的心物因果交互。陈述平行论源自一元论的结构性理由，并指出其对自由意志问题的一个后果。",
+  "features_zh": [
+    {
+      "id": "f1",
+      "statement_zh": "实体一元论 (substance monism)：仅有一个实体 (Deus sive Natura)，样式是其分殊",
+      "alt_phrasings_zh": [
+        "仅有一个实体",
+        "神或自然"
+      ]
+    },
+    {
+      "id": "f2",
+      "statement_zh": "平行论 (parallelism)：思维与广延是同一实体的属性，排列秩序相同",
+      "alt_phrasings_zh": [
+        "观念的秩序与联系等于事物的秩序与联系",
+        "思维与广延是两个属性"
+      ]
+    },
+    {
+      "id": "f3",
+      "statement_zh": "后果：作为因果自主性的自由意志是虚幻的；自由在于充分理解",
+      "alt_phrasings_zh": [
+        "无反因果的自由",
+        "自由意志归结为对原因的无知"
+      ]
+    }
+  ],
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "一元论 (monism)：一个实体，Deus sive Natura，具有无限属性；样式是其分殊。平行论 (parallelism)：思维与广延是其中的两个属性，表达相同的分殊秩序。后果：作为笛卡尔式因果自主性的自由意志瓦解；斯宾诺莎所谓的自由是对自身被决定的充分理解。"
+    },
+    {
+      "id": "c2",
+      "text_zh": "斯宾诺莎是泛神论者。"
+    },
+    {
+      "id": "c3",
+      "text_zh": "一个实体，两个属性秩序相同；因此心灵无法在因果上推动身体。斯宾诺莎的自由被重新界定为理解必然性，而非豁免于必然性。"
+    }
+  ]
+}

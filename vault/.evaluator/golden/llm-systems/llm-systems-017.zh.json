@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-017",
+  "source_hash": "5e3ff210191527ac657986cf650fa42932259dccd9ecfd6a470faea7a952d59f",
+  "translated_at": "2026-05-11T02:08:30.491Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const d=-1.5,t=-0.7,u=0.4; console.log(u<Math.min(1,Math.exp(t-d)));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(false);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(true);"
+    }
+  ],
+  "prompt_text_zh": "依据 Leviathan 规则的推测解码 (speculative decoding) 接受：当且仅当 uniform_sample < min(1, exp(target_logp - draft_logp)) 时接受草稿 token (token)。给定 draft_logp = -1.5，target_logp = -0.7，uniform_sample = 0.4，打印布尔值的接受判定。"
+}

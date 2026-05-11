@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-011",
+  "source_hash": "4c7cb8e02942195e264ff51b07527444844fa4a6adf831450922f6a94852c813",
+  "translated_at": "2026-05-11T02:06:15.113Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const s=[2.0,1.0,3.0,0.5]; const z=s.map(v=>v/Math.sqrt(64)); const m=Math.max(...z); const e=z.map(v=>Math.exp(v-m)); const S=e.reduce((a,b)=>a+b); console.log(JSON.stringify(e.map(v=>(v/S).toFixed(4))));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log([0.25, 0.25, 0.25, 0.25]);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"[\\\"0.2601\\\",\\\"0.2295\\\",\\\"0.2947\\\",\\\"0.2156\\\"]\");"
+    }
+  ],
+  "prompt_text_zh": "缩放点积 softmax (softmax)：给定 QK^T 行分数 [2.0, 1.0, 3.0, 0.5] 与 head_dim d_k=64，使用数值稳定的减去最大值技巧，计算该行上的 softmax(scores / sqrt(d_k))。将保留4位小数的概率向量作为 JSON 数组打印。"
+}

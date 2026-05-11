@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-014",
+  "source_hash": "614674d65b975754c42562f503b7543fdb2e63e3332d563eae0026b8f8040ead",
+  "translated_at": "2026-05-11T02:07:04.311Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const b=512,r=8; console.log(((2*b*r)/(b*b)).toFixed(6));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(0.5);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"0.031250\");"
+    }
+  ],
+  "prompt_text_zh": "LoRA 相较于全密集层的参数节省量：对于一个 base_dim=512 且 rank=8 的方形基础层，LoRA 新增 2 * base_dim * rank 个参数（即降投影与升投影）；全密集权重具有 base_dim * base_dim 个参数。打印 LoRA/全密集 参数比率，保留至小数点后 6 位。"
+}

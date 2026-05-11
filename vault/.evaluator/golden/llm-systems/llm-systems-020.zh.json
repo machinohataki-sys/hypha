@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-020",
+  "source_hash": "33196393f283b72346bf8a1921da4801b936ccbedff7e51fd58b07ef68980d81",
+  "translated_at": "2026-05-11T02:09:39.288Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const C=6e21; console.log(Math.sqrt(C/6).toExponential(4));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(1e10);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"3.1623e+10\");"
+    }
+  ],
+  "prompt_text_zh": "Chinchilla 计算最优模型规模：在简化关系 N_opt = sqrt(C / 6) 下，其中 C 为总训练计算量 (FLOPs)，6 为来自 Kaplan/Hoffmann 的每参数-词符 FLOPs 常数。对于 C = 6e21 FLOPs，以尾数 (mantissa) 保留 4 位小数的科学记数法打印 N_opt（例如通过 toExponential(4)）。"
+}

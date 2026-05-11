@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-008",
+  "source_hash": "00395b5dcd33de8d336b57d72c3c796fbb6d3d69222a03750345928925a40f30",
+  "translated_at": "2026-05-11T02:03:09.211Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const step=2000,w=1000,T=10000,peak=3e-4; const prog=(step-w)/(T-w); const lr=peak*0.5*(1+Math.cos(Math.PI*prog)); console.log(lr.toFixed(6));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(3e-4);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"0.000291\");"
+    }
+  ],
+  "prompt_text_zh": "线性预热 + 余弦衰减学习率调度：step=2000, warmup_steps=1000, total_steps=10000, peak_lr=3e-4。在预热期间 (step < warmup_steps)：lr = peak_lr * step / warmup_steps。预热之后：lr = peak_lr * 0.5 * (1 + cos(pi * (step - warmup) / (total - warmup)))。打印 lr 至 6 位小数。"
+}

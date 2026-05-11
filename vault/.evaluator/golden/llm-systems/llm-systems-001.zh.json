@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-001",
+  "source_hash": "6d0732da5dd23a599f914f15f4c0eb02ed9931344dd5216300027dc27ba51b84",
+  "translated_at": "2026-05-11T01:59:28.261Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const B=2,T=8,H=4,D=64; const out=[B,T,H,D]; console.log(JSON.stringify(out));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log([2, 8, 4, 64]);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"[2,8,4,64]\");"
+    }
+  ],
+  "prompt_text_zh": "对于批次 B=2、序列 T=8、头数 H=4、头维度 D=64 的多头注意力 (attention)，请以在标准输出打印的 JSON 数组形式给出形状 [B, T, H, D]。"
+}

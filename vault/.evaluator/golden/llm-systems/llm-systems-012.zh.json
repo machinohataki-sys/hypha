@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-012",
+  "source_hash": "9fa88e2feae017dabddb597e85523200b2fe64ed78eed8feb3abfb24c7bdd9f6",
+  "translated_at": "2026-05-11T02:06:42.373Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "console.log((23-1)%8);"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(23%8);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(6);"
+    }
+  ],
+  "prompt_text_zh": "环形缓冲区 (Ring-buffer) KV 缓存 (KV cache) 写入索引：对于 cache_size=8 和 n_writes=23，最后一次写入（从0开始计数）的写入索引为 (n_writes - 1) mod cache_size。打印该整数。"
+}
