@@ -178,10 +178,19 @@ async function executeChat(capability, chatArgs) {
       continue;
     }
     try {
-      const result = await provider.chat({ ...chatArgs, model: pick.model });
+      // V0.5 E1 cost-ledger fix: provider returns {content, usage}; usage is
+      // surfaced to dispatch envelope so recordChatCallEstimate can populate
+      // input_tokens / output_tokens. Backward-compat: `dispatch.result` stays
+      // the parsed content (string OR JSON), unchanged for callers that don't
+      // touch token data (e.g. prosecute-judge-rewrite reads `result.charges`).
+      const { content, usage } = await provider.chatWithUsage({ ...chatArgs, model: pick.model });
       markSuccess(pick.providerId);
       return {
-        result,
+        result: content,
+        usage: usage || null,
+        // Preserve the original request payload so the cost ledger can fall
+        // back to char-length estimation if provider usage is missing.
+        _requestMessages: chatArgs && chatArgs.messages ? chatArgs.messages : null,
         providerId: pick.providerId,
         model: pick.model,
         capability,

@@ -1,0 +1,47 @@
+{
+  "id": "basic-algorithms-001",
+  "topic": "basic-algorithms",
+  "lifecycle": "draft",
+  "source_anchor": "MDN String.prototype.split / Array.prototype.reverse / Array.prototype.join (developer.mozilla.org); CLRS §1.1 basic string operations",
+  "prompt_text": "Reverse the string \"hello\" and print the result on stdout. Expected output: \"olleh\".",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const s=\"hello\"; let r=\"\"; for(let i=s.length-1;i>=0;i--){r+=s[i];} console.log(r);",
+    "expected_stdout_hash": "b82485b383d706f0275c0c6ee8de62554458ec207cbf736b93c2c560ccc3a8fa",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: idiomatic split-reverse-join pipeline producing the same reversed string.",
+      "code": "const input=\"hello\"; const out=input.split(\"\").reverse().join(\"\"); console.log(out);",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: off-by-one — loop starts at i=s.length (one past the end) so the first concatenation reads s[s.length] = undefined.",
+      "code": "const s=\"hello\"; let r=\"\"; for(let i=s.length;i>0;i--){r+=s[i];} console.log(r);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: uses split/join vocabulary and a variable named \"reversed\", but never actually calls .reverse() so the original order survives.",
+      "code": "const input=\"hello\"; const chars=input.split(\"\"); const reversed=chars; console.log(reversed.join(\"\"));",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T07:50:44.176Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "ccd035ddb864423bffec98fc63d7e78be82bd5a235f3cb92b6025136c144a465",
+  "code_hash": "69ccef98cce2539feb7581ea345edf3b8d26e8b994f0eb3569c26422ccefc9ef",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Second exec-cell domain seeded for V0.5 E1 mutation-test cross-domain validation."
+}

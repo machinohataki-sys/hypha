@@ -1,0 +1,47 @@
+{
+  "id": "basic-algorithms-009",
+  "topic": "basic-algorithms",
+  "lifecycle": "draft",
+  "source_anchor": "CLRS §32 string matching (palindrome as classic two-pointer exercise); standard interview canon (LeetCode #125)",
+  "prompt_text": "Determine whether the string \"racecar\" is a palindrome and print the boolean. Expected output: \"true\".",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const s=\"racecar\"; let p=true; for(let i=0;i<Math.floor(s.length/2);i++){if(s[i]!==s[s.length-1-i]){p=false; break;}} console.log(p);",
+    "expected_stdout_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: reverse-and-compare idiom — equivalent to the two-pointer scan.",
+      "code": "const s=\"racecar\"; console.log(s===s.split(\"\").reverse().join(\"\"));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: index arithmetic is s[s.length-i] instead of s[s.length-1-i] — the first iteration reads s[7] (undefined) and concludes not-palindrome.",
+      "code": "const s=\"racecar\"; let p=true; for(let i=0;i<s.length;i++){if(s[i]!==s[s.length-i]){p=false; break;}} console.log(p);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: split / every / palindrome vocabulary, but the predicate compares adjacent characters (s[i] vs s[i+1]) rather than mirrored ends.",
+      "code": "const s=\"racecar\"; const isPalindrome=s.split(\"\").every((ch,i)=>s[i]===s[i+1]||i===s.length-1); console.log(isPalindrome);",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T07:50:44.362Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "7106192151e3cf3b330f803fb80bcb8f3d90c1189d466caf214f1d515c8b28d8",
+  "code_hash": "3dbfdf858578aee0e58134004ee10762c22cd87451af034ace637e0227b3999b",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Second exec-cell domain seeded for V0.5 E1 mutation-test cross-domain validation."
+}

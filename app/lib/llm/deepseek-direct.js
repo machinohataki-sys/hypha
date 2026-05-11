@@ -32,7 +32,7 @@ class DeepSeekDirect extends LLMProvider {
     this.client = new OpenAI({ apiKey: this.apiKey, baseURL: this.baseURL });
   }
 
-  async chat({ messages, model = 'deepseek-v4-flash', temperature = 0.7, json = false, maxTokens = 4000, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  async chatWithUsage({ messages, model = 'deepseek-v4-flash', temperature = 0.7, json = false, maxTokens = 4000, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
     if (!Array.isArray(messages) || messages.length === 0) {
       throw new LLMProviderError('messages array is required');
     }
@@ -71,20 +71,33 @@ class DeepSeekDirect extends LLMProvider {
       throw new LLMProviderError('DeepSeek returned empty content');
     }
 
+    // OpenAI-compat usage block. DeepSeek V4 returns {prompt_tokens,
+    // completion_tokens, total_tokens, prompt_cache_hit_tokens,
+    // prompt_cache_miss_tokens} per api-docs.deepseek.com 2026-Q2. Warn if
+    // absent — V0.5 E1 trigger requires >=95% token-metadata coverage.
+    const usage = (response && response.usage) ? response.usage : null;
+    if (!usage) {
+      console.warn('[deepseek-direct] response.usage missing for model=%s — provider response shape unexpected', model);
+    }
+
     if (json) {
+      let parsed;
       try {
-        return JSON.parse(content);
+        parsed = JSON.parse(content);
       } catch (e) {
         // Defensive: salvage first JSON block (DeepSeek occasionally wraps in prose despite json mode)
         const m = content.match(/\{[\s\S]*\}/);
         if (m) {
-          try { return JSON.parse(m[0]); } catch (_) { /* fall through */ }
+          try { parsed = JSON.parse(m[0]); } catch (_) { /* fall through */ }
         }
-        throw new LLMProviderError('DeepSeek returned non-JSON in JSON-mode: ' + content.slice(0, 200));
+        if (parsed === undefined) {
+          throw new LLMProviderError('DeepSeek returned non-JSON in JSON-mode: ' + content.slice(0, 200));
+        }
       }
+      return { content: parsed, usage };
     }
 
-    return content;
+    return { content, usage };
   }
 }
 

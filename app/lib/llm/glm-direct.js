@@ -32,7 +32,7 @@ class GLMDirect extends LLMProvider {
     this.client = new OpenAI({ apiKey: this.apiKey, baseURL: this.baseURL });
   }
 
-  async chat({ messages, model = 'glm-5.1', temperature = 0.7, json = false, maxTokens = 4000, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  async chatWithUsage({ messages, model = 'glm-5.1', temperature = 0.7, json = false, maxTokens = 4000, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
     if (!Array.isArray(messages) || messages.length === 0) {
       throw new LLMProviderError('messages array is required');
     }
@@ -82,20 +82,32 @@ class GLMDirect extends LLMProvider {
       throw new LLMProviderError('GLM returned empty content (check thinking-disabled handling)');
     }
 
+    // OpenAI-compat usage block: {prompt_tokens, completion_tokens, total_tokens}.
+    // GLM 5-series / 4.5 series both populate it. If missing, warn (V0.5 E1 trigger
+    // requires >=95% token-metadata coverage — a silent miss would re-introduce the bug).
+    const usage = (response && response.usage) ? response.usage : null;
+    if (!usage) {
+      console.warn('[glm-direct] response.usage missing for model=%s — provider response shape unexpected', model);
+    }
+
     if (json) {
+      let parsed;
       try {
-        return JSON.parse(content);
+        parsed = JSON.parse(content);
       } catch (e) {
         // Try to salvage first JSON block (defensive, GLM sometimes wraps in prose)
         const m = content.match(/\{[\s\S]*\}/);
         if (m) {
-          try { return JSON.parse(m[0]); } catch (_) { /* fall through */ }
+          try { parsed = JSON.parse(m[0]); } catch (_) { /* fall through */ }
         }
-        throw new LLMProviderError('GLM returned non-JSON in JSON-mode: ' + content.slice(0, 200));
+        if (parsed === undefined) {
+          throw new LLMProviderError('GLM returned non-JSON in JSON-mode: ' + content.slice(0, 200));
+        }
       }
+      return { content: parsed, usage };
     }
 
-    return content;
+    return { content, usage };
   }
 }
 

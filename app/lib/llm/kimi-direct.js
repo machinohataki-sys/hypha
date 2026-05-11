@@ -35,7 +35,7 @@ class KimiDirect extends LLMProvider {
     this.client = new OpenAI({ apiKey: this.apiKey, baseURL: this.baseURL });
   }
 
-  async chat({ messages, model = 'kimi-k2.6', temperature = 0.7, json = false, maxTokens = 4000, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  async chatWithUsage({ messages, model = 'kimi-k2.6', temperature = 0.7, json = false, maxTokens = 4000, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
     if (!Array.isArray(messages) || messages.length === 0) {
       throw new LLMProviderError('messages array is required');
     }
@@ -79,19 +79,32 @@ class KimiDirect extends LLMProvider {
       throw new LLMProviderError('Kimi returned empty content');
     }
 
+    // OpenAI-compat usage block. Kimi K2.6 returns {prompt_tokens,
+    // completion_tokens, total_tokens, cached_tokens} per platform.moonshot.cn
+    // docs (2026-Q2). Warn if absent — V0.5 E1 trigger requires >=95%
+    // token-metadata coverage.
+    const usage = (response && response.usage) ? response.usage : null;
+    if (!usage) {
+      console.warn('[kimi-direct] response.usage missing for model=%s — provider response shape unexpected', model);
+    }
+
     if (json) {
+      let parsed;
       try {
-        return JSON.parse(content);
+        parsed = JSON.parse(content);
       } catch (e) {
         const m = content.match(/\{[\s\S]*\}/);
         if (m) {
-          try { return JSON.parse(m[0]); } catch (_) { /* fall through */ }
+          try { parsed = JSON.parse(m[0]); } catch (_) { /* fall through */ }
         }
-        throw new LLMProviderError('Kimi returned non-JSON in JSON-mode: ' + content.slice(0, 200));
+        if (parsed === undefined) {
+          throw new LLMProviderError('Kimi returned non-JSON in JSON-mode: ' + content.slice(0, 200));
+        }
       }
+      return { content: parsed, usage };
     }
 
-    return content;
+    return { content, usage };
   }
 }
 

@@ -1,0 +1,47 @@
+{
+  "id": "basic-algorithms-007",
+  "topic": "basic-algorithms",
+  "lifecycle": "draft",
+  "source_anchor": "CLRS §11.1 direct-address tables / §11.2 hash tables; MDN Map.prototype.get/set; standard textbook hashmap chapter",
+  "prompt_text": "Insert {a: 1, b: 2, c: 3} into a hashmap, then look up key \"b\" and print the value. Expected output: \"2\".",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const m=new Map(); m.set(\"a\",1); m.set(\"b\",2); m.set(\"c\",3); console.log(m.get(\"b\"));",
+    "expected_stdout_hash": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: plain object as hashmap, bracket-notation lookup — same lookup result as Map.get(\"b\").",
+      "code": "const map={}; map.a=1; map.b=2; map.c=3; console.log(map[\"b\"]);",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: identical structure but looks up the wrong key (\"a\" instead of \"b\").",
+      "code": "const m=new Map(); m.set(\"a\",1); m.set(\"b\",2); m.set(\"c\",3); console.log(m.get(\"a\"));",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: Map constructor, keys() spread, indexed access — but prints the KEY name \"b\" instead of the value 2.",
+      "code": "const hashMap=new Map([[\"a\",1],[\"b\",2],[\"c\",3]]); const keys=[...hashMap.keys()]; console.log(keys[1]);",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T07:50:44.321Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "c7336357c426de6d047a5fdcd1efbb018b5a5969fa4adf09ba4c4b818734b2e6",
+  "code_hash": "a318d3cd8a0d29c811c326392f0d69eeca5c97a914e8dcb6b1a3036f47b67242",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Second exec-cell domain seeded for V0.5 E1 mutation-test cross-domain validation."
+}

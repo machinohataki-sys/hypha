@@ -11,6 +11,13 @@
 
 class LLMProvider {
   /**
+   * Returns the parsed assistant content (string or JSON object).
+   * Concurrency-safe: each call resolves independently, no shared state.
+   *
+   * Implemented as a thin wrapper around chatWithUsage() so subclasses only
+   * need to implement chatWithUsage(). Keeps backward-compat for callers that
+   * don't care about token counts (e.g. lesson-generator.js).
+   *
    * @param {object} opts
    * @param {Array<{role:string,content:string}>} opts.messages
    * @param {string} [opts.model]
@@ -21,7 +28,20 @@ class LLMProvider {
    * @returns {Promise<string|object>}
    */
   async chat(opts) {
-    throw new Error('LLMProvider.chat must be implemented by subclass');
+    const { content } = await this.chatWithUsage(opts);
+    return content;
+  }
+
+  /**
+   * Returns both the parsed assistant content AND the provider's usage block.
+   * The router (executeChat) calls this so the cost ledger can record tokens
+   * without the providers having to mutate shared instance state.
+   *
+   * @param {object} opts — same shape as chat()
+   * @returns {Promise<{content: string|object, usage: {prompt_tokens?: number, completion_tokens?: number, total_tokens?: number, input_tokens?: number, output_tokens?: number}|null}>}
+   */
+  async chatWithUsage(opts) {
+    throw new Error('LLMProvider.chatWithUsage must be implemented by subclass');
   }
 
   /** Override in subclass if it has setup state to release. */

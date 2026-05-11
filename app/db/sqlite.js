@@ -61,10 +61,12 @@ function recordModelCall(row) {
   const stmt = db.prepare(`
     INSERT INTO model_calls
       (ts, user_id, tuple_id, task_type, provider_id, model_name, prompt_version,
-       input_tokens, output_tokens, estimated_cost, latency_ms, success, cache_hit, capability)
+       input_tokens, output_tokens, estimated_cost, latency_ms, success, cache_hit, capability,
+       estimation_source)
     VALUES
       (@ts, @user_id, @tuple_id, @task_type, @provider_id, @model_name, @prompt_version,
-       @input_tokens, @output_tokens, @estimated_cost, @latency_ms, @success, @cache_hit, @capability)
+       @input_tokens, @output_tokens, @estimated_cost, @latency_ms, @success, @cache_hit, @capability,
+       @estimation_source)
   `);
   return stmt.run({
     ts: row.ts || new Date().toISOString(),
@@ -81,6 +83,7 @@ function recordModelCall(row) {
     success: row.success === false ? 0 : 1,
     cache_hit: row.cache_hit ? 1 : 0,
     capability: row.capability || null,
+    estimation_source: row.estimation_source || 'provider',
   }).lastInsertRowid;
 }
 
@@ -209,6 +212,35 @@ function _extractTokens(usage) {
   return { in_, out_ };
 }
 
+// Rough char-to-token ratio for mixed-language text. OpenAI tiktoken
+// cl100k_base maps EN ~4 chars/token, ZH ~1.5 chars/token. We bias toward
+// the cheaper end (4) so the fallback under-counts rather than over-counts;
+// labelled rows can be re-estimated when Cheap Router (v0.6+) lands real
+// pricing. Order-of-magnitude only.
+function _estimateTokensFromText(textOrMessages) {
+  let chars = 0;
+  if (typeof textOrMessages === 'string') {
+    chars = textOrMessages.length;
+  } else if (Array.isArray(textOrMessages)) {
+    for (const m of textOrMessages) {
+      if (m && typeof m.content === 'string') chars += m.content.length;
+      else if (m && m.content != null) chars += String(m.content).length;
+    }
+  } else if (textOrMessages && typeof textOrMessages === 'object') {
+    try { chars = JSON.stringify(textOrMessages).length; }
+    catch (_) { chars = 0; }
+  }
+  return chars > 0 ? Math.ceil(chars / 4) : null;
+}
+
+// Stringify the dispatch result for output-token fallback estimation.
+// `result` can be a plain string (chat mode) or a parsed JSON object (json mode).
+function _stringifyResultForEstimate(result) {
+  if (result == null) return '';
+  if (typeof result === 'string') return result;
+  try { return JSON.stringify(result); } catch (_) { return ''; }
+}
+
 function _estimateCost(providerId, inputTokens, outputTokens) {
   const key = String(providerId || '').toLowerCase();
   const rate = _COST_RATES_PLACEHOLDER[key] || _COST_RATES_PLACEHOLDER._default;
@@ -217,17 +249,63 @@ function _estimateCost(providerId, inputTokens, outputTokens) {
   return Number((inCost + outCost).toFixed(6));
 }
 
-// `dispatch` = executeChat return shape: {result, providerId, model, capability, attempts}
+// `dispatch` = executeChat return shape: {result, usage, _requestMessages, providerId, model, capability, attempts}
 // `taskType` = string label (e.g. 'designSkeletonOnly', 'designLesson', 'classifyAll')
-// `taskMeta` = optional {tuple_id, user_id, prompt_version, latency_ms, cache_hit, success}
+// `taskMeta` = optional {tuple_id, user_id, prompt_version, latency_ms, cache_hit, success,
+//                        messages, response_text} — last two optional overrides for the
+//                        tokenizer-fallback path when caller knows the source text.
+//
+// Resolution order for token counts:
+//   1. dispatch.usage (set by router from provider.chatWithUsage, V0.5 E1 fix)
+//   2. dispatch.result.usage / dispatch.result.message.usage (legacy fields, defensive)
+//   3. _estimateTokensFromText fallback over (taskMeta.messages || dispatch._requestMessages)
+//      and (taskMeta.response_text || dispatch.result) — marks estimation_source='tokenizer-fallback'
+//   4. estimation_source='placeholder' if even text was unavailable (row written with null tokens)
 function recordChatCallEstimate(dispatch, taskType, taskMeta) {
   if (!dispatch || typeof dispatch !== 'object') return null;
-  const result = dispatch.result;
-  const usage = result && typeof result === 'object'
-    ? (result.usage || (result.message && result.message.usage) || null)
-    : null;
-  const { in_, out_ } = _extractTokens(usage);
   const meta = taskMeta || {};
+  const result = dispatch.result;
+
+  // Priority 1: router-attached usage (V0.5 E1 path)
+  // Priority 2: legacy result.usage (in case some caller built a dispatch manually)
+  let usage = dispatch.usage || null;
+  if (!usage && result && typeof result === 'object') {
+    usage = result.usage || (result.message && result.message.usage) || null;
+  }
+
+  let { in_, out_ } = _extractTokens(usage);
+  let estimationSource = (in_ !== null && out_ !== null) ? 'provider' : null;
+
+  if (estimationSource === null) {
+    // Priority 3: tokenizer fallback. Need the request messages + response text.
+    const messages = meta.messages
+      || dispatch._requestMessages
+      || null;
+    const responseText = (typeof meta.response_text === 'string' && meta.response_text)
+      || _stringifyResultForEstimate(result);
+
+    const inEst  = messages ? _estimateTokensFromText(messages) : null;
+    const outEst = responseText ? _estimateTokensFromText(responseText) : null;
+
+    if (inEst !== null || outEst !== null) {
+      in_ = inEst;
+      out_ = outEst;
+      estimationSource = 'tokenizer-fallback';
+      console.warn('[recordChatCallEstimate] provider usage missing — using tokenizer fallback. provider=%s model=%s task=%s in_est=%s out_est=%s',
+        dispatch.providerId || 'unknown',
+        dispatch.model || 'unknown',
+        taskType || 'unknown',
+        String(inEst),
+        String(outEst));
+    } else {
+      estimationSource = 'placeholder';
+      console.warn('[recordChatCallEstimate] no usage AND no source text — writing placeholder row. provider=%s model=%s task=%s',
+        dispatch.providerId || 'unknown',
+        dispatch.model || 'unknown',
+        taskType || 'unknown');
+    }
+  }
+
   const providerId = dispatch.providerId || meta.provider_id || 'unknown';
   const row = {
     ts: meta.ts || new Date().toISOString(),
@@ -244,6 +322,7 @@ function recordChatCallEstimate(dispatch, taskType, taskMeta) {
     success: meta.success === false ? false : true,
     cache_hit: !!meta.cache_hit,
     capability: dispatch.capability || meta.capability || null,
+    estimation_source: estimationSource,
   };
   return recordModelCall(row);
 }

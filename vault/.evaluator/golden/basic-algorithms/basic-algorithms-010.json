@@ -1,0 +1,47 @@
+{
+  "id": "basic-algorithms-010",
+  "topic": "basic-algorithms",
+  "lifecycle": "draft",
+  "source_anchor": "CLRS §31.1 elementary number-theory operations (digit extraction via mod and floor-divide); standard recreational math textbook",
+  "prompt_text": "Sum the decimal digits of 12345 and print the total. Expected output: \"15\".",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "let n=12345; let s=0; while(n>0){s+=n%10; n=Math.floor(n/10);} console.log(s);",
+    "expected_stdout_hash": "238903180cc104ec2c5d8b3f20c5bc61b389ec0a967df8cc208cdc7cd454174f",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: string conversion + reduce — different idiom, same sum.",
+      "code": "const num=12345; const sum=String(num).split(\"\").reduce((a,d)=>a+Number(d),0); console.log(sum);",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: loop guard n>=10 (instead of n>0) exits with one digit remaining — drops the leading \"1\" of 12345.",
+      "code": "let n=12345; let s=0; while(n>=10){s+=n%10; n=Math.floor(n/10);} console.log(s);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: digits / String / split vocabulary, but returns the COUNT of digits (length) instead of summing them.",
+      "code": "const num=12345; const digits=String(num).split(\"\"); const total=digits.length; console.log(total);",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T07:50:44.383Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "6bd6ef59d9dd5fe10be146912b4091d22cc07135ed807049eacc0c58d934782d",
+  "code_hash": "f3ad9d1b0ec0790f50f4f67fff080516a15c76795ad0404c28c8cd0727845c9d",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Second exec-cell domain seeded for V0.5 E1 mutation-test cross-domain validation."
+}

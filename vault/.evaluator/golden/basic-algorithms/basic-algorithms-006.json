@@ -1,0 +1,47 @@
+{
+  "id": "basic-algorithms-006",
+  "topic": "basic-algorithms",
+  "lifecycle": "draft",
+  "source_anchor": "CLRS §2.3.2 binary search; Bentley \"Programming Pearls\" §4 (binary search variants); MDN Array index semantics",
+  "prompt_text": "Binary-search for target 7 in the sorted array [1, 3, 5, 7, 9, 11] and print the 0-based index. Expected output: \"3\".",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "function bs(a,t){let lo=0,hi=a.length-1; while(lo<=hi){const m=(lo+hi)>>1; if(a[m]===t)return m; if(a[m]<t)lo=m+1; else hi=m-1;} return -1;} console.log(bs([1,3,5,7,9,11],7));",
+    "expected_stdout_hash": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: standard inclusive-range binary search using Math.floor and the [lo, hi] invariant.",
+      "code": "function binarySearch(arr,target){let left=0,right=arr.length-1; while(left<=right){const mid=Math.floor((left+right)/2); if(arr[mid]===target)return mid; else if(arr[mid]<target)left=mid+1; else right=mid-1;} return -1;} console.log(binarySearch([1,3,5,7,9,11],7));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: loop guard is lo<hi (strict) on an inclusive-range search — terminates one step early when target sits at the boundary, returning -1.",
+      "code": "function bs(a,t){let lo=0,hi=a.length-1; while(lo<hi){const m=(lo+hi)>>1; if(a[m]===t)return m; if(a[m]<t)lo=m+1; else hi=m-1;} return -1;} console.log(bs([1,3,5,7,9,11],7));",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: binary-search structure intact (lo/hi/mid/while), but on a hit returns arr[mid] (the VALUE, 7) instead of mid (the INDEX, 3).",
+      "code": "function binarySearchIndex(arr,target){let left=0,right=arr.length-1; while(left<=right){const mid=Math.floor((left+right)/2); if(arr[mid]===target)return arr[mid]; if(arr[mid]<target)left=mid+1; else right=mid-1;} return -1;} console.log(binarySearchIndex([1,3,5,7,9,11],7));",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T07:50:44.274Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "c60eedd72b1df11f137df1ac9d511f5767cfe185c3428d36583c5c2ca217b0bd",
+  "code_hash": "ca60e85e79e14eefa8036a7abbf20dd2b86b59c32f8c847b39dc5f4e0c3d8ac1",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Second exec-cell domain seeded for V0.5 E1 mutation-test cross-domain validation."
+}

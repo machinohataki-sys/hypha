@@ -1,0 +1,47 @@
+{
+  "id": "basic-algorithms-004",
+  "topic": "basic-algorithms",
+  "lifecycle": "draft",
+  "source_anchor": "MDN String.prototype.split / for...of iteration; CLRS §32.1 naive substring counting",
+  "prompt_text": "Count how many times the character \"a\" appears in the string \"banana\" and print the integer. Expected output: \"3\".",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const s=\"banana\"; const ch=\"a\"; let c=0; for(const x of s){if(x===ch)c++;} console.log(c);",
+    "expected_stdout_hash": "1121cfccd5913f0a63fec40a6ffd44ea64f9dc135c66634ba001d10bcf4302a2",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: split-and-count idiom — text.split(target).length - 1 gives the same count.",
+      "code": "const text=\"banana\"; const target=\"a\"; const count=text.split(target).length-1; console.log(count);",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: loop bound is i<s.length-1, skipping the last character — misses the final \"a\" in \"banana\".",
+      "code": "const s=\"banana\"; const ch=\"a\"; let c=0; for(let i=0;i<s.length-1;i++){if(s[i]===ch)c++;} console.log(c);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: variable named \"occurrences\" but uses indexOf which returns the FIRST index, not the count.",
+      "code": "const text=\"banana\"; const target=\"a\"; const occurrences=text.indexOf(target); console.log(occurrences);",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T07:50:44.235Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "57256bbecee2069f0c28a664e7877f439e2314b44cb0f56dbff85e3d7f37b248",
+  "code_hash": "783c3f01e9e890573d6ae84fd2e2c2eb2b1c548a84aea7de62598dfcded3ca4e",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Second exec-cell domain seeded for V0.5 E1 mutation-test cross-domain validation."
+}
