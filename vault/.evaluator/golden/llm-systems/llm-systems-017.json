@@ -5,7 +5,7 @@
   "source_anchor": "Leviathan Kalman Matias 2023 \"Fast Inference from Transformers via Speculative Decoding\" §3.2 (acceptance rule); Chen et al. 2023 \"Accelerating Large Language Model Decoding with Speculative Sampling\"",
   "prompt_text": "Speculative decoding acceptance per Leviathan rule: accept the draft token iff uniform_sample < min(1, exp(target_logp - draft_logp)). Given draft_logp = -1.5, target_logp = -0.7, uniform_sample = 0.4, print the boolean accept verdict.",
   "verification_channel": "code",
-  "schema_version": "0.5.D11",
+  "schema_version": "0.5.D20-pivot",
   "exec_cell": {
     "language": "node",
     "code": "const dlp=-1.5,tlp=-0.7,u=0.4; const ratio=Math.exp(tlp-dlp); const accept=u<Math.min(1,ratio); console.log(accept);",
@@ -16,28 +16,32 @@
   "candidate_responses": [
     {
       "id": "c1",
-      "text": "const d=-1.5,t=-0.7,u=0.4; console.log(u<Math.min(1,Math.exp(t-d)));",
+      "expected_pass": true,
+      "text": "CORRECT: same accept rule expressed with descriptive identifiers (draft_logp, target_logp, uniform).",
+      "code": "const draft_logp=-1.5,target_logp=-0.7,uniform=0.4; const accept_ratio=Math.min(1.0, Math.exp(target_logp - draft_logp)); console.log(uniform < accept_ratio);",
       "features_hit_truth": [
         "exec_pass"
       ]
     },
     {
       "id": "c2",
-      "text": "console.log(false);",
+      "expected_pass": false,
+      "text": "WRONG: computes reject probability (1 - min(1, exp(t-d))) and compares to u; reject path returns false here.",
+      "code": "const dlp=-1.5,tlp=-0.7,u=0.4; const reject_prob=1-Math.min(1,Math.exp(tlp-dlp)); console.log(u<reject_prob);",
       "features_hit_truth": []
     },
     {
       "id": "c3",
-      "text": "console.log(true);",
-      "features_hit_truth": [
-        "exec_pass"
-      ]
+      "expected_pass": false,
+      "text": "CARGO-CULT: speculative / accept / Math.min / exp(target-draft) all named; but compares u to log_ratio = min(0, tlp-dlp) instead of the linear ratio.",
+      "code": "const dlp=-1.5,tlp=-0.7,u=0.4; const log_ratio=Math.min(0, tlp-dlp); console.log(u<log_ratio);",
+      "features_hit_truth": []
     }
   ],
-  "sealed_at": "2026-05-11T00:37:46.354Z",
+  "sealed_at": "2026-05-11T06:28:56.628Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
   "prompt_hash": "cb3b51836d90c379b370facc7d1dbe7c5baa37aa296c54e7fb9db5bdd7e1148c",
   "code_hash": "5a5d7ceefdfe7a493ac51edb9635d4b7f9af9f952756779ad579613ebbd55ca8",
-  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
 }

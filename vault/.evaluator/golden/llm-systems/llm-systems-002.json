@@ -5,7 +5,7 @@
   "source_anchor": "Pope et al. 2022 \"Efficiently Scaling Transformer Inference\" §2.2 KV cache; Shoeybi et al. 2019 Megatron-LM §3",
   "prompt_text": "KV cache total bytes: seq_len=2048, n_heads=32, head_dim=128, dtype_bytes=2 (fp16), n_layers=32. Compute total bytes = 2 * seq_len * n_heads * head_dim * dtype_bytes * n_layers (factor 2 = K and V) and print the integer.",
   "verification_channel": "code",
-  "schema_version": "0.5.D11",
+  "schema_version": "0.5.D20-pivot",
   "exec_cell": {
     "language": "node",
     "code": "const seq=2048,heads=32,dim=128,bytes=2,layers=32; const total=2*seq*heads*dim*bytes*layers; console.log(total);",
@@ -16,28 +16,32 @@
   "candidate_responses": [
     {
       "id": "c1",
-      "text": "const seq=2048,heads=32,dim=128,bytes=2,layers=32; const total=2*seq*heads*dim*bytes*layers; console.log(total);",
+      "expected_pass": true,
+      "text": "CORRECT: parameterised cfg object + explicit kv_factor=2 multiplier; computes the same product as the reference.",
+      "code": "const cfg={seq_len:2048,n_heads:32,head_dim:128,dtype_bytes:2,n_layers:32}; const kv_factor=2; let total=kv_factor; for (const k of [\"seq_len\",\"n_heads\",\"head_dim\",\"dtype_bytes\",\"n_layers\"]) total*=cfg[k]; console.log(total);",
       "features_hit_truth": [
         "exec_pass"
       ]
     },
     {
       "id": "c2",
-      "text": "console.log(seq*heads*dim*bytes*layers);",
+      "expected_pass": false,
+      "text": "WRONG: drops the factor-of-2 that accounts for both K and V tensors — undercount by exactly half.",
+      "code": "const seq_len=2048,n_heads=32,head_dim=128,dtype_bytes=2,n_layers=32; const total=seq_len*n_heads*head_dim*dtype_bytes*n_layers; console.log(total);",
       "features_hit_truth": []
     },
     {
       "id": "c3",
-      "text": "console.log(1073741824);",
-      "features_hit_truth": [
-        "exec_pass"
-      ]
+      "expected_pass": false,
+      "text": "CARGO-CULT: declares seq_len/n_heads/head_dim/dtype_bytes/n_layers AND a kv_factor variable, but mistakenly applies the factor by squaring n_layers.",
+      "code": "const seq_len=2048,n_heads=32,head_dim=128,dtype_bytes=2,n_layers=32; const kv_factor=2; const total=seq_len*n_heads*head_dim*dtype_bytes*n_layers*n_layers; console.log(total);",
+      "features_hit_truth": []
     }
   ],
-  "sealed_at": "2026-05-10T14:19:43.286Z",
+  "sealed_at": "2026-05-11T06:28:56.311Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
   "prompt_hash": "bb0ef75fcbbeb72d9bcf37a53c2d9d49311fbe028d88bb9bb39f9694ae60996a",
   "code_hash": "ab8b2d9fc86db193576c077ff62645b5faa1462c5b75ef5da9bd3626c3272fa5",
-  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
 }

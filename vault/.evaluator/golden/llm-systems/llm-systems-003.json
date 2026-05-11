@@ -5,7 +5,7 @@
   "source_anchor": "Su et al. 2023 \"RoFormer: Enhanced Transformer with Rotary Position Embedding\" §2.2; arXiv:2104.09864",
   "prompt_text": "Rotary position embedding angle theta = pos / base^(2*dim_idx/D) for pos=10, dim_idx=4, D=64, base=10000. Print theta to 6 decimal places.",
   "verification_channel": "code",
-  "schema_version": "0.5.D11",
+  "schema_version": "0.5.D20-pivot",
   "exec_cell": {
     "language": "node",
     "code": "const pos=10,dim_idx=4,D=64,base=10000; const angle=pos/Math.pow(base,(2*dim_idx)/D); console.log(angle.toFixed(6));",
@@ -16,28 +16,32 @@
   "candidate_responses": [
     {
       "id": "c1",
-      "text": "const pos=10,dim_idx=4,D=64,base=10000; console.log((pos/Math.pow(base,(2*dim_idx)/D)).toFixed(6));",
+      "expected_pass": true,
+      "text": "CORRECT: rewrites the same angle formula with negative-exponent power form (pos * base^(-2i/D)).",
+      "code": "const position=10,i=4,head_dim=64,theta_base=10000; const theta=position*Math.pow(theta_base,-(2*i/head_dim)); console.log(theta.toFixed(6));",
       "features_hit_truth": [
         "exec_pass"
       ]
     },
     {
       "id": "c2",
-      "text": "console.log(10/10000);",
+      "expected_pass": false,
+      "text": "WRONG: drops the factor of 2 in the exponent, doubling the implicit frequency band.",
+      "code": "const pos=10,dim_idx=4,D=64,base=10000; const angle=pos/Math.pow(base,dim_idx/D); console.log(angle.toFixed(6));",
       "features_hit_truth": []
     },
     {
       "id": "c3",
-      "text": "console.log(\"3.162278\");",
-      "features_hit_truth": [
-        "exec_pass"
-      ]
+      "expected_pass": false,
+      "text": "CARGO-CULT: keeps all the right identifiers (pos, dim_idx, D, base, Math.pow, 2*dim_idx/D) but multiplies instead of dividing by the base.",
+      "code": "const pos=10,dim_idx=4,D=64,base=10000; const angle=pos*Math.pow(base,(2*dim_idx)/D); console.log(angle.toFixed(6));",
+      "features_hit_truth": []
     }
   ],
-  "sealed_at": "2026-05-10T14:19:43.661Z",
+  "sealed_at": "2026-05-11T06:28:56.331Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
   "prompt_hash": "dc93b801c5e6eeabaaf57b78d5194ed437cccab96b033712efb2c02b187f0d0c",
   "code_hash": "7497afbe67088dfbc23f22397ca866fa766568fdfc6d706d9005f1b7573814eb",
-  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
 }

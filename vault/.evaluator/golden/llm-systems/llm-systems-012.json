@@ -5,7 +5,7 @@
   "source_anchor": "Pope et al. 2022 \"Efficiently Scaling Transformer Inference\" §2.2 (KV cache); vLLM PagedAttention block layout (Kwon et al. 2023)",
   "prompt_text": "Ring-buffer KV cache write index: for cache_size=8 and n_writes=23, the write index of the LAST write (0-based) is (n_writes - 1) mod cache_size. Print the integer.",
   "verification_channel": "code",
-  "schema_version": "0.5.D11",
+  "schema_version": "0.5.D20-pivot",
   "exec_cell": {
     "language": "node",
     "code": "const cache_size=8,n_writes=23; const last_idx=(n_writes-1)%cache_size; console.log(last_idx);",
@@ -16,28 +16,32 @@
   "candidate_responses": [
     {
       "id": "c1",
-      "text": "console.log((23-1)%8);",
+      "expected_pass": true,
+      "text": "CORRECT: wraps the formula in a ringPos function for reuse — same modular arithmetic.",
+      "code": "function ringPos(N, writes){ return (writes - 1) % N; } console.log(ringPos(8, 23));",
       "features_hit_truth": [
         "exec_pass"
       ]
     },
     {
       "id": "c2",
-      "text": "console.log(23%8);",
+      "expected_pass": false,
+      "text": "WRONG: drops the -1 step (counts inclusive-of-current-write into the index slot).",
+      "code": "const cache_size=8,n_writes=23; console.log(n_writes%cache_size);",
       "features_hit_truth": []
     },
     {
       "id": "c3",
-      "text": "console.log(6);",
-      "features_hit_truth": [
-        "exec_pass"
-      ]
+      "expected_pass": false,
+      "text": "CARGO-CULT: cache_size / n_writes / modulo, but converts to 1-based indexing at the end.",
+      "code": "const cache_size=8,n_writes=23; const one_based=((n_writes-1)%cache_size)+1; console.log(one_based);",
+      "features_hit_truth": []
     }
   ],
-  "sealed_at": "2026-05-11T00:37:46.203Z",
+  "sealed_at": "2026-05-11T06:28:56.517Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
   "prompt_hash": "d8e1fa3608344f2ab8ad4c8ba842f846443f77b9d67976d8907ad7bdf735fe3d",
   "code_hash": "d3f348a8482f9d8e2163d088e4824a89998c99dfce4b04681b84c30879891cbc",
-  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
 }

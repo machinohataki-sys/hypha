@@ -32,10 +32,14 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const sealed = require('../lib/evaluator/verification-channels/sealed-rubric');
+const execCell = require('../lib/evaluator/verification-channels/exec-cell');
 
 const TARGET_DIR = path.join(__dirname, '..', '..', 'vault', '.evaluator', 'golden', 'llm-systems');
 const TOPIC = 'llm-systems';
-const SCHEMA_VERSION = '0.5.D11';
+// V0.5 E0 PIVOT (2026-05-11): candidate schema upgraded from {id,text,features_hit_truth}
+// to {id,text,code,expected_pass,features_hit_truth}. features_hit_truth retained for
+// backward compat; not consumed by the new exec-channel auto-judge (run-eval-exec-channel.js).
+const SCHEMA_VERSION = '0.5.D20-pivot';
 const DEFAULT_TIMEOUT_MS = 5000;
 
 function _sha256(s) {
@@ -66,9 +70,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const B=2,T=8,H=4,D=64; const out=[B,T,H,D]; console.log(JSON.stringify(out));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log([2, 8, 4, 64]);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("[2,8,4,64]");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: builds the [B,T,H,D] shape via a dims object with explicit named keys (batch/seq/heads/head_dim) and prints JSON.',
+        code: 'const dims={batch:2,seq:8,heads:4,head_dim:64}; const shape=[dims.batch,dims.seq,dims.heads,dims.head_dim]; console.log(JSON.stringify(shape));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: emits the heads-major [B,H,T,D] order — drops the canonical [B,T,H,D] convention.',
+        code: 'const B=2,T=8,H=4,D=64; const out=[B,H,T,D]; console.log(JSON.stringify(out));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: names B,T,H,D, builds a dims object, calls JSON.stringify, but reverses the value order.',
+        code: 'const B=2,T=8,H=4,D=64; const dims={B,T,H,D}; const shape=Object.values(dims).reverse(); console.log(JSON.stringify(shape));',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -83,9 +96,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const seq=2048,heads=32,dim=128,bytes=2,layers=32; const total=2*seq*heads*dim*bytes*layers; console.log(total);', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(seq*heads*dim*bytes*layers);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log(1073741824);', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: parameterised cfg object + explicit kv_factor=2 multiplier; computes the same product as the reference.',
+        code: 'const cfg={seq_len:2048,n_heads:32,head_dim:128,dtype_bytes:2,n_layers:32}; const kv_factor=2; let total=kv_factor; for (const k of ["seq_len","n_heads","head_dim","dtype_bytes","n_layers"]) total*=cfg[k]; console.log(total);',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: drops the factor-of-2 that accounts for both K and V tensors — undercount by exactly half.',
+        code: 'const seq_len=2048,n_heads=32,head_dim=128,dtype_bytes=2,n_layers=32; const total=seq_len*n_heads*head_dim*dtype_bytes*n_layers; console.log(total);',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: declares seq_len/n_heads/head_dim/dtype_bytes/n_layers AND a kv_factor variable, but mistakenly applies the factor by squaring n_layers.',
+        code: 'const seq_len=2048,n_heads=32,head_dim=128,dtype_bytes=2,n_layers=32; const kv_factor=2; const total=seq_len*n_heads*head_dim*dtype_bytes*n_layers*n_layers; console.log(total);',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -100,9 +122,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const pos=10,dim_idx=4,D=64,base=10000; console.log((pos/Math.pow(base,(2*dim_idx)/D)).toFixed(6));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(10/10000);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("3.162278");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: rewrites the same angle formula with negative-exponent power form (pos * base^(-2i/D)).',
+        code: 'const position=10,i=4,head_dim=64,theta_base=10000; const theta=position*Math.pow(theta_base,-(2*i/head_dim)); console.log(theta.toFixed(6));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: drops the factor of 2 in the exponent, doubling the implicit frequency band.',
+        code: 'const pos=10,dim_idx=4,D=64,base=10000; const angle=pos/Math.pow(base,dim_idx/D); console.log(angle.toFixed(6));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: keeps all the right identifiers (pos, dim_idx, D, base, Math.pow, 2*dim_idx/D) but multiplies instead of dividing by the base.',
+        code: 'const pos=10,dim_idx=4,D=64,base=10000; const angle=pos*Math.pow(base,(2*dim_idx)/D); console.log(angle.toFixed(6));',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -117,9 +148,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const x=[1,2,3,4]; const m=x.reduce((a,b)=>a+b)/x.length; const s=Math.sqrt(x.reduce((a,b)=>a+(b-m)**2,0)/x.length); console.log(JSON.stringify(x.map(xi=>((xi-m)/s).toFixed(4))));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log([1,2,3,4]);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("[\\"-1.3416\\",\\"-0.4472\\",\\"0.4472\\",\\"1.3416\\"]");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: single-pass mean + population-variance reduction, alternate identifiers (mu, sigma).',
+        code: 'const features=[1,2,3,4]; const N=features.length; const mu=features.reduce((s,v)=>s+v,0)/N; const variance=features.reduce((s,v)=>s+(v-mu)**2,0)/N; const sigma=Math.sqrt(variance); const out=features.map(v=>((v-mu)/sigma).toFixed(4)); console.log(JSON.stringify(out));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: uses Bessel-corrected sample variance (divisor N-1) instead of population variance (divisor N).',
+        code: 'const x=[1,2,3,4]; const mean=x.reduce((a,b)=>a+b)/x.length; const v=x.reduce((a,b)=>a+(b-mean)**2,0)/(x.length-1); const std=Math.sqrt(v); console.log(JSON.stringify(x.map(xi=>((xi-mean)/std).toFixed(4))));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: uses mean / sigma / Math.sqrt vocabulary, but replaces variance with mean-absolute-deviation under the same sqrt.',
+        code: 'const x=[1,2,3,4]; const mean=x.reduce((a,b)=>a+b)/x.length; const mad=x.reduce((a,b)=>a+Math.abs(b-mean),0)/x.length; const sigma=Math.sqrt(mad); console.log(JSON.stringify(x.map(xi=>((xi-mean)/sigma).toFixed(4))));',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -134,9 +174,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'let s=12345; const r=()=>{s=(1103515245*s+12345)%2147483648;return s/2147483648;}; let sum=0; for(let i=0;i<20;i++){sum+=(r()<0.3?0:1);} console.log(sum);', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(20);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log(16);', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: same LCG via bitwise mod-2^31 mask + while loop counting keeps.',
+        code: 'let state=12345; function next(){state=(1103515245*state+12345)&0x7FFFFFFF;return state/2147483648;} let kept=0,i=0; while(i++<20){ if(next()>=0.3) kept++; } console.log(kept);',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: inverts the dropout convention (treats r>=p as dropped instead of kept).',
+        code: 'let s=12345; const r=()=>{s=(1103515245*s+12345)%2147483648;return s/2147483648;}; let sum=0; for(let i=0;i<20;i++){sum+=(r()>=0.3?0:1);} console.log(sum);',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: LCG vocabulary (multiplier / increment / modulus) and right loop, but uses 2^32 modulus (unsigned) instead of 2^31 (signed) — the classic stdlib lcg signedness slip.',
+        code: 'let s=12345; const multiplier=1103515245,increment=12345,modulus=4294967296; const r=()=>{s=(multiplier*s+increment)%modulus;return s/modulus;}; let sum=0; for(let i=0;i<20;i++){sum+=(r()<0.3?0:1);} console.log(sum);',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -151,9 +200,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const L=[2.1,1.8,2.3,1.9,2.0]; const m=L.reduce((a,b)=>a+b)/L.length; console.log(Math.exp(m).toFixed(4));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(2.02);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("7.5383");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: Math.E**mean phrasing instead of Math.exp(mean); same identifier names refactored.',
+        code: 'const ce_loss=[2.1,1.8,2.3,1.9,2.0]; const avg_loss=ce_loss.reduce((acc,x)=>acc+x,0)/ce_loss.length; const perplexity=Math.E**avg_loss; console.log(perplexity.toFixed(4));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: takes Math.exp of the SUM of losses rather than the MEAN — common bug when porting from log-prob land.',
+        code: 'const losses=[2.1,1.8,2.3,1.9,2.0]; const sum=losses.reduce((a,b)=>a+b,0); const ppl=Math.exp(sum); console.log(ppl.toFixed(4));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: keeps perplexity / Math.exp / mean vocabulary, but computes exp of the mean of the LOG of the losses (treats losses as raw probabilities by mistake).',
+        code: 'const losses=[2.1,1.8,2.3,1.9,2.0]; const log_losses=losses.map(l=>Math.log(l)); const mean_log=log_losses.reduce((a,b)=>a+b,0)/log_losses.length; const perplexity=Math.exp(mean_log); console.log(perplexity.toFixed(4));',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -168,9 +226,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: "const t='the quick brown fox jumps over the lazy dog'; console.log((t.length/t.split(/\\s+/).length).toFixed(4));", features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(5);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("4.7778");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: uses Buffer.byteLength UTF-8 byte counter and literal-space split — same numerator/denominator.',
+        code: "const sentence='the quick brown fox jumps over the lazy dog'; const tok_count=sentence.split(' ').length; const utf8_bytes=Buffer.byteLength(sentence,'utf8'); const bpt=utf8_bytes/tok_count; console.log(bpt.toFixed(4));",
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: inverts the ratio (tokens-per-byte instead of bytes-per-token).',
+        code: "const text='the quick brown fox jumps over the lazy dog'; const tokens=text.split(/\\s+/); const ratio=tokens.length/text.length; console.log(ratio.toFixed(4));",
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: uses tokens / utf8_bytes vocabulary, but counts byte length of tokens.join("") which drops the 8 separator chars.',
+        code: "const text='the quick brown fox jumps over the lazy dog'; const tokens=text.split(/\\s+/); const utf8_bytes=tokens.join('').length; const avg=utf8_bytes/tokens.length; console.log(avg.toFixed(4));",
+        features_hit_truth: [] },
     ],
   },
   {
@@ -185,9 +252,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const step=2000,w=1000,T=10000,peak=3e-4; const prog=(step-w)/(T-w); const lr=peak*0.5*(1+Math.cos(Math.PI*prog)); console.log(lr.toFixed(6));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(3e-4);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("0.000291");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: same schedule expressed as ternary; alternate identifiers (s/w/T/peak_lr).',
+        code: 'const s=2000,w=1000,T=10000,peak_lr=3e-4; const lr = (s<w) ? peak_lr*(s/w) : peak_lr*0.5*(1+Math.cos(Math.PI*((s-w)/(T-w)))); console.log(lr.toFixed(6));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: progress numerator forgets the (step-warmup) shift, also skips the warmup branch — answer is off.',
+        code: 'const step=2000,warmup=1000,total=10000,peak=3e-4; const prog=step/(total-warmup); const lr=peak*0.5*(1+Math.cos(Math.PI*prog)); console.log(lr.toFixed(6));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: warmup branch + cosine branch + Math.PI + peak vocabulary, but uses Math.sin (phase shift) instead of Math.cos in the decay term.',
+        code: 'const step=2000,warmup=1000,total=10000,peak=3e-4; let lr; if(step<warmup){lr=peak*step/warmup;}else{const prog=(step-warmup)/(total-warmup);lr=peak*0.5*(1+Math.sin(Math.PI*prog));} console.log(lr.toFixed(6));',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -202,9 +278,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const L=32,k=4; console.log(((L/k+k)/L).toFixed(4));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(0.25);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("0.3750");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: explicit full_cache and ckpt_cache named intermediates, same formula.',
+        code: 'const L=32,segment=4; const full_cache=L; const ckpt_cache=L/segment+segment; console.log((ckpt_cache/full_cache).toFixed(4));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: drops the +k recomputation term — counts only the saved checkpoints.',
+        code: 'const layers=32,k=4; const ratio=(layers/k)/layers; console.log(ratio.toFixed(4));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: layers / k / n_checkpoints / recompute_per_segment / ratio vocabulary, but inflates the numerator by doubling the checkpoint contribution.',
+        code: 'const layers=32,k=4; const n_checkpoints=k; const recompute_per_segment=layers/k; const ckpt=recompute_per_segment+n_checkpoints*2; const ratio=ckpt/layers; console.log(ratio.toFixed(4));',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -219,9 +304,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const L=[1.2,3.4,0.5,2.8,3.1]; console.log(L.indexOf(Math.max(...L)));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(0);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log(1);', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: reduce-based argmax tracking the best index seen so far.',
+        code: 'const z=[1.2,3.4,0.5,2.8,3.1]; const idx=z.reduce((best,v,i,arr)=>v>arr[best]?i:best,0); console.log(idx);',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: returns argmin instead of argmax.',
+        code: 'const logits=[1.2,3.4,0.5,2.8,3.1]; console.log(logits.indexOf(Math.min(...logits)));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: greedy_temp_zero_argmax variable name + descending sort, but returns the index of the SECOND-largest (the second sampling token).',
+        code: 'const logits=[1.2,3.4,0.5,2.8,3.1]; const greedy_temp_zero_argmax = (() => { const sorted=[...logits].sort((a,b)=>b-a); return logits.indexOf(sorted[1]); })(); console.log(greedy_temp_zero_argmax);',
+        features_hit_truth: [] },
     ],
   },
   // ---- D15-D18 Group delta extension: items 011-020 (10 more code-cell items)
@@ -240,9 +334,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const s=[2.0,1.0,3.0,0.5]; const z=s.map(v=>v/Math.sqrt(64)); const m=Math.max(...z); const e=z.map(v=>Math.exp(v-m)); const S=e.reduce((a,b)=>a+b); console.log(JSON.stringify(e.map(v=>(v/S).toFixed(4))));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log([0.25, 0.25, 0.25, 0.25]);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("[\\"0.2601\\",\\"0.2295\\",\\"0.2947\\",\\"0.2156\\"]");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: extracts softmax to a helper function; scaled by sqrt(d_k); same numerically-stable max-subtraction.',
+        code: 'function softmax(v){ const m=Math.max(...v); const e=v.map(x=>Math.exp(x-m)); const s=e.reduce((a,b)=>a+b,0); return e.map(x=>x/s); } const qk=[2.0,1.0,3.0,0.5]; const dk=64; const p=softmax(qk.map(x=>x/Math.sqrt(dk))).map(x=>x.toFixed(4)); console.log(JSON.stringify(p));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: drops the scale-by-sqrt(d_k) step entirely (treats raw scores as the input to softmax).',
+        code: 'const scores=[2.0,1.0,3.0,0.5]; const mx=Math.max(...scores); const exps=scores.map(s=>Math.exp(s-mx)); const sum=exps.reduce((a,b)=>a+b,0); console.log(JSON.stringify(exps.map(e=>(e/sum).toFixed(4))));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: softmax / max-subtract / Math.exp / d_k naming all present, but divides by d_k itself instead of sqrt(d_k).',
+        code: 'const scores=[2.0,1.0,3.0,0.5]; const d_k=64; const scaled=scores.map(s=>s/d_k); const mx=Math.max(...scaled); const exps=scaled.map(s=>Math.exp(s-mx)); const sum=exps.reduce((a,b)=>a+b,0); console.log(JSON.stringify(exps.map(e=>(e/sum).toFixed(4))));',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -257,9 +360,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'console.log((23-1)%8);', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(23%8);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log(6);', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: wraps the formula in a ringPos function for reuse — same modular arithmetic.',
+        code: 'function ringPos(N, writes){ return (writes - 1) % N; } console.log(ringPos(8, 23));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: drops the -1 step (counts inclusive-of-current-write into the index slot).',
+        code: 'const cache_size=8,n_writes=23; console.log(n_writes%cache_size);',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: cache_size / n_writes / modulo, but converts to 1-based indexing at the end.',
+        code: 'const cache_size=8,n_writes=23; const one_based=((n_writes-1)%cache_size)+1; console.log(one_based);',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -274,9 +386,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const max_abs=2.5; const s=max_abs/127.0; const v=[0.5,-1.2,2.5,-2.5,0.0]; console.log(JSON.stringify(v.map(x=>Math.round(x/s))));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log([0,-1,2,-2,0]);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("[25,-61,127,-127,0]");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: adds explicit clamp(-127, 127) wrapper around Math.round — boundary cases hit the clamp identically.',
+        code: 'const absmax=2.5; const sf=absmax/127; const v=[0.5,-1.2,2.5,-2.5,0.0]; const clamp=x=>Math.max(-127,Math.min(127,x)); const q=v.map(x=>clamp(Math.round(x/sf))); console.log(JSON.stringify(q));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: multiplies by scale (instead of dividing) AND uses Math.trunc (instead of round) — compound bug.',
+        code: 'const max_abs=2.5; const scale=max_abs/127.0; const values=[0.5,-1.2,2.5,-2.5,0.0]; const q=values.map(v=>Math.trunc(v*scale)); console.log(JSON.stringify(q));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: scale, clamp[-127,127], Math.round all present — but uses divisor 128 (unsigned-byte width) instead of 127 (signed int8 max).',
+        code: 'const max_abs=2.5; const scale=max_abs/128.0; const values=[0.5,-1.2,2.5,-2.5,0.0]; const clamp=x=>Math.max(-127,Math.min(127,x)); const q=values.map(v=>clamp(Math.round(v/scale))); console.log(JSON.stringify(q));',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -291,9 +412,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const b=512,r=8; console.log(((2*b*r)/(b*b)).toFixed(6));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(0.5);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("0.031250");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: adapter_params + dense_params variables, ** operator for the square.',
+        code: 'const d=512,r=8; const adapter_params=2*d*r; const dense_params=d**2; console.log((adapter_params/dense_params).toFixed(6));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: drops the factor of 2 (counts only one projection out of the two).',
+        code: 'const base=512,rank=8; const lora=base*rank; const full=base*base; console.log((lora/full).toFixed(6));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: down_proj / up_proj / rank vocabulary, but mistakes the dense baseline as (base + base) instead of base*base.',
+        code: 'const base=512,rank=8; const down_proj=base*rank; const up_proj=base*rank; const lora=down_proj+up_proj; const full=base+base; console.log((lora/full).toFixed(6));',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -308,9 +438,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const c=-1.2,r=-2.0; console.log((1/(1+Math.exp(-(c-r)))).toFixed(6));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(0.5);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("0.689974");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: defines a sigmoid helper, applies to (chosen_logp - rejected_logp).',
+        code: 'function sigmoid(x){return 1/(1+Math.exp(-x));} const lp_chosen=-1.2,lp_rejected=-2.0; const p_pref=sigmoid(lp_chosen-lp_rejected); console.log(p_pref.toFixed(6));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: flips the difference sign (rejected - chosen) — returns the complementary probability.',
+        code: 'const chosen=-1.2,rejected=-2.0; const p=1/(1+Math.exp(-(rejected-chosen))); console.log(p.toFixed(6));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: sigmoid + chosen/rejected logp + Math.exp present, but combines via 1 - sigmoid(chosen+rejected) — uses sum instead of difference.',
+        code: 'const chosen=-1.2,rejected=-2.0; const sigmoid=x=>1/(1+Math.exp(-x)); const p=1-sigmoid(chosen+rejected); console.log(p.toFixed(6));',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -325,9 +464,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const L=[1.2,0.5,2.1,0.3]; console.log(JSON.stringify(L.map((v,i)=>[v,i]).sort((a,b)=>b[0]-a[0]).slice(0,2).map(p=>p[1])));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log([0,2]);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("[2,0]");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: uses Array.prototype.keys() + sort by gate[idx] descending, slice top_k.',
+        code: 'const gate=[1.2,0.5,2.1,0.3]; const top_k=2; const ranked=[...gate.keys()].sort((a,b)=>gate[b]-gate[a]).slice(0,top_k); console.log(JSON.stringify(ranked));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: sorts ascending (bottom-k) instead of descending (top-k).',
+        code: 'const logits=[1.2,0.5,2.1,0.3]; const idx=logits.map((v,i)=>({v,i})).sort((a,b)=>a.v-b.v).slice(0,2).map(o=>o.i); console.log(JSON.stringify(idx));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: gate_logits / top_k / sort descending — but returns the top-k SCORES not their indices.',
+        code: 'const gate_logits=[1.2,0.5,2.1,0.3]; const top_k=2; const top_scores=gate_logits.slice().sort((a,b)=>b-a).slice(0,top_k); console.log(JSON.stringify(top_scores));',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -342,9 +490,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const d=-1.5,t=-0.7,u=0.4; console.log(u<Math.min(1,Math.exp(t-d)));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(false);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log(true);', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: same accept rule expressed with descriptive identifiers (draft_logp, target_logp, uniform).',
+        code: 'const draft_logp=-1.5,target_logp=-0.7,uniform=0.4; const accept_ratio=Math.min(1.0, Math.exp(target_logp - draft_logp)); console.log(uniform < accept_ratio);',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: computes reject probability (1 - min(1, exp(t-d))) and compares to u; reject path returns false here.',
+        code: 'const dlp=-1.5,tlp=-0.7,u=0.4; const reject_prob=1-Math.min(1,Math.exp(tlp-dlp)); console.log(u<reject_prob);',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: speculative / accept / Math.min / exp(target-draft) all named; but compares u to log_ratio = min(0, tlp-dlp) instead of the linear ratio.',
+        code: 'const dlp=-1.5,tlp=-0.7,u=0.4; const log_ratio=Math.min(0, tlp-dlp); console.log(u<log_ratio);',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -359,9 +516,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const t=2; const c=Math.cos(t),s=Math.sin(t); console.log(JSON.stringify([c,-s,s,c].map(x=>x.toFixed(6))));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log([1,0,0,1]);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("[\\"-0.416147\\",\\"-0.909297\\",\\"0.909297\\",\\"-0.416147\\"]");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: builds the 2x2 rotation matrix as nested array, flattens with .flat(), formats per entry.',
+        code: 'const m=2; const theta_0=m; const cos_t=Math.cos(theta_0), sin_t=Math.sin(theta_0); const R=[[cos_t,-sin_t],[sin_t,cos_t]]; const flat=R.flat().map(x=>x.toFixed(6)); console.log(JSON.stringify(flat));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: transposes the rotation block (m01 and m10 swap signs).',
+        code: 'const pos=2,d=4,base=10000; const theta=pos/Math.pow(base,0/d); const c=Math.cos(theta),s=Math.sin(theta); console.log(JSON.stringify([c,s,-s,c].map(x=>x.toFixed(6))));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: theta_0 / Math.cos / Math.sin / base / pow vocabulary, but converts theta from degrees to radians via *PI/180 — wrong unit conversion.',
+        code: 'const pos=2,d=4,base=10000; const theta_rad_or_deg=pos/Math.pow(base,0/d); const t=theta_rad_or_deg*Math.PI/180; const c=Math.cos(t),s=Math.sin(t); console.log(JSON.stringify([c,-s,s,c].map(x=>x.toFixed(6))));',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -376,9 +542,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const s=1024,d=64,b=256; console.log((((s*d+d*b)*(s/b))/(4*s*s*d)).toFixed(6));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(0.5);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("0.001221");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: alternate naming (N/d/B, hbm_vanilla, hbm_flash, tiles) — same arithmetic.',
+        code: 'const N=1024,d=64,B=256; const hbm_vanilla=4*N*N*d; const tiles=N/B; const hbm_flash=(N*d+d*B)*tiles; console.log((hbm_flash/hbm_vanilla).toFixed(6));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: drops the 4x prefactor on vanilla HBM bytes; the ratio comes out 4x larger.',
+        code: 'const seq=1024,dim=64,blk=256; const vanilla=seq*seq*dim; const flash=(seq*dim+dim*blk)*(seq/blk); console.log((flash/vanilla).toFixed(6));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: seq_len / head_dim / block_size / HBM / tiles vocabulary, but builds HBM_flash by ADDING the per-tile parts and the tile count, not multiplying.',
+        code: 'const seq_len=1024,head_dim=64,block_size=256; const HBM_vanilla=4*seq_len*seq_len*head_dim; const tiles=seq_len/block_size; const HBM_flash=(seq_len*head_dim)+(head_dim*block_size)+tiles; const ratio=HBM_flash/HBM_vanilla; console.log(ratio.toFixed(6));',
+        features_hit_truth: [] },
     ],
   },
   {
@@ -393,9 +568,18 @@ const ITEMS = [
     },
     k_threshold: 1,
     candidate_responses: [
-      { id: 'c1', text: 'const C=6e21; console.log(Math.sqrt(C/6).toExponential(4));', features_hit_truth: ['exec_pass'] },
-      { id: 'c2', text: 'console.log(1e10);', features_hit_truth: [] },
-      { id: 'c3', text: 'console.log("3.1623e+10");', features_hit_truth: ['exec_pass'] },
+      { id: 'c1', expected_pass: true,
+        text: 'CORRECT: names the FLOPs-per-param-token constant flops_per_param_token, uses Math.sqrt.',
+        code: 'const compute=6e21; const flops_per_param_token=6; const N_opt=Math.sqrt(compute/flops_per_param_token); console.log(N_opt.toExponential(4));',
+        features_hit_truth: ['exec_pass'] },
+      { id: 'c2', expected_pass: false,
+        text: 'WRONG: drops the divide-by-6 (the FLOPs/parameter/token constant) and sqrts the raw compute.',
+        code: 'const C=6e21; const N=Math.sqrt(C); console.log(N.toExponential(4));',
+        features_hit_truth: [] },
+      { id: 'c3', expected_pass: false,
+        text: 'CARGO-CULT: Chinchilla / flops_per_param_token / N_opt / Math.pow / toExponential present, but takes the CUBE root instead of the square root.',
+        code: 'const C=6e21; const flops_per_param_token=6; const N_opt=Math.pow(C/flops_per_param_token, 1/3); console.log(N_opt.toExponential(4));',
+        features_hit_truth: [] },
     ],
   },
 ];
@@ -427,8 +611,51 @@ function _sealItem(seed) {
     sealed_normalization: 'raw_stdout (no rstrip; matches exec-cell.js behavior)',
     prompt_hash: promptHash,
     code_hash: codeHash,
-    notes: 'D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective).',
+    notes: 'D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js.',
   };
+}
+
+// V0.5 E0 PIVOT (2026-05-11): seed-time validation. Every candidate's authored
+// expected_pass MUST agree with the auto-judge's predicted_pass under the
+// reference hash. Catches authoring drift (eg cargo-cult code that accidentally
+// produces the right output) before the JSON ever lands on disk.
+async function _preValidateCandidates(items) {
+  const failures = [];
+  for (const seed of items) {
+    const refHash = seed.exec_cell.expected_stdout_hash;
+    // Run the reference to assert the committed hash is still valid for this Node version.
+    const refResult = await execCell.runCell(seed.exec_cell.code, { timeoutMs: seed.exec_cell.timeout_ms || DEFAULT_TIMEOUT_MS });
+    if (!refResult.pass || refResult.stdout_hash !== refHash) {
+      failures.push({
+        id: seed.id,
+        kind: 'reference-mismatch',
+        expected: refHash,
+        actual: refResult.stdout_hash,
+        stderr: (refResult.stderr_excerpt || '').slice(0, 200),
+      });
+      continue;
+    }
+    for (const cand of seed.candidate_responses || []) {
+      if (typeof cand.code !== 'string' || typeof cand.expected_pass !== 'boolean') {
+        failures.push({ id: seed.id, candidate: cand.id, kind: 'schema-missing-code-or-expected_pass' });
+        continue;
+      }
+      const r = await execCell.runCell(cand.code, { timeoutMs: seed.exec_cell.timeout_ms || DEFAULT_TIMEOUT_MS });
+      const predicted = r.pass && r.stdout_hash === refHash;
+      if (predicted !== cand.expected_pass) {
+        failures.push({
+          id: seed.id,
+          candidate: cand.id,
+          kind: 'expected_pass-mismatch',
+          expected: cand.expected_pass,
+          predicted,
+          actual_hash: r.stdout_hash,
+          stderr: (r.stderr_excerpt || '').slice(0, 200),
+        });
+      }
+    }
+  }
+  return failures;
 }
 
 // Drift fingerprint binds each item to its prompt text, code text, AND the
@@ -444,13 +671,27 @@ function _itemFingerprint(item) {
   return parts.join('|');
 }
 
-function main(argv) {
+async function main(argv) {
   argv = argv || process.argv;
   const forceReseal = argv.includes('--force-reseal');
   const checkDrift = argv.includes('--check-drift');
+  const skipValidate = argv.includes('--skip-validate');
 
   if (!fs.existsSync(TARGET_DIR)) {
     fs.mkdirSync(TARGET_DIR, { recursive: true });
+  }
+
+  // Pre-seed validation: refuse to write any item if its reference or any
+  // candidate disagrees with the auto-judge under the committed expected_stdout_hash.
+  // --skip-validate exists only for the philosophy seeder rebase; do not use in production.
+  if (!skipValidate && !checkDrift) {
+    const validationFailures = await _preValidateCandidates(ITEMS);
+    if (validationFailures.length > 0) {
+      console.error(`[seed-llm-systems] FAIL: ${validationFailures.length} validation failure(s); NOT WRITING:`);
+      for (const f of validationFailures) console.error('  ', JSON.stringify(f));
+      process.exit(2);
+    }
+    console.log(`[seed-llm-systems] pre-seed validation OK: ${ITEMS.length} items x ${ITEMS.reduce((a, s) => a + (s.candidate_responses || []).length, 0)} candidates`);
   }
 
   let written = 0;
@@ -503,6 +744,8 @@ function main(argv) {
   }
 }
 
-if (require.main === module) main();
+if (require.main === module) {
+  main().catch(err => { console.error('[seed-llm-systems] fatal:', err); process.exit(3); });
+}
 
-module.exports = { ITEMS, main, _sealItem, _itemFingerprint, TOPIC, SCHEMA_VERSION };
+module.exports = { ITEMS, main, _sealItem, _itemFingerprint, _preValidateCandidates, TOPIC, SCHEMA_VERSION };

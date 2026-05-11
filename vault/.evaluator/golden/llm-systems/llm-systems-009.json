@@ -5,7 +5,7 @@
   "source_anchor": "Chen et al. 2016 \"Training Deep Nets with Sublinear Memory Cost\" §3 (gradient checkpointing); Korthikanti et al. 2022 \"Reducing Activation Recomputation\"",
   "prompt_text": "Gradient checkpointing memory ratio: with L=32 transformer layers and checkpoint-every-k segments where k=4, full activation cache is L units; checkpoint cache is (L/k) checkpoints + k recomputed activations within the active segment. Print ratio = (L/k + k) / L to 4 decimal places.",
   "verification_channel": "code",
-  "schema_version": "0.5.D11",
+  "schema_version": "0.5.D20-pivot",
   "exec_cell": {
     "language": "node",
     "code": "const layers=32,k=4; const full=layers; const ckpt=layers/k+k; const ratio=ckpt/full; console.log(ratio.toFixed(4));",
@@ -16,28 +16,32 @@
   "candidate_responses": [
     {
       "id": "c1",
-      "text": "const L=32,k=4; console.log(((L/k+k)/L).toFixed(4));",
+      "expected_pass": true,
+      "text": "CORRECT: explicit full_cache and ckpt_cache named intermediates, same formula.",
+      "code": "const L=32,segment=4; const full_cache=L; const ckpt_cache=L/segment+segment; console.log((ckpt_cache/full_cache).toFixed(4));",
       "features_hit_truth": [
         "exec_pass"
       ]
     },
     {
       "id": "c2",
-      "text": "console.log(0.25);",
+      "expected_pass": false,
+      "text": "WRONG: drops the +k recomputation term — counts only the saved checkpoints.",
+      "code": "const layers=32,k=4; const ratio=(layers/k)/layers; console.log(ratio.toFixed(4));",
       "features_hit_truth": []
     },
     {
       "id": "c3",
-      "text": "console.log(\"0.3750\");",
-      "features_hit_truth": [
-        "exec_pass"
-      ]
+      "expected_pass": false,
+      "text": "CARGO-CULT: layers / k / n_checkpoints / recompute_per_segment / ratio vocabulary, but inflates the numerator by doubling the checkpoint contribution.",
+      "code": "const layers=32,k=4; const n_checkpoints=k; const recompute_per_segment=layers/k; const ckpt=recompute_per_segment+n_checkpoints*2; const ratio=ckpt/layers; console.log(ratio.toFixed(4));",
+      "features_hit_truth": []
     }
   ],
-  "sealed_at": "2026-05-10T14:19:49.287Z",
+  "sealed_at": "2026-05-11T06:28:56.457Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
   "prompt_hash": "7c0c73f7fed0230b7d5631219190373768707b37fa6b8d760cbf66fb8eff13ab",
   "code_hash": "29b9057f9c323345f2a21d2daa9b5c0d7ead044642aa14edb50a4470fe990af8",
-  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
 }

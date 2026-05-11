@@ -5,7 +5,7 @@
   "source_anchor": "Vaswani et al. 2017 \"Attention Is All You Need\" §3.2.1; Karpathy nanoGPT/model.py CausalSelfAttention",
   "prompt_text": "For multi-head attention with batch B=2, sequence T=8, heads H=4, head dim D=64, give the shape [B, T, H, D] as a JSON array printed on stdout.",
   "verification_channel": "code",
-  "schema_version": "0.5.D11",
+  "schema_version": "0.5.D20-pivot",
   "exec_cell": {
     "language": "node",
     "code": "const B=2,T=8,H=4,D=64; const out=[B,T,H,D]; console.log(JSON.stringify(out));",
@@ -16,28 +16,32 @@
   "candidate_responses": [
     {
       "id": "c1",
-      "text": "const B=2,T=8,H=4,D=64; const out=[B,T,H,D]; console.log(JSON.stringify(out));",
+      "expected_pass": true,
+      "text": "CORRECT: builds the [B,T,H,D] shape via a dims object with explicit named keys (batch/seq/heads/head_dim) and prints JSON.",
+      "code": "const dims={batch:2,seq:8,heads:4,head_dim:64}; const shape=[dims.batch,dims.seq,dims.heads,dims.head_dim]; console.log(JSON.stringify(shape));",
       "features_hit_truth": [
         "exec_pass"
       ]
     },
     {
       "id": "c2",
-      "text": "console.log([2, 8, 4, 64]);",
+      "expected_pass": false,
+      "text": "WRONG: emits the heads-major [B,H,T,D] order — drops the canonical [B,T,H,D] convention.",
+      "code": "const B=2,T=8,H=4,D=64; const out=[B,H,T,D]; console.log(JSON.stringify(out));",
       "features_hit_truth": []
     },
     {
       "id": "c3",
-      "text": "console.log(\"[2,8,4,64]\");",
-      "features_hit_truth": [
-        "exec_pass"
-      ]
+      "expected_pass": false,
+      "text": "CARGO-CULT: names B,T,H,D, builds a dims object, calls JSON.stringify, but reverses the value order.",
+      "code": "const B=2,T=8,H=4,D=64; const dims={B,T,H,D}; const shape=Object.values(dims).reverse(); console.log(JSON.stringify(shape));",
+      "features_hit_truth": []
     }
   ],
-  "sealed_at": "2026-05-10T14:19:42.982Z",
+  "sealed_at": "2026-05-11T06:28:56.282Z",
   "sealed_algorithm": "sha256",
   "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
   "prompt_hash": "fcf12c9329ca8ca9655f34e07cafe99f8ad14d14924e80d002fec164d79fe427",
   "code_hash": "d70e081c7b8477c80819f0a3e108edf50fccf9a84912ff7bbda67d1097c31b08",
-  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
 }
