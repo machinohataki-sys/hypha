@@ -224,6 +224,180 @@ const ITEMS = [
       { id: 'c3', text: 'console.log(1);', features_hit_truth: ['exec_pass'] },
     ],
   },
+  // ---- D15-D18 Group delta extension: items 011-020 (10 more code-cell items)
+  // Each hash was computed by running `code` through `node -e` on this branch
+  // and sha256-ing the raw stdout (including trailing newline). See plan file
+  // C:\Users\32043\.claude\plans\fluffy-hugging-swan.md Phase 2 D15-D18.
+  {
+    id: 'llm-systems-011',
+    source_anchor: 'Vaswani et al. 2017 "Attention Is All You Need" §3.2.1 (scaled dot-product attention); Karpathy nanoGPT/model.py CausalSelfAttention',
+    prompt_text: 'Scaled dot-product softmax: given QK^T row scores [2.0, 1.0, 3.0, 0.5] and head_dim d_k=64, compute softmax(scores / sqrt(d_k)) over the row using the numerically stable max-subtraction trick. Print the 4-decimal probability vector as a JSON array.',
+    exec_cell: {
+      language: 'node',
+      code: 'const scores=[2.0,1.0,3.0,0.5]; const dk=64; const scaled=scores.map(s=>s/Math.sqrt(dk)); const mx=Math.max(...scaled); const exps=scaled.map(s=>Math.exp(s-mx)); const sum=exps.reduce((a,b)=>a+b,0); const probs=exps.map(e=>(e/sum).toFixed(4)); console.log(JSON.stringify(probs));',
+      expected_stdout_hash: '052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37',
+      timeout_ms: DEFAULT_TIMEOUT_MS,
+    },
+    k_threshold: 1,
+    candidate_responses: [
+      { id: 'c1', text: 'const s=[2.0,1.0,3.0,0.5]; const z=s.map(v=>v/Math.sqrt(64)); const m=Math.max(...z); const e=z.map(v=>Math.exp(v-m)); const S=e.reduce((a,b)=>a+b); console.log(JSON.stringify(e.map(v=>(v/S).toFixed(4))));', features_hit_truth: ['exec_pass'] },
+      { id: 'c2', text: 'console.log([0.25, 0.25, 0.25, 0.25]);', features_hit_truth: [] },
+      { id: 'c3', text: 'console.log("[\\"0.2601\\",\\"0.2295\\",\\"0.2947\\",\\"0.2156\\"]");', features_hit_truth: ['exec_pass'] },
+    ],
+  },
+  {
+    id: 'llm-systems-012',
+    source_anchor: 'Pope et al. 2022 "Efficiently Scaling Transformer Inference" §2.2 (KV cache); vLLM PagedAttention block layout (Kwon et al. 2023)',
+    prompt_text: 'Ring-buffer KV cache write index: for cache_size=8 and n_writes=23, the write index of the LAST write (0-based) is (n_writes - 1) mod cache_size. Print the integer.',
+    exec_cell: {
+      language: 'node',
+      code: 'const cache_size=8,n_writes=23; const last_idx=(n_writes-1)%cache_size; console.log(last_idx);',
+      expected_stdout_hash: '06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7',
+      timeout_ms: DEFAULT_TIMEOUT_MS,
+    },
+    k_threshold: 1,
+    candidate_responses: [
+      { id: 'c1', text: 'console.log((23-1)%8);', features_hit_truth: ['exec_pass'] },
+      { id: 'c2', text: 'console.log(23%8);', features_hit_truth: [] },
+      { id: 'c3', text: 'console.log(6);', features_hit_truth: ['exec_pass'] },
+    ],
+  },
+  {
+    id: 'llm-systems-013',
+    source_anchor: 'Jacob et al. 2018 "Quantization and Training of Neural Networks for Efficient Integer-Arithmetic-Only Inference" §3.1; Dettmers et al. 2022 LLM.int8() §2',
+    prompt_text: 'Symmetric per-tensor int8 quantization: scale = max_abs / 127.0; q = round(x / scale) clamped to [-127, 127]. Given max_abs=2.5 and values [0.5, -1.2, 2.5, -2.5, 0.0], print the quantized integers as a JSON array.',
+    exec_cell: {
+      language: 'node',
+      code: 'const max_abs=2.5; const scale=max_abs/127.0; const values=[0.5,-1.2,2.5,-2.5,0.0]; const q=values.map(v=>Math.round(v/scale)); console.log(JSON.stringify(q));',
+      expected_stdout_hash: '8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09',
+      timeout_ms: DEFAULT_TIMEOUT_MS,
+    },
+    k_threshold: 1,
+    candidate_responses: [
+      { id: 'c1', text: 'const max_abs=2.5; const s=max_abs/127.0; const v=[0.5,-1.2,2.5,-2.5,0.0]; console.log(JSON.stringify(v.map(x=>Math.round(x/s))));', features_hit_truth: ['exec_pass'] },
+      { id: 'c2', text: 'console.log([0,-1,2,-2,0]);', features_hit_truth: [] },
+      { id: 'c3', text: 'console.log("[25,-61,127,-127,0]");', features_hit_truth: ['exec_pass'] },
+    ],
+  },
+  {
+    id: 'llm-systems-014',
+    source_anchor: 'Hu et al. 2021 "LoRA: Low-Rank Adaptation of Large Language Models" §4.1; arXiv:2106.09685',
+    prompt_text: 'LoRA parameter savings vs full dense: for a square base layer with base_dim=512 and rank=8, LoRA adds 2 * base_dim * rank parameters (the down- and up-projection); the full dense weight has base_dim * base_dim parameters. Print the ratio LoRA/full to 6 decimal places.',
+    exec_cell: {
+      language: 'node',
+      code: 'const base=512,rank=8; const lora=2*base*rank; const full=base*base; const ratio=lora/full; console.log(ratio.toFixed(6));',
+      expected_stdout_hash: 'c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3',
+      timeout_ms: DEFAULT_TIMEOUT_MS,
+    },
+    k_threshold: 1,
+    candidate_responses: [
+      { id: 'c1', text: 'const b=512,r=8; console.log(((2*b*r)/(b*b)).toFixed(6));', features_hit_truth: ['exec_pass'] },
+      { id: 'c2', text: 'console.log(0.5);', features_hit_truth: [] },
+      { id: 'c3', text: 'console.log("0.031250");', features_hit_truth: ['exec_pass'] },
+    ],
+  },
+  {
+    id: 'llm-systems-015',
+    source_anchor: 'Christiano et al. 2017 "Deep RL from Human Preferences" §2 (Bradley-Terry); Ouyang et al. 2022 "Training language models to follow instructions with human feedback" (InstructGPT) §3.4',
+    prompt_text: 'Bradley-Terry preference probability for RLHF reward modeling: given chosen_logp = -1.2 and rejected_logp = -2.0, compute P(chosen > rejected) = sigmoid(chosen_logp - rejected_logp). Print to 6 decimal places.',
+    exec_cell: {
+      language: 'node',
+      code: 'const chosen=-1.2,rejected=-2.0; const diff=chosen-rejected; const p=1/(1+Math.exp(-diff)); console.log(p.toFixed(6));',
+      expected_stdout_hash: '9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2',
+      timeout_ms: DEFAULT_TIMEOUT_MS,
+    },
+    k_threshold: 1,
+    candidate_responses: [
+      { id: 'c1', text: 'const c=-1.2,r=-2.0; console.log((1/(1+Math.exp(-(c-r)))).toFixed(6));', features_hit_truth: ['exec_pass'] },
+      { id: 'c2', text: 'console.log(0.5);', features_hit_truth: [] },
+      { id: 'c3', text: 'console.log("0.689974");', features_hit_truth: ['exec_pass'] },
+    ],
+  },
+  {
+    id: 'llm-systems-016',
+    source_anchor: 'Shazeer et al. 2017 "Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer" §3; Fedus Zoph Shazeer 2022 "Switch Transformer" §2.2',
+    prompt_text: 'Mixture-of-experts top-k gating: given gate_logits = [1.2, 0.5, 2.1, 0.3] and top_k = 2, return the top-2 expert indices sorted by score descending (largest first). Print as a JSON array.',
+    exec_cell: {
+      language: 'node',
+      code: 'const logits=[1.2,0.5,2.1,0.3]; const k=2; const idx=logits.map((v,i)=>({v,i})).sort((a,b)=>b.v-a.v).slice(0,k).map(o=>o.i); console.log(JSON.stringify(idx));',
+      expected_stdout_hash: '292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81',
+      timeout_ms: DEFAULT_TIMEOUT_MS,
+    },
+    k_threshold: 1,
+    candidate_responses: [
+      { id: 'c1', text: 'const L=[1.2,0.5,2.1,0.3]; console.log(JSON.stringify(L.map((v,i)=>[v,i]).sort((a,b)=>b[0]-a[0]).slice(0,2).map(p=>p[1])));', features_hit_truth: ['exec_pass'] },
+      { id: 'c2', text: 'console.log([0,2]);', features_hit_truth: [] },
+      { id: 'c3', text: 'console.log("[2,0]");', features_hit_truth: ['exec_pass'] },
+    ],
+  },
+  {
+    id: 'llm-systems-017',
+    source_anchor: 'Leviathan Kalman Matias 2023 "Fast Inference from Transformers via Speculative Decoding" §3.2 (acceptance rule); Chen et al. 2023 "Accelerating Large Language Model Decoding with Speculative Sampling"',
+    prompt_text: 'Speculative decoding acceptance per Leviathan rule: accept the draft token iff uniform_sample < min(1, exp(target_logp - draft_logp)). Given draft_logp = -1.5, target_logp = -0.7, uniform_sample = 0.4, print the boolean accept verdict.',
+    exec_cell: {
+      language: 'node',
+      code: 'const dlp=-1.5,tlp=-0.7,u=0.4; const ratio=Math.exp(tlp-dlp); const accept=u<Math.min(1,ratio); console.log(accept);',
+      expected_stdout_hash: 'a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74',
+      timeout_ms: DEFAULT_TIMEOUT_MS,
+    },
+    k_threshold: 1,
+    candidate_responses: [
+      { id: 'c1', text: 'const d=-1.5,t=-0.7,u=0.4; console.log(u<Math.min(1,Math.exp(t-d)));', features_hit_truth: ['exec_pass'] },
+      { id: 'c2', text: 'console.log(false);', features_hit_truth: [] },
+      { id: 'c3', text: 'console.log(true);', features_hit_truth: ['exec_pass'] },
+    ],
+  },
+  {
+    id: 'llm-systems-018',
+    source_anchor: 'Su et al. 2023 "RoFormer: Enhanced Transformer with Rotary Position Embedding" §2.2 (rotation matrix block form); arXiv:2104.09864 Equation 14',
+    prompt_text: 'Rotary position embedding 2x2 rotation block for the first dim pair (dim_idx=0): given pos=2, d=4, base=10000, theta_0 = pos / base^(2*0/d) = 2, and the block is [[cos(theta_0), -sin(theta_0)], [sin(theta_0), cos(theta_0)]]. Print the four entries [m00, m01, m10, m11] each to 6 decimal places as a JSON array.',
+    exec_cell: {
+      language: 'node',
+      code: 'const pos=2,d=4,base=10000; const theta=pos/Math.pow(base,0/d); const c=Math.cos(theta),s=Math.sin(theta); const block=[c,-s,s,c].map(x=>x.toFixed(6)); console.log(JSON.stringify(block));',
+      expected_stdout_hash: '2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7',
+      timeout_ms: DEFAULT_TIMEOUT_MS,
+    },
+    k_threshold: 1,
+    candidate_responses: [
+      { id: 'c1', text: 'const t=2; const c=Math.cos(t),s=Math.sin(t); console.log(JSON.stringify([c,-s,s,c].map(x=>x.toFixed(6))));', features_hit_truth: ['exec_pass'] },
+      { id: 'c2', text: 'console.log([1,0,0,1]);', features_hit_truth: [] },
+      { id: 'c3', text: 'console.log("[\\"-0.416147\\",\\"-0.909297\\",\\"0.909297\\",\\"-0.416147\\"]");', features_hit_truth: ['exec_pass'] },
+    ],
+  },
+  {
+    id: 'llm-systems-019',
+    source_anchor: 'Dao et al. 2022 "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness" §3.1 (HBM IO complexity); arXiv:2205.14135',
+    prompt_text: 'FlashAttention HBM access ratio vs vanilla attention: vanilla reads/writes ~4 * seq_len^2 * head_dim HBM bytes. Tiled FlashAttention reads (seq_len * head_dim + head_dim * block_size) per outer tile across (seq_len / block_size) tiles. Given seq_len=1024, head_dim=64, block_size=256, print the ratio flash/vanilla to 6 decimal places.',
+    exec_cell: {
+      language: 'node',
+      code: 'const seq=1024,dim=64,blk=256; const vanilla=4*seq*seq*dim; const flash=(seq*dim+dim*blk)*(seq/blk); const ratio=flash/vanilla; console.log(ratio.toFixed(6));',
+      expected_stdout_hash: '0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076',
+      timeout_ms: DEFAULT_TIMEOUT_MS,
+    },
+    k_threshold: 1,
+    candidate_responses: [
+      { id: 'c1', text: 'const s=1024,d=64,b=256; console.log((((s*d+d*b)*(s/b))/(4*s*s*d)).toFixed(6));', features_hit_truth: ['exec_pass'] },
+      { id: 'c2', text: 'console.log(0.5);', features_hit_truth: [] },
+      { id: 'c3', text: 'console.log("0.001221");', features_hit_truth: ['exec_pass'] },
+    ],
+  },
+  {
+    id: 'llm-systems-020',
+    source_anchor: 'Hoffmann et al. 2022 "Training Compute-Optimal Large Language Models" (Chinchilla) §3 + Eq. 4; arXiv:2203.15556',
+    prompt_text: 'Chinchilla compute-optimal model size: under the simplified relation N_opt = sqrt(C / 6), where C is total training compute in FLOPs and 6 is the FLOPs-per-parameter-token constant from Kaplan/Hoffmann. For C = 6e21 FLOPs, print N_opt as scientific notation to 4-decimal mantissa precision (e.g. via toExponential(4)).',
+    exec_cell: {
+      language: 'node',
+      code: 'const C=6e21; const N=Math.pow(C/6,0.5); console.log(N.toExponential(4));',
+      expected_stdout_hash: 'abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7',
+      timeout_ms: DEFAULT_TIMEOUT_MS,
+    },
+    k_threshold: 1,
+    candidate_responses: [
+      { id: 'c1', text: 'const C=6e21; console.log(Math.sqrt(C/6).toExponential(4));', features_hit_truth: ['exec_pass'] },
+      { id: 'c2', text: 'console.log(1e10);', features_hit_truth: [] },
+      { id: 'c3', text: 'console.log("3.1623e+10");', features_hit_truth: ['exec_pass'] },
+    ],
+  },
 ];
 
 function _sealItem(seed) {

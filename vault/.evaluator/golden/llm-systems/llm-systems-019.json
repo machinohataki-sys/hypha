@@ -1,0 +1,43 @@
+{
+  "id": "llm-systems-019",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Dao et al. 2022 \"FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness\" §3.1 (HBM IO complexity); arXiv:2205.14135",
+  "prompt_text": "FlashAttention HBM access ratio vs vanilla attention: vanilla reads/writes ~4 * seq_len^2 * head_dim HBM bytes. Tiled FlashAttention reads (seq_len * head_dim + head_dim * block_size) per outer tile across (seq_len / block_size) tiles. Given seq_len=1024, head_dim=64, block_size=256, print the ratio flash/vanilla to 6 decimal places.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D11",
+  "exec_cell": {
+    "language": "node",
+    "code": "const seq=1024,dim=64,blk=256; const vanilla=4*seq*seq*dim; const flash=(seq*dim+dim*blk)*(seq/blk); const ratio=flash/vanilla; console.log(ratio.toFixed(6));",
+    "expected_stdout_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "const s=1024,d=64,b=256; console.log((((s*d+d*b)*(s/b))/(4*s*s*d)).toFixed(6));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "console.log(0.5);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "console.log(\"0.001221\");",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-11T00:37:46.407Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "17c897ae05b885046d43c99ee14d58d257788edd20186b498f563b6e12dec2d1",
+  "code_hash": "25bf972a4c2c4f75431098c7f197f3694d50da660b69722f4cb55c0085d22daa",
+  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+}

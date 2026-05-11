@@ -1,0 +1,43 @@
+{
+  "id": "llm-systems-013",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Jacob et al. 2018 \"Quantization and Training of Neural Networks for Efficient Integer-Arithmetic-Only Inference\" §3.1; Dettmers et al. 2022 LLM.int8() §2",
+  "prompt_text": "Symmetric per-tensor int8 quantization: scale = max_abs / 127.0; q = round(x / scale) clamped to [-127, 127]. Given max_abs=2.5 and values [0.5, -1.2, 2.5, -2.5, 0.0], print the quantized integers as a JSON array.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D11",
+  "exec_cell": {
+    "language": "node",
+    "code": "const max_abs=2.5; const scale=max_abs/127.0; const values=[0.5,-1.2,2.5,-2.5,0.0]; const q=values.map(v=>Math.round(v/scale)); console.log(JSON.stringify(q));",
+    "expected_stdout_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "const max_abs=2.5; const s=max_abs/127.0; const v=[0.5,-1.2,2.5,-2.5,0.0]; console.log(JSON.stringify(v.map(x=>Math.round(x/s))));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "console.log([0,-1,2,-2,0]);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "console.log(\"[25,-61,127,-127,0]\");",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-11T00:37:46.225Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "dbe7787db4c015722b3713cc870ae0e0bb77c2977da7483de42df11ca37664d1",
+  "code_hash": "a14c81216298b8468a88f183b26a50242731723839bc7d3a1acc2abe9570de5c",
+  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+}

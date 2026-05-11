@@ -1,0 +1,43 @@
+{
+  "id": "llm-systems-015",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Christiano et al. 2017 \"Deep RL from Human Preferences\" §2 (Bradley-Terry); Ouyang et al. 2022 \"Training language models to follow instructions with human feedback\" (InstructGPT) §3.4",
+  "prompt_text": "Bradley-Terry preference probability for RLHF reward modeling: given chosen_logp = -1.2 and rejected_logp = -2.0, compute P(chosen > rejected) = sigmoid(chosen_logp - rejected_logp). Print to 6 decimal places.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D11",
+  "exec_cell": {
+    "language": "node",
+    "code": "const chosen=-1.2,rejected=-2.0; const diff=chosen-rejected; const p=1/(1+Math.exp(-diff)); console.log(p.toFixed(6));",
+    "expected_stdout_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "const c=-1.2,r=-2.0; console.log((1/(1+Math.exp(-(c-r)))).toFixed(6));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "console.log(0.5);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "console.log(\"0.689974\");",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-11T00:37:46.277Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "c944d7eba86a9aea9af5294ebe441373708bdbfc25b6b6735cabb9d2ec3fe45a",
+  "code_hash": "c93446ee03033bfe392bdbb29a99fa4a694735e3c187099490198ec8d75febf1",
+  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+}

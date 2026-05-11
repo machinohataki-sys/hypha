@@ -438,6 +438,90 @@ const ITEMS = [
       { id: 'c3', text: 'Power produces conduct rather than only restricting it. The panoptic asymmetry holds; the divergence is the absence of a single watcher and the continuous machine record.', features_hit_truth: ['f1', 'f2', 'f3'] },
     ],
   },
+  // ---- D15-D18 Group delta extension: items 026-030 (Russell / Heidegger / Sartre / Putnam / Quine)
+  // Slot logic: item 25 already = Foucault per Phase 1 spec; Putnam fills slot 029, Quine fills slot 030.
+  // Anchors: canonical primary refs (Mind 14 / Sein und Zeit § / Being and Nothingness Part / Mind Language and Reality / Word and Object §).
+  // Per project memory project_hypha_v021_failure_galileo / MEOW R2 HALT-4: no fabricated section numbers.
+  {
+    id: 'philosophy-026',
+    source_anchor: 'Russell "On Denoting" Mind 14 (1905) pp.479-493; Whitehead+Russell Principia Mathematica vol. I *14 (1910); SEP "Bertrand Russell" §3.2',
+    instance: 'Russell\'s theory of descriptions analyzes "the present King of France is bald" without commitment to a non-existent referent, by reading the definite description as a quantified claim. Reconstruct the analysis in three logical steps and identify the puzzle it solves about empty names.',
+    answer_features: [
+      { id: 'f1', claim: 'definite description rewritten as quantified claim (existence + uniqueness + predicate)', alt_phrasings: ['existential quantifier rewrite', 'there exists exactly one x', 'unique x with property', 'quantified paraphrase', 'rewrite as exists-and-unique', 'three-part quantified form', 'iota operator unpacked'] },
+      { id: 'f2', claim: 'logical form: there is exactly one x such that x is K of F and x is bald', alt_phrasings: ['exactly one x is K of F', 'x is unique and predicate holds', 'three conjuncts in scope of exists', 'existence uniqueness predication', 'standard E! and Bx form', 'forall y if K-of-F(y) then y=x', 'one x, only that x, and bald'] },
+      { id: 'f3', claim: 'puzzle solved: empty descriptions are false (not meaningless); no need for non-existent objects', alt_phrasings: ['avoids Meinongian objects', 'sentence is false not gibberish', 'eliminates apparent reference to non-existents', 'no need for subsistent entities', 'preserves bivalence without ontological cost', 'empty subject yields false sentence', 'rejects Meinong jungle'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Step 1: rewrite the definite description as a quantified claim. Step 2: assert there exists exactly one x such that x is King of France and x is bald — three conjuncts: existence, uniqueness, predication. Step 3: since no x satisfies the K-of-F predicate, the whole sentence is simply false. The puzzle solved is that we no longer need a non-existent King to make sense of the sentence.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Russell says we should not talk about things that do not exist.', features_hit_truth: [] },
+      { id: 'c3', text: 'The description unpacks into exists-and-unique-and-bald. Because no King of France exists, the sentence is false, with no Meinongian commitment.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-027',
+    source_anchor: 'Heidegger Sein und Zeit §§15-18 (Zeug, Zuhandenheit) + §§51-53 (Sein-zum-Tode, 1927); SEP "Martin Heidegger" §2.2',
+    instance: 'Heidegger\'s analysis of Dasein contrasts the ready-to-hand (zuhanden) mode of dealing with equipment from the present-at-hand (vorhanden) mode of theoretical inspection, and culminates in being-toward-death as the structure that individuates Dasein. State the structural difference between the two modes and explain why being-toward-death cannot be replaced by averaged talk about mortality.',
+    answer_features: [
+      { id: 'f1', claim: 'ready-to-hand: equipment is transparent and absorbed in a pragmatic context until it breaks', alt_phrasings: ['transparent in use', 'absorbed coping', 'equipment recedes in skilled use', 'zuhanden as transparent absorption', 'visible only when breaks', 'in-order-to context', 'tool is invisible until it fails'] },
+      { id: 'f2', claim: 'present-at-hand: object becomes a mere thing with properties when the pragmatic flow breaks', alt_phrasings: ['vorhanden mode after breakdown', 'object as standalone with properties', 'theoretical inspection mode', 'thing-with-properties stance', 'detached observer view', 'object-property mode', 'thing held at theoretical distance'] },
+      { id: 'f3', claim: 'being-toward-death individuates because death is non-relational, ownmost, and cannot be delegated', alt_phrasings: ['cannot be deputized', 'non-relational possibility', 'ownmost possibility', 'cannot be substituted', 'das Man cannot die for me', 'individuates Dasein', 'eigenste Moeglichkeit'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Ready-to-hand: the hammer is transparent in skilled hammering, absorbed into an in-order-to context, only visible when it breaks. Present-at-hand: once it breaks, the hammer becomes a thing with properties (weight, length) for theoretical inspection. Being-toward-death cannot collapse into averaged "people die" talk because death is non-relational and ownmost — no one can die my death for me, which is exactly what individuates Dasein.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Heidegger thinks we should be authentic and confront death.', features_hit_truth: [] },
+      { id: 'c3', text: 'In skilled use, equipment is transparent. When the flow breaks, it shows up as object-with-properties. Death individuates because it is ownmost and cannot be delegated.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-028',
+    source_anchor: 'Sartre L\'existentialisme est un humanisme (1946); L\'Etre et le Neant Part I ch. II "La mauvaise foi" (1943); SEP "Jean-Paul Sartre" §2.3',
+    instance: 'Sartre\'s claim that "existence precedes essence" combines with his analysis of bad faith (mauvaise foi) and radical freedom. State why bad faith is structurally different from a simple lie, and identify one concrete situation where someone uses it to evade the consequences of radical freedom.',
+    answer_features: [
+      { id: 'f1', claim: 'bad faith is self-deception: the same consciousness is both deceiver and deceived', alt_phrasings: ['lie to oneself', 'self-deception structure', 'deceiver and deceived are one', 'one consciousness on both sides', 'reflexive deception', 'duplicity within a single subject', 'agent lies to itself'] },
+      { id: 'f2', claim: 'differs from a plain lie: a liar knows the truth and conceals from another; bad faith conceals from self', alt_phrasings: ['plain lie has two parties', 'bad faith collapses the parties', 'no second party to deceive', 'lie has audience bad faith does not', 'liar withholds from another bad faith withholds from self', 'audience-collapsed lie', 'distinct from interpersonal lying'] },
+      { id: 'f3', claim: 'concrete evasion: treating oneself as mere facticity (role / nature / past) to deny freedom (transcendence) — e.g., the waiter playing waiter, or "I had no choice"', alt_phrasings: ['waiter playing waiter', 'I had no choice', 'collapses transcendence into facticity', 'plays a role to deny freedom', 'invokes nature or role to evade choice', 'denies the freedom to choose otherwise', 'flees transcendence into facticity'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Bad faith is self-deception: the same consciousness is both deceiver and deceived, so unlike an ordinary lie there is no second party to whom the truth is concealed. A concrete case: the waiter who plays at being a waiter so completely that he treats his role as a fixed nature, evading the radical freedom that he must each moment choose to perform that role.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Sartre says we are condemned to be free, which is depressing.', features_hit_truth: [] },
+      { id: 'c3', text: 'It is a lie to oneself, where the deceiver and the deceived are the same. People often deploy it by saying "I had no choice", collapsing transcendence into facticity to evade freedom.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-029',
+    source_anchor: 'Putnam "The Meaning of \'Meaning\'" in Mind, Language and Reality (1975) §III-IV; Reason, Truth and History ch. 1 (1981); SEP "Hilary Putnam" §4',
+    instance: 'Putnam\'s twin-earth thought experiment argues that meanings "ain\'t in the head" — two psychologically identical speakers can mean different things by "water". Reconstruct the argument in three steps and state how it cuts against pure functionalism about mental content.',
+    answer_features: [
+      { id: 'f1', claim: 'twin-earth setup: physically identical speakers, different external substance (XYZ vs H2O) sharing surface properties', alt_phrasings: ['XYZ on twin earth', 'two physically identical speakers', 'different underlying substance same appearance', 'molecular twin scenario', 'macro identical micro distinct', 'qualitatively indistinguishable substances', 'same surface different chemistry'] },
+      { id: 'f2', claim: 'extension differs: "water" picks out H2O on Earth and XYZ on twin earth despite identical internal states', alt_phrasings: ['extensions differ', 'reference is different', 'word picks out different stuff', 'same head different referent', 'extensions diverge across worlds', 'reference outruns internal state', 'meaning includes referent'] },
+      { id: 'f3', claim: 'consequence: meanings are not fixed by internal functional states alone; pure functionalism about content is incomplete', alt_phrasings: ['content externalism', 'meaning depends on environment', 'narrow functional state insufficient', 'pure functionalism incomplete for content', 'externalism about meaning', 'environment partly constitutes content', 'wide content not exhausted by narrow'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Step 1: imagine twin earth where the watery liquid is XYZ, not H2O, but speakers there are atom-for-atom identical to us. Step 2: when each says "water", the extension differs (H2O here, XYZ there) despite identical internal states. Step 3: so meaning is not fixed by internal functional states alone — pure functionalism about content cannot capture this externalist component.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Putnam thinks language is about reference to real things.', features_hit_truth: [] },
+      { id: 'c3', text: 'Two molecularly identical speakers can pick out different stuff by "water" because the environment differs. So content is not exhausted by internal state — bad news for pure functionalism about meaning.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
+  {
+    id: 'philosophy-030',
+    source_anchor: 'Quine "Two Dogmas of Empiricism" in From a Logical Point of View ch. II (1951/1953); Word and Object §§1-2 (1960); SEP "Willard Van Orman Quine" §3',
+    instance: 'Quine attacks the analytic-synthetic distinction and argues for a holistic web of belief facing experience as a whole. Reconstruct the holism claim in three steps and identify one practical methodological constraint it imposes on theory revision.',
+    answer_features: [
+      { id: 'f1', claim: 'rejection of strict analytic-synthetic split: every belief is in principle revisable', alt_phrasings: ['no firm analytic-synthetic line', 'every statement revisable', 'no statement immune from revision', 'continuum not dichotomy', 'denies sharp analytic synthetic boundary', 'all beliefs in principle defeasible', 'dogma of analyticity rejected'] },
+      { id: 'f2', claim: 'web of belief: theory faces experience as a whole, not statement by statement (Duhem-Quine confirmation holism)', alt_phrasings: ['confirmation holism', 'Duhem-Quine thesis', 'theory faces tribunal as whole', 'no isolated statement test', 'web meets experience together', 'corporate body of statements', 'cannot test single sentence in isolation'] },
+      { id: 'f3', claim: 'methodological constraint: under recalcitrant evidence we may revise anywhere, but conservatism + simplicity guide which beliefs to drop', alt_phrasings: ['conservatism in revision', 'minimum mutilation', 'maxim of minimum mutilation', 'choose where to revise by simplicity and conservatism', 'pragmatic revision policy', 'least disturbance principle', 'protect periphery before center'] },
+    ],
+    k_threshold: 2,
+    candidate_responses: [
+      { id: 'c1', text: 'Step 1: no statement is strictly analytic and so immune from revision; the analytic-synthetic line is at best a matter of degree. Step 2: theory meets experience as a corporate body — the Duhem-Quine point that no single statement can be confirmed or refuted in isolation. Step 3: when evidence pushes back, we are free to revise anywhere in the web, but conservatism (minimum mutilation) and simplicity guide which beliefs to drop first.', features_hit_truth: ['f1', 'f2', 'f3'] },
+      { id: 'c2', text: 'Quine is an empiricist who denied analyticity.', features_hit_truth: [] },
+      { id: 'c3', text: 'Every belief is revisable. The web faces experience as a whole, not statement by statement. The constraint is to revise with minimum mutilation, preferring the periphery to the core.', features_hit_truth: ['f1', 'f2', 'f3'] },
+    ],
+  },
 ];
 
 function _sealItem(seed) {

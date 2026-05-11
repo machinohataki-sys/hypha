@@ -22,6 +22,23 @@ const readline = require('readline');
 const VAULT_ROOT = process.env.HYPHA_VAULT_DIR || path.join(__dirname, '..', '..', 'vault');
 const VALID_RATERS = new Set(['a', 'b']);
 
+// TTY-gated ANSI helpers. When stdout is piped (e.g. `... | head`), strip codes
+// so logs stay grep-able and machine-parseable. Manuscript register => no emoji.
+const _IS_TTY = !!process.stdout.isTTY;
+const _ANSI = {
+  reset: _IS_TTY ? '\x1b[0m' : '',
+  dim: _IS_TTY ? '\x1b[2m' : '',
+  italic: _IS_TTY ? '\x1b[3m' : '',
+  brass: _IS_TTY ? '\x1b[33m' : '',    // brass = warm yellow, used for pass + progress accents
+  oxblood: _IS_TTY ? '\x1b[31m' : '',  // oxblood = dark red, used for fail
+  cream: _IS_TTY ? '\x1b[38;5;230m' : '', // pale parchment, used for feature definitions
+};
+
+function _wrap(code, text) {
+  if (!_IS_TTY) return text;
+  return `${code}${text}${_ANSI.reset}`;
+}
+
 function _printHelp() {
   console.log(`
 HITL labeling CLI — V0.5 D3.1 feature-set version.
@@ -135,6 +152,84 @@ function _ensureRaterShape(item, raterField) {
   return item[raterField];
 }
 
+// Render the answer_features definitions for a single item. Called ONCE per
+// item (not per candidate within the item), right before the first candidate
+// rating prompt. Format per spec:
+//   [<feature_id>] <statement>
+//      alt: <phrasing 1>
+//      alt: <phrasing 2>
+// Uses cream/dim ANSI when TTY, plain otherwise. Falls back gracefully if
+// answer_features is missing or malformed.
+function _renderFeatureDefinitions(item) {
+  const features = Array.isArray(item.answer_features) ? item.answer_features : [];
+  if (features.length === 0) {
+    console.warn(`[label-cli] WARN: item ${item.id} has no answer_features to display`);
+    return;
+  }
+  console.log(_wrap(_ANSI.dim, '— answer features —'));
+  for (const f of features) {
+    const fid = f.id || '?';
+    // Spec uses <statement>; the JSON schema field is `claim`. Same thing.
+    const statement = (f.claim || f.statement || '').toString();
+    console.log(_wrap(_ANSI.cream, `  [${fid}] ${statement}`));
+    const alts = Array.isArray(f.alt_phrasings) ? f.alt_phrasings.slice(0, 2) : [];
+    for (const phrasing of alts) {
+      console.log(_wrap(_ANSI.dim, `     alt: ${phrasing}`));
+    }
+  }
+  console.log(''); // blank line breather before candidate text
+}
+
+// Render a verdict confirmation line in brass (pass) or oxblood (fail).
+// Italic register line is short + neutral (no emoji, no exclamation).
+function _renderVerdictConfirmation(verdict) {
+  if (verdict === 'pass') {
+    console.log(`${_wrap(_ANSI.brass, 'PASS')} ${_wrap(_ANSI.italic, '— features met threshold')}`);
+  } else if (verdict === 'fail') {
+    console.log(`${_wrap(_ANSI.oxblood, 'FAIL')} ${_wrap(_ANSI.italic, '— features fell below threshold')}`);
+  }
+}
+
+// Compute progress tallies for the top bar at item entry.
+//
+// rated = items where this rater has scored ALL candidates (sidecar.ratings
+//   contains every candidate.id with a features_hit array).
+// skipped = items the rater has touched but not finished (sidecar exists, has
+//   at least one rating, but not all candidates rated) PLUS items with no
+//   sidecar AT ALL but earlier in iteration order than the current item
+//   (i.e. the rater advanced past them without rating). To stay precise and
+//   resume-safe, we treat "skipped" as "partially-rated items only" — fully
+//   untouched items count as future work, not skipped. This is the
+//   conservative read of the spec; reviewable + non-misleading.
+function _computeProgressTally(items, raterId) {
+  let rated = 0;
+  let skipped = 0;
+  for (const entry of items) {
+    const { obj, dir } = entry;
+    const sidecar = _readSidecar(dir, obj.id, raterId);
+    const candidates = Array.isArray(obj.candidate_responses) ? obj.candidate_responses : [];
+    if (candidates.length === 0) continue;
+    const ratings = (sidecar && sidecar.ratings) || {};
+    const ratedCount = candidates.filter(c =>
+      ratings[c.id] && Array.isArray(ratings[c.id].features_hit)
+    ).length;
+    if (ratedCount === candidates.length) rated += 1;
+    else if (ratedCount > 0) skipped += 1;
+    // ratedCount === 0 + no sidecar => not yet started, not "skipped"
+  }
+  return { rated, skipped };
+}
+
+// Render the per-item progress bar at item entry:
+//   [<topic>] item <N>/<total> · rated by you: <X> · skipped: <Y>
+// Brass accents on N/total in TTY mode for subtle hierarchy.
+function _renderProgressBar(topic, currentIdx, total, tally) {
+  const idxFragment = _wrap(_ANSI.brass, `${currentIdx}/${total}`);
+  console.log(
+    `[${topic}] item ${idxFragment} · rated by you: ${tally.rated} · skipped: ${tally.skipped}`
+  );
+}
+
 async function main() {
   const args = _parseArgs(process.argv);
   if (args.help) { _printHelp(); return; }
@@ -154,6 +249,9 @@ async function main() {
   // <id>.rater-<a|b>.json instead of main JSON's rater_a/rater_b field.
   const pairs = [];
   const sidecarByItem = new Map();
+  // Track 1-based item index within items[] for the per-item progress bar.
+  const itemIndexById = new Map();
+  items.forEach((entry, idx) => itemIndexById.set(entry.obj.id, idx + 1));
   for (const { fullPath, obj, dir } of items) {
     const sidecar = _readSidecar(dir, obj.id, args.rater) || { rater_id: args.rater, name: null, ts: null, ratings: {} };
     sidecarByItem.set(obj.id, { sidecar, dir, fullPath });
@@ -167,7 +265,15 @@ async function main() {
     if (pairs.length >= limit) break;
   }
 
+  // Snapshot tally BEFORE the labeling loop. We render the per-item progress
+  // bar at item entry using this snapshot; tally only refreshes between items
+  // so the count reflects committed-on-disk state, not mid-item updates.
+  const initialTally = _computeProgressTally(items, args.rater);
+
   if (pairs.length === 0) {
+    // Even on full-completion runs, print a session-level summary so the rater
+    // sees what state they resumed into. This is the save-and-resume happy path.
+    console.log(`[${args.topic}] all ${items.length} item(s) rated by rater_${args.rater} · rated: ${initialTally.rated} · skipped: ${initialTally.skipped}`);
     console.log(`[label-cli] all (item, candidate) pairs already rated by rater_${args.rater}.`);
     return;
   }
@@ -181,15 +287,22 @@ async function main() {
   const raterName = ((await _promptOne(rl, `rater name (default ${defaultName}): `)).trim() || defaultName);
 
   let labeledCount = 0;
+  let lastItemId = null; // tracks item transitions so per-item header prints ONCE per item
   for (const { obj, candidate, dir } of pairs) {
-    console.log('---');
-    console.log(`item: ${obj.id} (k_threshold=${obj.k_threshold})`);
-    if (obj.source_anchor) console.log(`source: ${obj.source_anchor}`);
-    console.log(`instance: ${obj.instance}`);
-    console.log(`features:`);
-    for (const f of obj.answer_features) {
-      const alts = (f.alt_phrasings || []).join(' / ');
-      console.log(`  ${f.id}: ${f.claim}${alts ? ' [' + alts + ']' : ''}`);
+    const isNewItem = obj.id !== lastItemId;
+    if (isNewItem) {
+      const idx = itemIndexById.get(obj.id) || 0;
+      console.log('---');
+      // Top progress bar — at start of each item.
+      _renderProgressBar(args.topic, idx, items.length, initialTally);
+      console.log(`item: ${obj.id} (k_threshold=${obj.k_threshold})`);
+      if (obj.source_anchor) console.log(`source: ${obj.source_anchor}`);
+      console.log(`instance: ${obj.instance}`);
+      // Feature definitions block — ONCE per item, replaces the old inline list.
+      _renderFeatureDefinitions(obj);
+      lastItemId = obj.id;
+    } else {
+      console.log(''); // soft separator between candidates within the same item
     }
     console.log(`candidate ${candidate.id}: ${candidate.text}`);
 
@@ -199,6 +312,10 @@ async function main() {
     if (featuresHit === null) { console.log('[label-cli] skipped\n'); continue; }
     const justification = (await _promptOne(rl, `justification (optional): `)).trim();
     const verdict = featuresHit.length >= obj.k_threshold ? 'pass' : 'fail';
+
+    // Verdict color confirmation — brass for pass, oxblood for fail.
+    // TTY-gated; piped output stays ANSI-free.
+    _renderVerdictConfirmation(verdict);
 
     // D4 R1 fix: write to sidecar instead of main JSON. rater_a + rater_b
     // touch DIFFERENT files; race eliminated structurally.
@@ -214,7 +331,12 @@ async function main() {
       justification,
       ts: new Date().toISOString(),
     };
-    _writeSidecar(dir, obj.id, args.rater, sidecar);
+    try {
+      _writeSidecar(dir, obj.id, args.rater, sidecar);
+    } catch (err) {
+      console.warn(`[label-cli] WARN: sidecar write failed for ${obj.id}.rater-${args.rater}: ${err.message}`);
+      continue;
+    }
     labeledCount++;
     console.log(`[label-cli] saved <${obj.id}>.rater-${args.rater}.json :: ${candidate.id} = {features_hit: [${featuresHit.join(',')}], verdict: ${verdict}}\n`);
   }

@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-029",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Putnam \"The Meaning of 'Meaning'\" in Mind, Language and Reality (1975) §III-IV; Reason, Truth and History ch. 1 (1981); SEP \"Hilary Putnam\" §4",
+  "instance": "Putnam's twin-earth thought experiment argues that meanings \"ain't in the head\" — two psychologically identical speakers can mean different things by \"water\". Reconstruct the argument in three steps and state how it cuts against pure functionalism about mental content.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "twin-earth setup: physically identical speakers, different external substance (XYZ vs H2O) sharing surface properties",
+      "alt_phrasings": [
+        "XYZ on twin earth",
+        "two physically identical speakers",
+        "different underlying substance same appearance",
+        "molecular twin scenario",
+        "macro identical micro distinct",
+        "qualitatively indistinguishable substances",
+        "same surface different chemistry"
+      ],
+      "phrasing_hashes": [
+        "5a84261563a0810a7ff372a83744c8def908a0e107dc19c7ca266dec73789fcb",
+        "4b746a79773496f5330c6e532d04ce79bffaf0757fd64a2f6e41eda5d9858269",
+        "aefa56c65136029aa57469f266e0affca2e51fbd122918dbb0e71572708cf2ee",
+        "2c56f8251ca6aee89f045384dc88cc1574cfa1be23816afa36d6b22ce6d81530",
+        "1ee8528727e3fa296c7e027d60a5c3243b7b72ebec766881cebbb5b42c315a35",
+        "2c50514af44e73324b9d152c0453776a3eaac1e300b193ac7018ec446860ed43",
+        "5b01746cee703ce803f2bd7f6c7776930cb51956976d3e08e96b49c68a70d375",
+        "9a5187e02bb069d9c0af3271a7cc1fcc7f86d97180b4b3a7b79bd53db71cce77"
+      ],
+      "claim_hash": "5a84261563a0810a7ff372a83744c8def908a0e107dc19c7ca266dec73789fcb"
+    },
+    {
+      "id": "f2",
+      "claim": "extension differs: \"water\" picks out H2O on Earth and XYZ on twin earth despite identical internal states",
+      "alt_phrasings": [
+        "extensions differ",
+        "reference is different",
+        "word picks out different stuff",
+        "same head different referent",
+        "extensions diverge across worlds",
+        "reference outruns internal state",
+        "meaning includes referent"
+      ],
+      "phrasing_hashes": [
+        "200160d4eaee5aeb1cba06fe6bd380c191d5f137e0b4e815efd06d844ac533e2",
+        "ab87f331fdba75b0063a558bf8607488d49073e9543221021aad5c4d55175713",
+        "e7d3a22661aff1a69243124a393b507df75ba9c4ce892fa1195ae00c1f42da98",
+        "a4d61d762ff77a7639f1d6dd1e53e80d170c482e435c0b03a397b83a4e00b98a",
+        "4f8813c969923b07b834c719d770d438b5dff91ac63e4292f94c00d18013fe3c",
+        "015f1628e133fee8cd17dff03bce429ad224a0cf05551e7ad0524522dfddc7ce",
+        "e4637459f68aa51da132e2ce1db2d62782de55e8f4390eac42024355bef0521b",
+        "d0240c49d25edd63d6808309620a5b59e1510f71a0e503b788779d24a8f344cf"
+      ],
+      "claim_hash": "200160d4eaee5aeb1cba06fe6bd380c191d5f137e0b4e815efd06d844ac533e2"
+    },
+    {
+      "id": "f3",
+      "claim": "consequence: meanings are not fixed by internal functional states alone; pure functionalism about content is incomplete",
+      "alt_phrasings": [
+        "content externalism",
+        "meaning depends on environment",
+        "narrow functional state insufficient",
+        "pure functionalism incomplete for content",
+        "externalism about meaning",
+        "environment partly constitutes content",
+        "wide content not exhausted by narrow"
+      ],
+      "phrasing_hashes": [
+        "a594ee3350cd001b8536dce36033a18177ca52df27e60cce7f9580f5b4954848",
+        "e695a1651d864386482eb3aac8b6c4cdbcfe6cb8d3b550dbe3bd3f0fbe3bdd6b",
+        "2fcf9b68a6cc15743b638402155668b3c244aa901e39a19038e05d16edc12a89",
+        "c7aa8671cb2b10717424c25690e93a3fa482879bb86fe56a7adfa6dce211c02c",
+        "686cd8292d4c3e5de32a3d43b78354f1ee6a957af2e67ef28b2125169a197171",
+        "62bf9e370550c777f4a75980c45ef935908943a20df1e8ce39a48b6c1d86387d",
+        "8e427df2b2dd78dd4456456a99796d11a865833988f4e79c0624c33350d4aeeb",
+        "a4d735740f3383ddb03ebddc456734ebeadb4f7e210c107df5f0b64d261a7f2c"
+      ],
+      "claim_hash": "a594ee3350cd001b8536dce36033a18177ca52df27e60cce7f9580f5b4954848"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Step 1: imagine twin earth where the watery liquid is XYZ, not H2O, but speakers there are atom-for-atom identical to us. Step 2: when each says \"water\", the extension differs (H2O here, XYZ there) despite identical internal states. Step 3: so meaning is not fixed by internal functional states alone — pure functionalism about content cannot capture this externalist component.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Putnam thinks language is about reference to real things.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Two molecularly identical speakers can pick out different stuff by \"water\" because the environment differs. So content is not exhausted by internal state — bad news for pure functionalism about meaning.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-11T00:37:29.576Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

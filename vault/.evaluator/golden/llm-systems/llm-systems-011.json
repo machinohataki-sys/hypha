@@ -1,0 +1,43 @@
+{
+  "id": "llm-systems-011",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Vaswani et al. 2017 \"Attention Is All You Need\" §3.2.1 (scaled dot-product attention); Karpathy nanoGPT/model.py CausalSelfAttention",
+  "prompt_text": "Scaled dot-product softmax: given QK^T row scores [2.0, 1.0, 3.0, 0.5] and head_dim d_k=64, compute softmax(scores / sqrt(d_k)) over the row using the numerically stable max-subtraction trick. Print the 4-decimal probability vector as a JSON array.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D11",
+  "exec_cell": {
+    "language": "node",
+    "code": "const scores=[2.0,1.0,3.0,0.5]; const dk=64; const scaled=scores.map(s=>s/Math.sqrt(dk)); const mx=Math.max(...scaled); const exps=scaled.map(s=>Math.exp(s-mx)); const sum=exps.reduce((a,b)=>a+b,0); const probs=exps.map(e=>(e/sum).toFixed(4)); console.log(JSON.stringify(probs));",
+    "expected_stdout_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "const s=[2.0,1.0,3.0,0.5]; const z=s.map(v=>v/Math.sqrt(64)); const m=Math.max(...z); const e=z.map(v=>Math.exp(v-m)); const S=e.reduce((a,b)=>a+b); console.log(JSON.stringify(e.map(v=>(v/S).toFixed(4))));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "console.log([0.25, 0.25, 0.25, 0.25]);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "console.log(\"[\\\"0.2601\\\",\\\"0.2295\\\",\\\"0.2947\\\",\\\"0.2156\\\"]\");",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-11T00:37:46.156Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "39f91668728f9479cfb0702db4cf218836d728fa04eadffcee9d84e04c7e9a87",
+  "code_hash": "0e1fecbaa57ddd2d70fcf2e800f3bd6ae6a91f33068d05499aa8e4d713191d4e",
+  "notes": "D11 schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Author-rated candidate features_hit_truth retained for cross-check parity with sealed-rubric items, though feature_substring is not the verifier here. Rater sidecars optional for code channel (objective)."
+}
