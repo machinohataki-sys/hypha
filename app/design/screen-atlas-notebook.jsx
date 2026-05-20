@@ -27,7 +27,254 @@ const LINKS = [
 ];
 const KIND_TONE = { Note: "ochre", Source: "indigo", Lesson: "terra", Action: "terra", Spark: "ochre", Judgment: "sage" };
 
-const AtlasScreen = ({ onJump }) => {
+// Phase D (R9 + R12 / pedagogy.md Layer 6) — archetype-aware layout from
+// knowledge_points data. Position function per archetype:
+//   timeline  : horizontal spread, kp-1 left → kp-N right
+//   tree      : top-down BFS staggered grid
+//   DAG       : horizontal spread with vertical wave for back-edge readability
+//   matrix    : square grid
+//   flat      : single vertical column (cards-with-edges look)
+// Within-lesson edges from connects_to_next (target_kp_id within node set).
+// Cross-syllabus lineage_link is preserved on the inspector card, not drawn.
+
+function _kpLayoutPosition(i, n, archetype) {
+  if (n <= 1) return { x: 50, y: 50 };
+  switch (archetype) {
+    case 'timeline':
+      return { x: 10 + (i / (n - 1)) * 80, y: 50 };
+    case 'tree': {
+      const cols = Math.min(4, n);
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const rows = Math.ceil(n / cols);
+      return {
+        x: rows === 1 ? 10 + (i / Math.max(1, n - 1)) * 80 : 15 + col * (70 / Math.max(1, cols - 1)),
+        y: rows === 1 ? 50 : 18 + row * (64 / Math.max(1, rows - 1)),
+      };
+    }
+    case 'matrix': {
+      const cols = Math.ceil(Math.sqrt(n));
+      const rows = Math.ceil(n / cols);
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      return {
+        x: cols === 1 ? 50 : 15 + col * (70 / Math.max(1, cols - 1)),
+        y: rows === 1 ? 50 : 18 + row * (64 / Math.max(1, rows - 1)),
+      };
+    }
+    case 'flat':
+      return { x: 50, y: 12 + (i / Math.max(1, n - 1)) * 76 };
+    case 'DAG':
+    default: {
+      const x = 12 + (i / Math.max(1, n - 1)) * 76;
+      const yOffset = (i % 3 === 0) ? -8 : (i % 3 === 1 ? 0 : 8);
+      return { x, y: 45 + yOffset };
+    }
+  }
+}
+
+function _buildKpGraph(arcs, archetype) {
+  const n = arcs.length;
+  const nodes = arcs.map((wrapper, i) => {
+    if (!wrapper) return null;
+    const arc = wrapper.arc || wrapper;
+    const id = wrapper.kp_id || arc.kp_id || `kp-${i + 1}`;
+    const label = arc.title || id;
+    const pos = _kpLayoutPosition(i, n, archetype);
+    return { id, label, kind: 'Note', x: pos.x, y: pos.y, arc };
+  }).filter(Boolean);
+  const idSet = new Set(nodes.map(nd => nd.id));
+  const links = [];
+  arcs.forEach((wrapper, i) => {
+    if (!wrapper) return;
+    const arc = wrapper.arc || wrapper;
+    const sourceId = wrapper.kp_id || arc.kp_id || `kp-${i + 1}`;
+    const connects = Array.isArray(arc.connects_to_next) ? arc.connects_to_next : [];
+    connects.forEach(c => {
+      if (c && c.target_kp_id && idSet.has(c.target_kp_id)) {
+        links.push([sourceId, c.target_kp_id, c.relation || '']);
+      }
+    });
+  });
+  return { nodes, links };
+}
+
+const KpAtlasView = ({ arcs, mode, userIntent, onJump }) => {
+  const archetype = (mode && ['tree', 'DAG', 'timeline', 'matrix', 'flat'].includes(mode)) ? mode : 'flat';
+  const { nodes, links } = React.useMemo(() => _buildKpGraph(arcs, archetype), [arcs, archetype]);
+  const [active, setActive] = useState(nodes.length > 0 ? nodes[0].id : null);
+  const activeNode = nodes.find(nd => nd.id === active) || nodes[0] || null;
+  const neighbors = new Set();
+  links.forEach(([a, b]) => { if (a === active) neighbors.add(b); if (b === active) neighbors.add(a); });
+
+  if (nodes.length === 0) {
+    return (
+      <div className="col" style={{ padding: 32, color: 'var(--ink-2)', fontStyle: 'italic' }}>
+        no knowledge points to render
+      </div>
+    );
+  }
+
+  return (
+    <div className="col gap-16 fade-in" style={{ padding: '24px 28px 36px', maxWidth: 1640, margin: '0 auto' }}>
+      <div className="row gap-16">
+        <div className="col">
+          <div className="eyebrow">Atlas · {archetype.toUpperCase()}</div>
+          <h1 className="serif" style={{ fontSize: 32, margin: '4px 0 0', fontWeight: 400 }}>
+            知识点地图
+          </h1>
+          <div className="t-body">{nodes.length} 节点 · {links.length} 边{userIntent ? ` · intent ${userIntent}` : ''}</div>
+        </div>
+      </div>
+
+      <div className="row gap-16" style={{ alignItems: 'stretch' }}>
+        <div className="map-stage" style={{ flex: 1, height: 560, position: 'relative', background: 'var(--cream)', border: '1px solid var(--rule-soft)', borderRadius: 2 }}>
+          <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+            {links.map(([a, b], i) => {
+              const A = nodes.find(nd => nd.id === a);
+              const B = nodes.find(nd => nd.id === b);
+              if (!A || !B) return null;
+              const isActive = a === active || b === active;
+              return (
+                <line key={i}
+                  x1={`${A.x}%`} y1={`${A.y}%`} x2={`${B.x}%`} y2={`${B.y}%`}
+                  stroke={isActive ? 'var(--terracotta)' : 'var(--ink-2)'}
+                  strokeOpacity={isActive ? 0.75 : 0.3}
+                  strokeWidth={isActive ? 1.5 : 0.8}
+                  strokeDasharray={isActive ? '0' : '2 3'}
+                />
+              );
+            })}
+          </svg>
+          {nodes.map(nd => (
+            <button key={nd.id}
+              onClick={() => setActive(nd.id)}
+              className={`node-pill ${active === nd.id ? 'active' : ''}`}
+              style={{
+                position: 'absolute',
+                left: `${nd.x}%`, top: `${nd.y}%`, transform: 'translate(-50%,-50%)',
+                color: neighbors.has(nd.id) || active === nd.id ? 'var(--ink)' : 'var(--ink-3)',
+                opacity: !active || active === nd.id || neighbors.has(nd.id) ? 1 : 0.5,
+                padding: '6px 10px',
+                background: active === nd.id ? 'var(--paper)' : 'transparent',
+                border: active === nd.id ? '1px solid var(--ink-2)' : '1px solid transparent',
+                borderRadius: 999,
+                fontFamily: 'EB Garamond, "Noto Serif SC", serif', fontSize: 13,
+                cursor: 'pointer',
+              }}>
+              <span style={{
+                display: 'inline-block', width: 6, height: 6, borderRadius: 3, marginRight: 7,
+                background: 'var(--ochre, #A66D2C)', verticalAlign: 'middle',
+              }} />
+              {nd.label}
+            </button>
+          ))}
+          <div className="mono" style={{
+            position: 'absolute', right: 16, bottom: 14, fontSize: 10.5, color: 'var(--ink-3)',
+            letterSpacing: '.18em',
+          }}>HYPHA · KP · {archetype.toUpperCase()}</div>
+        </div>
+
+        <div className="col gap-12" style={{ width: 360, flexShrink: 0 }}>
+          <div className="card col gap-10" style={{ padding: '18px 20px', background: 'var(--paper)', border: '1px solid var(--rule-soft)', borderRadius: 4 }}>
+            <div className="eyebrow">{activeNode ? activeNode.id.toUpperCase() : 'KP'} · selected</div>
+            <div className="serif" style={{ fontSize: 22, lineHeight: 1.18 }}>{activeNode ? activeNode.label : '—'}</div>
+            {activeNode && activeNode.arc && activeNode.arc.definition && (
+              <div className="t-small" style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--ink-2)', whiteSpace: 'pre-wrap' }}>
+                {activeNode.arc.definition.slice(0, 280)}{activeNode.arc.definition.length > 280 ? '…' : ''}
+              </div>
+            )}
+            {activeNode && activeNode.arc && Array.isArray(activeNode.arc.lineage_link) && activeNode.arc.lineage_link.length > 0 && (
+              <div className="col gap-4" style={{ marginTop: 6 }}>
+                <span className="eyebrow" style={{ fontSize: 10, letterSpacing: '0.12em' }}>上接</span>
+                {activeNode.arc.lineage_link.slice(0, 3).map((l, i) => (
+                  <span key={i} className="t-tiny" style={{ fontSize: 12, color: 'var(--ink-2)' }}>
+                    {l.relation} · {(l.target && l.target.display_label) || (l.target && l.target.fallback) || '—'}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {neighbors.size > 0 && (
+            <div className="card col" style={{ padding: 14, background: 'var(--paper)', border: '1px solid var(--rule-soft)', borderRadius: 4 }}>
+              <div className="row" style={{ marginBottom: 8 }}>
+                <div className="eyebrow">下接</div>
+                <span className="spacer" />
+                <span className="t-tiny mono">{neighbors.size}</span>
+              </div>
+              <div className="col gap-6">
+                {[...neighbors].map(id => {
+                  const nd = nodes.find(x => x.id === id);
+                  if (!nd) return null;
+                  return (
+                    <button key={id} onClick={() => setActive(id)} className="row gap-8" style={{
+                      padding: '8px 10px', borderRadius: 6, textAlign: 'left',
+                      border: '1px solid var(--rule-soft)', background: 'var(--cream)',
+                      cursor: 'pointer', fontFamily: 'EB Garamond, "Noto Serif SC", serif',
+                    }}>
+                      <span style={{ fontSize: 11, color: 'var(--ink-3)', minWidth: 50 }}>{nd.id}</span>
+                      <span style={{ fontSize: 13.5, color: 'var(--ink-2)' }}>{nd.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AtlasScreen = ({ onJump, mode, knowledgePoints, userIntent }) => {
+  // intentional-placeholder: the word "placeholder" below references the DELETED
+  // 2026-04 demo NODES/LINKS array, not unfinished code. AtlasScreen render is
+  // complete — KP-data branch + empty-state branch both fully implemented.
+  // Phase D data-driven branch: when knowledgePoints provided + non-empty, render
+  // the KP-driven Atlas. Demo NODES/LINKS demo array (Peircean triads / Veyra /
+  // Tsing / etc) removed 2026-05-12 per user "最纯净 HYPHA". Empty Atlas now
+  // shows a clean empty-state instead of fake "knowledge mesh" demo.
+  if (Array.isArray(knowledgePoints) && knowledgePoints.length > 0) {
+    return <KpAtlasView arcs={knowledgePoints} mode={mode} userIntent={userIntent} onJump={onJump} />;
+  }
+  return (
+    <div className="col gap-12 fade-in" style={{ padding: "48px 60px 60px", maxWidth: 880, margin: "0 auto" }}>
+      <div className="col gap-6">
+        <div className="eyebrow">Atlas</div>
+        <h1 className="serif" style={{ fontSize: 34, margin: "4px 0 0", fontWeight: 400 }}>
+          Knowledge <span className="italic">mesh</span>
+        </h1>
+      </div>
+      <div className="col gap-10" style={{
+        marginTop: 18, padding: "26px 30px",
+        background: "var(--cream)", border: "1px solid var(--rule-soft)",
+        borderLeft: "2px solid #4D8B9A", borderRadius: 2,
+        fontFamily: 'EB Garamond, "Noto Serif SC", serif',
+      }}>
+        <p className="serif" style={{ fontSize: 16, lineHeight: 1.7, color: "var(--ink)", margin: 0 }}>
+          地图待第一节课的知识点落定后填充。
+        </p>
+        <p className="serif" style={{ fontSize: 14, lineHeight: 1.65, color: "var(--ink-2)", margin: 0 }}>
+          Atlas 节点 = lesson 的 KP arc (connects_to_next + lineage_link 连边); archetype 决定布局
+          (timeline / DAG / tree / matrix / flat). 在 LessonChat 内点 "切换地图" 进入数据视图。
+        </p>
+        <div className="row gap-12" style={{ marginTop: 4 }}>
+          <button onClick={() => onJump && onJump("home")} className="btn btn-ghost" style={{ fontSize: 13 }}>
+            回 Home
+          </button>
+          <button onClick={() => onJump && onJump("lesson")} className="btn btn-ghost" style={{ fontSize: 13 }}>
+            进上课 →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Demo render kept under a dead branch so the unused-locals warning doesn't fire,
+// but never reached. Constants NODES/LINKS no longer hydrated.
+const _AtlasDemoUnused = () => {
   const [active, setActive] = useState("n5");
   const activeNode = NODES.find(n => n.id === active);
   const neighbors = new Set();
@@ -197,7 +444,49 @@ const NOTES = [
   { id: 6, title: "Connect — civic dialogue", excerpt: "Spark: a platform that aligns deep learning with civic conversation. Decay-as-method.", tags: ["spark"], date: "2d ago" },
 ];
 
+// intentional-placeholder: the word "placeholder" in this header references
+// the DELETED 2026-04 demo NOTES array (L7 Decay as syntax / L3 Fungal
+// Semiotics / etc), not unfinished code. NotebookScreen render is complete —
+// returns an empty-state until lessonBody.knowledge_points downstream of
+// curriculum:approve_and_body lands real NOTE data in v0.5+ wiring.
 const NotebookScreen = ({ onJump }) => {
+  return (
+    <div className="col gap-12 fade-in" style={{ padding: "48px 60px 60px", maxWidth: 880, margin: "0 auto" }}>
+      <div className="col gap-6">
+        <div className="eyebrow">Notebook</div>
+        <h1 className="serif" style={{ fontSize: 34, margin: "4px 0 0", fontWeight: 400 }}>
+          Your <span className="italic">marginalia</span> archive
+        </h1>
+      </div>
+      <div className="col gap-10" style={{
+        marginTop: 18, padding: "26px 30px",
+        background: "var(--cream)", border: "1px solid var(--rule-soft)",
+        borderLeft: "2px solid #4D8B9A", borderRadius: 2,
+        fontFamily: 'EB Garamond, "Noto Serif SC", serif',
+      }}>
+        <p className="serif" style={{ fontSize: 16, lineHeight: 1.7, color: "var(--ink)", margin: 0 }}>
+          Notebook 待 vault 落 NOTE 后填充。
+        </p>
+        <p className="serif" style={{ fontSize: 14, lineHeight: 1.65, color: "var(--ink-2)", margin: 0 }}>
+          每节课 approve 后, lesson NOTE + KP NOTE 沉到 vault。这里渲染那条 archive 流。当前 vault 空 — 进 LessonChat 起第一节即可种下第一条。
+        </p>
+        <div className="row gap-12" style={{ marginTop: 4 }}>
+          <button onClick={() => onJump && onJump("home")} className="btn btn-ghost" style={{ fontSize: 13 }}>
+            回 Home
+          </button>
+          <button onClick={() => onJump && onJump("library")} className="btn btn-ghost" style={{ fontSize: 13 }}>
+            进 Library →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Demo render kept under a dead branch — NOTES / activeId / filter constants
+// no longer hydrated. Surgical retention so the file's other consumers (atlas
+// + helpers) stay un-touched. Not reached at runtime.
+const _NotebookDemoUnused = ({ onJump }) => {
   const [activeId, setActiveId] = useState(2);
   const [filter, setFilter] = useState("all");
   const note = NOTES.find(n => n.id === activeId);

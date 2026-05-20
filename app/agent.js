@@ -85,23 +85,30 @@ function _buildPersonaLeakRE(settings) {
   return new RegExp('\\b(' + candidates.join('|') + ')\\b|用户(?!灵感)', 'i');
 }
 // v0.2 Surface Finishing Track A A1 — post-stream anti-ingratiation scan.
-// Runs after every tutor turn alongside _detectAndLogPersonaLeak. Pure
-// observation: scans accumulated text for slick / 隐性奉承 / 炫技 phrases
-// from app/lib/agent-character/anti-ingratiation.js. On hits, appends an
-// `ingratiation_flagged` event to events.jsonl (so trust-panel surface
-// can render "本节连贯 · ingratiation N次"). Does NOT mutate the streamed
-// text — scrubbing is deferred to v0.4 P1 prosecutor-judge-rewriter loop.
+// Runs after every tutor turn alongside _detectAndLogPersonaLeak. Hybrid:
+// (a) logs `ingratiation_flagged` events to events.jsonl for trust-panel +
+//     audit surface (Trust Panel "本节连贯 · ingratiation N次"),
+// (b) returns the cleaned text (matches stripped via scrubIngratiation) so
+//     callers can persist the cleaned version in transcript / downstream
+//     consumers (confession / extract-from-lesson / re-stream prompts).
+// Streamed chunks already left for renderer — those still carry violations
+// in real time. TODO (v0.4): move to real-time chunk-level scrub (requires
+// SSE protocol change to buffer + edit window).
 function _detectAndLogIngratiation(text, settings, opts) {
-  if (!text || typeof text !== 'string') return;
+  if (!text || typeof text !== 'string') return { clean_text: text, violations: [] };
   let detector = null;
   try { detector = require('./lib/agent-character/anti-ingratiation'); }
-  catch (_) { return; /* lib missing → silent no-op */ }
-  if (!detector || typeof detector.detectIngratiation !== 'function') return;
+  catch (_) { return { clean_text: text, violations: [] }; /* lib missing → silent no-op */ }
+  if (!detector || typeof detector.detectIngratiation !== 'function') {
+    return { clean_text: text, violations: [] };
+  }
 
   let hits = [];
   try { hits = detector.detectIngratiation(text) || []; }
-  catch (_) { return; /* never break the call */ }
-  if (!Array.isArray(hits) || hits.length === 0) return;
+  catch (_) { return { clean_text: text, violations: [] }; /* never break the call */ }
+  if (!Array.isArray(hits) || hits.length === 0) {
+    return { clean_text: text, violations: [] };
+  }
 
   try {
     const phrases = hits.map(h => (h && h.match) ? String(h.match).slice(0, 80) : '').filter(Boolean);
@@ -128,6 +135,21 @@ function _detectAndLogIngratiation(text, settings, opts) {
     // Never silent-catch: flagging must not break the call but failure must surface.
     console.warn('[ingratiation_flagged] write failed:', err && err.message);
   }
+
+  // Scrub: substitute matched spans + collapse whitespace. Returns clean text
+  // for transcript persistence + downstream consumers. If scrub fails, fall
+  // back to original text (detect+log already succeeded).
+  try {
+    if (typeof detector.scrubIngratiation === 'function') {
+      const scrubbed = detector.scrubIngratiation(text);
+      if (scrubbed && typeof scrubbed.clean_text === 'string') {
+        return { clean_text: scrubbed.clean_text, violations: scrubbed.violations || hits };
+      }
+    }
+  } catch (err) {
+    console.warn('[ingratiation_scrub] failed:', err && err.message);
+  }
+  return { clean_text: text, violations: hits };
 }
 
 function _detectAndLogPersonaLeak(text, settings, opts) {
@@ -803,11 +825,356 @@ async function _harvestArxiv(topic) {
   return items;
 }
 
+// R-LIB Day 2 (2026-05-12): module-level cache of latest library book rollup
+// per topic. _bookRollup attached non-enumerable to the harvest array gets
+// stripped on `[...perChannel.library]` spread in the merge path, so we cache
+// here instead. Skeleton stage reads via getLibraryRollupForTopic(topic). LRU-
+// bounded at 32 entries.
+const _LIBRARY_ROLLUP_CACHE = new Map();
+function _setLibraryRollup(topic, rollup) {
+  const key = String(topic || '').trim().toLowerCase();
+  if (!key) return;
+  _LIBRARY_ROLLUP_CACHE.set(key, rollup);
+  if (_LIBRARY_ROLLUP_CACHE.size > 32) {
+    const firstKey = _LIBRARY_ROLLUP_CACHE.keys().next().value;
+    _LIBRARY_ROLLUP_CACHE.delete(firstKey);
+  }
+}
+function getLibraryRollupForTopic(topic) {
+  return _LIBRARY_ROLLUP_CACHE.get(String(topic || '').trim().toLowerCase()) || null;
+}
+
+// R-LIB Day 3 (2026-05-12): same cache pattern for community pack hints —
+// skeleton stage injects syllabus_skeleton + curator badges; CHALLENGE pipeline
+// reads contested_questions as objector seeds. LRU-bounded at 32.
+const _COMMUNITY_HINT_CACHE = new Map();
+function _setCommunityHint(topic, hint) {
+  const key = String(topic || '').trim().toLowerCase();
+  if (!key) return;
+  _COMMUNITY_HINT_CACHE.set(key, hint);
+  if (_COMMUNITY_HINT_CACHE.size > 32) {
+    const firstKey = _COMMUNITY_HINT_CACHE.keys().next().value;
+    _COMMUNITY_HINT_CACHE.delete(firstKey);
+  }
+}
+function getCommunityHintForTopic(topic) {
+  return _COMMUNITY_HINT_CACHE.get(String(topic || '').trim().toLowerCase()) || null;
+}
+
+// User Library — local PDF/MD/TXT chunks ingested via library:pickAndAdd.
+// Always-on channel, free, fast. Per pedagogy.md System 5 (Bibliography
+// Grounding). Returns shape compatible with other harvest channels so the
+// downstream BM25/rank pass and aggregator stay agnostic.
+//
+// Phase B Gap 4 (2026-05-17): primary path is now GraphRAG over per-book
+// entity graphs. Caught by user: BM25 + CJK single-char tokenizer collapsed
+// "诺贝尔文学" → ["诺","贝","尔","文","学"], scoring philosophy books high
+// because "学" / "文" are high-frequency CJK chars. GraphRAG queries against
+// LLM-extracted entities (people / works / schools) + 13 typed edges. BM25
+// retained below as `_harvestLibraryBM25Legacy` and used as fallback when
+// graph build hasn't run yet (new uploads, smoke envs).
+async function _harvestLibrary(topic, settings) {
+  try {
+    const graphRag = require('./lib/graph-rag');
+    const vaultLib = require('./lib/vault');
+    const vaultRoot = vaultLib.resolveRoot();
+
+    const hits = await graphRag.queryGraph({
+      courseGoal: topic,
+      archetype: settings && settings._archetype,
+      k: 10,
+      vaultRoot,
+      settings,
+    });
+
+    if (!Array.isArray(hits) || hits.length === 0) {
+      // Graph found nothing → fall back to BM25 (perhaps user has books but
+      // never ran a graph build, or graphs are stale). BM25 result is still
+      // better than empty.
+      return _harvestLibraryBM25Legacy(topic, settings);
+    }
+
+    // Convert GraphRAG hits → harvest-channel shape so downstream BM25/merge
+    // + skeleton-stage prompt injection stay agnostic. Adds GraphRAG-only
+    // provenance fields (hit_node, walked_via) for citation / trace UI.
+    // 2026-05-19 — Anti-Slop bridge: enrich each source with fidelity_score
+    // from library manifest so lesson-body-generator can render "[fidelity=
+    // 0.62 mid OCR]" tag → architect prompt sees grounding fidelity →
+    // self-confession when source quality is low.
+    const libraryLib = require('./lib/library');
+    return hits.map(h => {
+      const fid = libraryLib.getFidelity({ vaultRoot, bookId: h.book_id }) || {};
+      return {
+        url: `library://${h.book_id}/chunk-${h.chunk_idx}`,
+        title: `${h.book_title || ''} — ${h.chunk_title || ''}`.trim() || 'Library chunk',
+        excerpt: (h.snippet || '').slice(0, 400),
+        stars: Number.isFinite(h.score) ? h.score : 0,
+        sourceType: 'library',
+        book_author: h.book_author || '',
+        book_id: h.book_id,
+        chunk_idx: h.chunk_idx,
+        // GraphRAG-specific provenance:
+        hit_node: h.hit_node || null,
+        matched_query_entity: h.matched_query_entity || null,
+        walked_via: h.walked_via || [],
+        // Anti-Slop bridge — source fidelity carried for prompt-level tagging.
+        fidelity_score: fid.fidelity_score,
+        fidelity_tier: fid.fidelity_tier,
+        parsed_level: fid.parsed_level,
+      };
+    });
+  } catch (err) {
+    // Defensive: any unexpected failure in graph-rag (e.g. graphology missing,
+    // corrupt graph file) falls back to BM25 so user always gets results.
+    console.warn('[harvest_library] graph-rag failed, falling back to BM25:', err && err.message);
+    return _harvestLibraryBM25Legacy(topic, settings);
+  }
+}
+
+// Original BM25 + 3-vector query expansion. Kept as fallback when GraphRAG
+// produces no hits (typical case: new book uploaded, graph not yet built)
+// or when graph-rag module fails to load (graphology absent etc.).
+//
+// R-LIB Day 2 (2026-05-12): 3-vector query expansion + book-level rollup.
+// Topic → {direct, prereq, related} aliases via query-expansion dict. Each
+// vector queried separately. Same chunk hit by multiple vecs gets sum-bonus +
+// vec_origins merged set. Books that span vectors rank highest (e.g. Copleston
+// Vol 4 has direct=Spinoza + prereq=Descartes hits). Per-book rollup with TOC
+// attached as `_bookRollup` side-channel for skeleton-stage prompt injection.
+async function _harvestLibraryBM25Legacy(topic, settings) {
+  try {
+    const libraryLib = require('./lib/library');
+    const vaultLib = require('./lib/vault');
+    const { expandQueryForCourse } = require('./lib/query-expansion');
+    const vaultRoot = vaultLib.resolveRoot();
+
+    const layer1Ancestors = (settings && Array.isArray(settings.layer1Ancestors))
+      ? settings.layer1Ancestors : [];
+    const { direct, prereq, related } = expandQueryForCourse(
+      String(topic || ''), { layer1Ancestors }
+    );
+
+    // Per-vec retrieval — each alias gets its own queryLibrary call so multi-
+    // hit detection can attribute origin. k=5 per term, bounded to keep cost
+    // manageable (dict has ~3-5 aliases per role × 3 roles = ~12 calls max).
+    const taggedHits = [];
+    const _queryVec = (terms, origin) => {
+      for (const term of terms) {
+        if (!term || typeof term !== 'string' || !term.trim()) continue;
+        let hits = [];
+        try { hits = libraryLib.queryLibrary({ vaultRoot, topic: term.trim(), k: 5 }) || []; }
+        catch (_) { hits = []; }
+        for (const h of hits) taggedHits.push({ ...h, vec_origin: origin, vec_term: term });
+      }
+    };
+    _queryVec(direct, 'direct');
+    _queryVec(prereq, 'prereq');
+    _queryVec(related, 'related');
+
+    if (taggedHits.length === 0) return [];
+
+    // Merge same chunk (book_id + chunk_idx) → sum-bonus + union of vec_origins
+    const chunkMap = new Map();
+    for (const h of taggedHits) {
+      const key = `${h.book_id}:${h.chunk_idx}`;
+      const prev = chunkMap.get(key);
+      if (prev) {
+        prev.score += h.score;
+        prev.vec_origins.add(h.vec_origin);
+      } else {
+        chunkMap.set(key, { ...h, vec_origins: new Set([h.vec_origin]) });
+      }
+    }
+    const merged = [...chunkMap.values()].sort((a, b) => b.score - a.score);
+
+    // Per-book aggregation. Books that hit multiple vecs (direct+prereq) rank
+    // higher than single-vec books — signal of broad coverage. e.g. Copleston
+    // Vol 4 (direct=28 + prereq=12) ranks above narrow Spinoza-only monograph.
+    const bookMap = new Map();
+    for (const m of merged) {
+      const b = bookMap.get(m.book_id);
+      const inDirect = m.vec_origins.has('direct') ? 1 : 0;
+      const inPrereq = m.vec_origins.has('prereq') ? 1 : 0;
+      const inRelated = m.vec_origins.has('related') ? 1 : 0;
+      if (b) {
+        b.hit_count++;
+        b.total_score += m.score;
+        b.direct_hits += inDirect;
+        b.prereq_hits += inPrereq;
+        b.related_hits += inRelated;
+        if (b.top_chunks.length < 3) b.top_chunks.push(m);
+      } else {
+        bookMap.set(m.book_id, {
+          book_id: m.book_id,
+          book_title: m.book_title,
+          book_author: m.book_author,
+          hit_count: 1,
+          total_score: m.score,
+          direct_hits: inDirect,
+          prereq_hits: inPrereq,
+          related_hits: inRelated,
+          top_chunks: [m],
+        });
+      }
+    }
+
+    const books = [...bookMap.values()].sort((a, b) => {
+      // Primary: vec span (3 > 2 > 1) — book covering multiple roles is most relevant
+      const aSpan = (a.direct_hits > 0 ? 1 : 0) + (a.prereq_hits > 0 ? 1 : 0) + (a.related_hits > 0 ? 1 : 0);
+      const bSpan = (b.direct_hits > 0 ? 1 : 0) + (b.prereq_hits > 0 ? 1 : 0) + (b.related_hits > 0 ? 1 : 0);
+      if (aSpan !== bSpan) return bSpan - aSpan;
+      // Tiebreaker: total raw score
+      return b.total_score - a.total_score;
+    });
+    const topBooks = books.slice(0, 5);
+
+    // Attach TOC for skeleton-stage prompt — chapter titles only, no body text
+    for (const b of topBooks) {
+      try {
+        const tocRes = libraryLib.getBookTOC({ vaultRoot, id: b.book_id });
+        b.toc = (tocRes && tocRes.ok) ? (tocRes.toc || []) : [];
+      } catch (_) { b.toc = []; }
+    }
+
+    // Flat chunk list for legacy downstream consumers (BM25 merge in harvest()).
+    // Cap at 2 chunks per book × 5 books = 10 max, lower than the previous
+    // single-vec 6 to keep token budget steady despite richer per-chunk metadata.
+    // 2026-05-19 — Anti-Slop bridge: per-source fidelity_score for prompt tag.
+    const flatItems = [];
+    for (const b of topBooks) {
+      const fid = libraryLib.getFidelity({ vaultRoot, bookId: b.book_id }) || {};
+      for (const ch of b.top_chunks.slice(0, 2)) {
+        flatItems.push({
+          url: `library://${ch.book_id}/chunk-${ch.chunk_idx}`,
+          title: `${ch.book_title || ''} — ${ch.chunk_title || ''}`.trim() || 'Library chunk',
+          excerpt: (ch.snippet || '').slice(0, 400),
+          stars: ch.score || 0,
+          sourceType: 'library',
+          book_author: ch.book_author || '',
+          book_id: ch.book_id,
+          chunk_idx: ch.chunk_idx,
+          chunk_type: ch.chunk_type || null,
+          vec_origins: [...ch.vec_origins],
+          // Anti-Slop bridge — source fidelity carried for prompt-level tagging.
+          fidelity_score: fid.fidelity_score,
+          fidelity_tier: fid.fidelity_tier,
+          parsed_level: fid.parsed_level,
+        });
+      }
+    }
+
+    // Stash per-book rollup in module-level cache keyed by topic — skeleton
+    // stage reads via getLibraryRollupForTopic() to inject 📚 TOC cards into
+    // SYSTEM_PROMPT. Cache survives the array spread/concat in harvest() merge.
+    const rollup = topBooks.map(b => ({
+      book_id: b.book_id,
+      book_title: b.book_title,
+      book_author: b.book_author,
+      direct_hits: b.direct_hits,
+      prereq_hits: b.prereq_hits,
+      related_hits: b.related_hits,
+      total_score: b.total_score,
+      toc: b.toc,
+    }));
+    _setLibraryRollup(topic, rollup);
+    return flatItems;
+  } catch (_) { return []; }
+}
+
+// Community Commons — curated GitHub-hosted YAML/JSON packs.
+// R-LIB Day 3 (2026-05-12): always-on harvest channel mirroring _harvestLibrary
+// pattern. Packs ship bundled in app/lib/commons-packs/<id>/pack.json + user-
+// installed copies override at ~/.hypha/commons/packs/. Match by topic +
+// alias. Each pack contributes:
+//   - recommended_sources[] → flat harvest items (sourceType='community')
+//   - syllabus_skeleton[]   → cached for skeleton-stage prompt injection
+//   - contested_questions[] → cached for CHALLENGE pipeline objector seed
+//
+// Returns flatItems compatible with the BM25/merge path. Side-channel hint
+// stashed via _setCommunityHint(topic, ...) — skeleton stage reads through
+// getCommunityHintForTopic(topic).
+async function _harvestCommunity(topic, settings) {
+  try {
+    const communityLib = require('./lib/community');
+    const lang = (settings && settings.lang) || 'zh';
+    const matches = communityLib.queryPacks(String(topic || ''), { lang });
+    if (!matches || matches.length === 0) {
+      _setCommunityHint(topic, null);
+      return [];
+    }
+
+    // Use top 2 matching packs (cap to keep token budget bounded)
+    const usePacks = matches.slice(0, 2);
+    const flatItems = [];
+    const syllabusMerged = [];
+    const contestedMerged = [];
+    const packsMeta = [];
+
+    for (const pack of usePacks) {
+      const stale = communityLib.isPackStale(pack);
+      packsMeta.push({
+        id: pack.id,
+        topic: pack.topic,
+        lang: pack.lang,
+        curator: pack.curator,
+        ratified_count: Array.isArray(pack.ratified_by) ? pack.ratified_by.length : 0,
+        ratified_at: pack.ratified_at || null,
+        stale,
+      });
+
+      // Skeleton hint — chapters + KP candidates verbatim from the pack
+      if (Array.isArray(pack.syllabus_skeleton)) {
+        for (const chap of pack.syllabus_skeleton) {
+          syllabusMerged.push({
+            pack_id: pack.id,
+            chapter: chap.chapter,
+            kp_candidates: Array.isArray(chap.kp_candidates) ? chap.kp_candidates : [],
+          });
+        }
+      }
+      // Contested questions for CHALLENGE pipeline seeding
+      if (Array.isArray(pack.contested_questions)) {
+        for (const q of pack.contested_questions) {
+          contestedMerged.push({ pack_id: pack.id, question: q });
+        }
+      }
+      // Recommended sources as harvest items
+      const sources = Array.isArray(pack.recommended_sources) ? pack.recommended_sources : [];
+      sources.forEach((src, idx) => {
+        const isBook = (src.type || '').toLowerCase() === 'book';
+        const url = isBook
+          ? `community://${pack.id}/book-${idx}`
+          : (src.url || `community://${pack.id}/web-${idx}`);
+        flatItems.push({
+          url,
+          title: src.title || src.url || `Community recommendation ${idx + 1}`,
+          excerpt: src.reason || '',
+          stars: Math.max(1, packsMeta[packsMeta.length - 1].ratified_count),
+          sourceType: 'community',
+          pack_id: pack.id,
+          pack_curator: pack.curator || 'unknown',
+          community_source_type: src.type || 'unknown',
+        });
+      });
+    }
+
+    _setCommunityHint(topic, {
+      packs_used: packsMeta,
+      syllabus_skeleton: syllabusMerged,
+      contested_questions: contestedMerged,
+    });
+    return flatItems;
+  } catch (_) { return []; }
+}
+
 // Tavily WebSearch — additive 4th channel. Silent no-op when key absent so the
 // existing 3-channel flow degrades cleanly. Free tier: 1k req/mo.
 async function _harvestWebSearch(topic, settings) {
   const tavilyKey = (settings && settings.tavilyKey) || process.env.TAVILY_API_KEY || '';
   if (!tavilyKey) return [];
+  // 2026-05-17 — difficulty-scaled max_results. Default 10, capped at 20.
+  const _scale = Number(settings && settings._difficultyScale) || 1;
+  const _maxResults = Math.min(20, Math.max(5, Math.floor(10 * _scale)));
   try {
     const res = await fetch('https://api.tavily.com/search', {
       method: 'POST',
@@ -816,7 +1183,7 @@ async function _harvestWebSearch(topic, settings) {
         api_key: tavilyKey,
         query: String(topic),
         search_depth: 'basic',
-        max_results: 10,
+        max_results: _maxResults,
         include_answer: false,
         include_raw_content: false,
       }),
@@ -1519,9 +1886,16 @@ const CHANNEL_ROUTES = {
   '_default':     ['github', 'hn', 'arxiv', 'web'],
 };
 
-async function harvest(topic, settings, onProgress = null, archetype = '_default') {
+async function harvest(topic, settings, onProgress = null, archetype = '_default', difficulty = 0.6) {
   const t0 = Date.now();
   const route = CHANNEL_ROUTES[archetype] || CHANNEL_ROUTES._default;
+  // 2026-05-17 — difficulty scaling for Tavily-using channels. base + floor(base*d*2).
+  // 0.95 → 2.9x, 0.65 → 2.3x, 0.35 → 1.7x, 0.05 → 1.1x. Applied via settings._scaleHint
+  // so individual _harvestXxx fns pick it up without refactoring all signatures.
+  const _scaledSettings = Object.assign({}, settings || {}, {
+    _difficultyScale: 1 + Math.max(0, Math.min(1, Number(difficulty) || 0.6)) * 2,
+  });
+  settings = _scaledSettings;
   // Initialize perChannel only for the channels that will fire (saves bytes
   // on telemetry + signals to renderer which channels were active).
   const perChannel = {};
@@ -1569,6 +1943,20 @@ async function harvest(topic, settings, onProgress = null, archetype = '_default
     if (!fn) return Promise.resolve();
     return runChannel(key, fn);
   }));
+
+  // Always-on user Library channel — local, fast, no rate limit. Added 2026-05-12
+  // per user request: "在生成课程的过程中会 fetch library 中相关内容". Library
+  // items aggregate into liveItems below alongside route channels so downstream
+  // BM25/rank treats them as first-class signal sources.
+  perChannel.library = { n: 0, ms: 0, err: null, items: [] };
+  await runChannel('library', () => _harvestLibrary(topic, settings));
+
+  // Always-on Community Commons channel (R-LIB Day 3, 2026-05-12). Curated
+  // GitHub-hosted packs match by topic + alias. Pack-recommended sources flow
+  // into liveItems with sourceType='community'; syllabus_skeleton + contested
+  // questions cached via _setCommunityHint for skeleton + CHALLENGE consumers.
+  perChannel.community = { n: 0, ms: 0, err: null, items: [] };
+  await runChannel('community', () => _harvestCommunity(topic, settings));
 
   // v0.7.0 — HN deepen: enrich HN items with top expert comments. Sequential
   // after parallel batch so the top hits' points are known.
@@ -1805,6 +2193,31 @@ async function harvestV3(topic, settings, prePrediction, archetype = '_default',
     warnings,
   };
 
+  // 2026-05-17 阶 2 difficulty scaling — per-layer source budgets scale with
+  // the user's goal difficulty (0-1, sourced from goal-guardian._estimate-
+  // Difficulty or LLM classifyAll.diff.score). Formula per source:
+  //   cap = base + floor(base × difficulty × 2)
+  // → difficulty 0.05 nudges base by 10% (low-floor); difficulty 0.95 nearly
+  // triples it. Each layer module has its own internal hard cap that still
+  // applies (layer3 hard-clamps at 20, layer1 anchor list is finite). Caller
+  // can override per-layer via opts.layer{1,3,4}Options.
+  const _harvestDifficulty = (() => {
+    const d = Number(opts.difficulty);
+    if (Number.isFinite(d) && d >= 0 && d <= 1) return d;
+    return 0.6;
+  })();
+  function _scaleBudget(base) {
+    return base + Math.floor(base * _harvestDifficulty * 2);
+  }
+  safeProgress('harvest:difficulty', {
+    difficulty: _harvestDifficulty,
+    scale_examples: {
+      layer1_maxAnchors: _scaleBudget(3),
+      layer3_maxPapersPerSource: Math.min(20, _scaleBudget(5)),
+      layer4_maxPostsPerPlatform: _scaleBudget(10),
+    },
+  });
+
   // ── Layer 1 — Canonical Curriculum syllabus extraction ─────────────────
   if (route.layer1) {
     safeProgress('layer1:start', { topic, archetype: arch });
@@ -1815,7 +2228,8 @@ async function harvestV3(topic, settings, prePrediction, archetype = '_default',
         timeoutMs: 120000,
         perFetchTimeoutMs: 15000,
         useLlmForPrereq: true,
-        maxAnchors: 3,
+        // 2026-05-17 difficulty scaling — base 3 anchors @ neutral 0.6 → 6.
+        maxAnchors: _scaleBudget(3),
       }, opts.layer1Options || {}, { signal });
       const l1 = await harvestLayer1Canonical({
         topic,
@@ -1853,7 +2267,9 @@ async function harvestV3(topic, settings, prePrediction, archetype = '_default',
       // Wire per-source progress through to caller as layer3:<src>:<event>.
       const layer3Opts = Object.assign({
         timeoutMs: 300000,
-        maxPapersPerSource: 5,
+        // 2026-05-17 difficulty scaling — base 5 papers @ neutral 0.6 → 11.
+        // layer3 module internally clamps to 20 so 0.95 difficulty caps there.
+        maxPapersPerSource: Math.min(20, _scaleBudget(5)),
         deepFetchIntro: true,
       }, opts.layer3Options || {}, {
         signal,
@@ -1926,7 +2342,8 @@ async function harvestV3(topic, settings, prePrediction, archetype = '_default',
       const layer4Opts = Object.assign({
         timeoutMs: 180000,
         perCallTimeoutMs: 45000,
-        maxPostsPerPlatform: 10,
+        // 2026-05-17 difficulty scaling — base 10 posts @ neutral 0.6 → 22.
+        maxPostsPerPlatform: _scaleBudget(10),
       }, opts.layer4Options || {}, { signal });
       const l4 = await harvestLayer4Community({ topic, archetype: arch, options: layer4Opts });
       result.layer4 = l4;
@@ -2185,7 +2602,25 @@ async function llmJSON(messages, settings, opts = {}) {
   }
   // CLI provider branch — shell out to vendor binary (Claude Max / Gemini CLI).
   if (_isCliProvider(settings)) {
+    const _t0 = Date.now();
     let raw = await _runCliOnce(messages, settings, { timeoutMs: opts.timeoutMs });
+    // V0.5 E1 cost-ledger plug: CLI path emits no usage data, so this row
+    // lands as estimation_source='tokenizer-fallback'. Non-fatal.
+    try {
+      const sqliteDb = require('./db/sqlite');
+      const dispatch = {
+        result: raw,
+        usage: null,
+        providerId: 'claude-cli',
+        model: settings.model || 'claude-cli',
+        _requestMessages: messages,
+      };
+      sqliteDb.recordChatCallEstimate(dispatch, opts.taskType || 'llmJSON-cli', {
+        latency_ms: Date.now() - _t0,
+      });
+    } catch (err) {
+      console.warn('[recordChatCallEstimate] llmJSON-cli err=', err && err.message);
+    }
     if (opts.json) raw = _extractFirstJSON(raw);
     return raw;
   }
@@ -2210,6 +2645,7 @@ async function llmJSON(messages, settings, opts = {}) {
   // this the LLM call could hang indefinitely (Yogo: 85% structural-bug
   // probability behind the 10-min user complaint).
   const timeoutMs = opts.timeoutMs || 90_000;
+  const _t0 = Date.now();
   const ac = new AbortController();
   const tid = setTimeout(() => ac.abort(), timeoutMs);
   let r;
@@ -2241,22 +2677,51 @@ async function llmJSON(messages, settings, opts = {}) {
     }
   }
   clearTimeout(tid);
+  // V0.5 E1 cost-ledger plug: OpenAI-shape providers (GLM/DeepSeek/Kimi via
+  // legacy agent.js path; not the executeChat router). r.usage has prompt+
+  // completion_tokens; we synthesize a dispatch + record. Non-fatal.
+  const _recordOpenAI = (text) => {
+    try {
+      const sqliteDb = require('./db/sqlite');
+      const usage = (r && r.usage) ? {
+        prompt_tokens: r.usage.prompt_tokens,
+        completion_tokens: r.usage.completion_tokens,
+      } : null;
+      const dispatch = {
+        result: text,
+        usage,
+        providerId: settings.provider || 'openai-shape',
+        model: settings.model || body.model,
+        _requestMessages: messages,
+      };
+      sqliteDb.recordChatCallEstimate(dispatch, opts.taskType || 'llmJSON-openai', {
+        latency_ms: Date.now() - _t0,
+      });
+    } catch (err) {
+      console.warn('[recordChatCallEstimate] llmJSON-openai err=', err && err.message);
+    }
+  };
   const msg = r.choices?.[0]?.message;
-  if (!msg) return '';
+  if (!msg) { _recordOpenAI(''); return ''; }
   // Prefer message.content; fall back to reasoning_content if content is empty
   // (some providers + thinking mode write all output there).
   const content = (msg.content || '').trim();
-  if (content) return content;
+  if (content) { _recordOpenAI(content); return content; }
   const reasoning = (msg.reasoning_content || '').trim();
   if (reasoning) {
     console.error('[llmJSON] content empty; using reasoning_content fallback (' + reasoning.length + ' chars)');
     // For JSON-mode, try to extract the first {...} block from reasoning.
+    let out;
     if (opts.json) {
       const m = reasoning.match(/\{[\s\S]*\}/);
-      return m ? m[0] : reasoning;
+      out = m ? m[0] : reasoning;
+    } else {
+      out = reasoning;
     }
-    return reasoning;
+    _recordOpenAI(out);
+    return out;
   }
+  _recordOpenAI('');
   return '';
 }
 
@@ -2439,6 +2904,104 @@ async function classifyArchetype(topic, goal, settings) {
   } catch (_) { return 'TECH-CONCEPT'; }
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Layer 0 Subtract-First Course Architecture (pedagogy.md 2026-05-11, MEOW v5
+// CONDITIONAL → PASS via Precedence + Migration Matrix). Two pure helpers
+// called at v0.3 2-stage flow Stage 2 (skeleton).
+//
+// classifyVisualArchetype = S1 storage topology (tree/DAG/timeline/matrix/flat),
+//   ORTHOGONAL to Layer 3 classifyArchetype (LANG-ACQ / TECH-CONCEPT / etc.).
+//   Layer 3 picks WHICH PRIMITIVES the tutor emphasises; S1 picks HOW the KP
+//   map renders in Layer 6 default view + Show map toggle.
+// lessonSplit = R3 + R11 弹性课时切分. Pure function over KP count + intent.
+//   Disjoint thresholds per Layer 0 S2 (≤8 / 9-17 / 18-26 / ≥27).
+// ────────────────────────────────────────────────────────────────────────────
+
+const VISUAL_ARCHETYPES = ['tree', 'DAG', 'timeline', 'matrix', 'flat'];
+
+/**
+ * Layer 0 S1 — visual (storage-topology) archetype router.
+ * Returns one of VISUAL_ARCHETYPES; defaults to 'DAG' on LLM failure.
+ *
+ * @param {string} topic
+ * @param {string|null} userIntent — 考研 | 兴趣 | 论文 | 复盘 (biases LLM hint)
+ * @param {object} settings
+ * @returns {Promise<'tree'|'DAG'|'timeline'|'matrix'|'flat'>}
+ */
+async function classifyVisualArchetype(topic, userIntent, settings) {
+  const sys = `${HYPHA_SHORT}Classify a learning topic by the TOPOLOGY of relations between knowledge points. Return only JSON: {"visual_archetype": "<one of: tree | DAG | timeline | matrix | flat>"}.
+
+- tree: strict parent-child hierarchy (mathematical theorem chains, taxonomies, anatomy systems)
+- DAG: nodes inter-define / multiple parents (philosophy: substance/attribute/mode mutually constituted; transformer architecture: Q-K-V matrices that explain each other)
+- timeline: temporal sequence dominant (history of philosophy, project stages, biology evolution)
+- matrix: two-axis crossing (economics supply×demand, OS deadlock 4-condition, 2x2 strategy)
+- flat: unstructured set (vocabulary, legal codes, name lists — no inherent ordering)
+
+This is a STORAGE TOPOLOGY classification — orthogonal to pedagogical emphasis. Pick what BEST fits how the knowledge naturally hangs together, not the teaching style.`;
+  const user = `Topic: ${topic}\nLearner intent: ${userIntent || '(none specified)'}\n\nReturn JSON.`;
+  try {
+    const raw = await llmJSON(
+      [{ role: 'system', content: sys }, { role: 'user', content: user }],
+      settings,
+      { json: true, temperature: 0.1, max_tokens: 100 }
+    );
+    const a = String(JSON.parse(raw).visual_archetype || '').trim();
+    return VISUAL_ARCHETYPES.includes(a) ? a : 'DAG';
+  } catch (_) { return 'DAG'; }
+}
+
+/**
+ * Layer 0 S2 — lesson split (YOGO-designed pure function).
+ * Disjoint thresholds (MEOW v3 HIGH 2 fix):
+ *   kpCount ≤ 8        → 1 课时 (e.g. Spinoza substance/attribute/mode)
+ *   9 ≤ kpCount ≤ 17   → 2 课时 (e.g. Kant 纯批 + 实批)
+ *   18 ≤ kpCount ≤ 26  → 3 课时 (e.g. Aristotle 形而上学 / 伦理学 / 逻辑学)
+ *   kpCount ≥ 27       → reject + narrow-scope prompt
+ *
+ * Distribution is even-clamped to per-lesson KP ∈ [5,9] (Miller's working
+ * memory cap). userIntent is recorded on the return object for downstream
+ * consumers; intent-aware target-count skew is left to the designSequence
+ * prompt (avoids encoding policy in this pure layer).
+ *
+ * @param {number} kpCount
+ * @param {string|null} userIntent
+ * @returns {{ n_lessons: number, target_counts: number[], user_intent: string|null, reject?: string }}
+ */
+function lessonSplit(kpCount, userIntent) {
+  const intent = (typeof userIntent === 'string' && userIntent.trim()) ? userIntent.trim() : null;
+  if (!Number.isFinite(kpCount) || kpCount <= 0) {
+    return { n_lessons: 1, target_counts: [5], user_intent: intent };
+  }
+  if (kpCount >= 27) {
+    return {
+      n_lessons: 0,
+      target_counts: [],
+      user_intent: intent,
+      reject: `Topic too large (${kpCount} KP candidates ≥ 27). Narrow scope or split into sub-topics.`,
+    };
+  }
+  let n_lessons;
+  if (kpCount <= 8) n_lessons = 1;
+  else if (kpCount <= 17) n_lessons = 2;
+  else n_lessons = 3; // 18..26
+
+  const base = Math.floor(kpCount / n_lessons);
+  const remainder = kpCount % n_lessons;
+  const target_counts = [];
+  for (let i = 0; i < n_lessons; i++) {
+    const c = base + (i < remainder ? 1 : 0);
+    // MEOW v6 audit fix (2026-05-11) — preserve KP count conservation. Drop
+    // the Math.max(5, ...) floor that previously fabricated a KP at the
+    // boundary kp=9 → [5,5] (10 slots for 9 candidates). Keep upper bound
+    // (Miller's working-memory cap) only. A lesson at the lower edge (e.g.
+    // kp=9 → [5,4]) under-fills working memory but matches the real
+    // candidate count — intent-relative subtraction prefers truth over
+    // arithmetic ideal. sum(target_counts) === kpCount is now invariant.
+    target_counts.push(Math.min(9, c));
+  }
+  return { n_lessons, target_counts, user_intent: intent };
+}
+
 // summarizeSources — 1 small LLM call (~500 tok) that compresses 25 raw
 // harvest results into a "shape of the field" digest for designSequence to
 // consume. Per Leo's audit: shipping 25 source lines as raw input was 5×
@@ -2502,6 +3065,33 @@ async function designSequence(topic, sources, level, settings, opts = {}) {
     open:    { count: '18-30', anchor: '18-30 lessons (no rush, prioritize depth and frontier reach)' },
   };
   const T = TIME_TARGETS[timeCommit] || TIME_TARGETS.month;
+
+  // W6.4 Curriculum Graph (BLUEPRINT §20 v1.8) — when the topic hits AI/CS
+  // keywords, prefer the hand-curated DAG over LLM skeleton generation.
+  // Returns the same { lessons: [{ title, learnGoal, prereqIds }] } shape the
+  // downstream pipeline expects. opts.disableCurriculumGraph=true bypasses
+  // (used by A/B baseline). Failures fall through to the LLM path silently.
+  const _AI_CS_RE = /\b(ai|ml|machine learning|deep learning|neural net|transformer|llm|gpt|claude|agent|rag|nlp|computer science|cs|python|pytorch|tensorflow|backprop|rlhf|fine[- ]?tuning|tokeniz|embedding|prompt|attention|gradient descent|reinforcement learning|cnn|rnn|lstm)\b/i;
+  if (!opts.disableCurriculumGraph && _AI_CS_RE.test(`${topic} ${goal}`)) {
+    try {
+      const targetCount = parseInt(String(T.count).split('-').pop(), 10) || 16;
+      const graphPlan = await require('./lib/curriculum-graph/graph-engine')
+        .buildCustomCurriculum({ north_star_goal: goal || topic, topic }, targetCount);
+      if (graphPlan && graphPlan.ok && graphPlan.plan && graphPlan.plan.lessons.length >= 5) {
+        const lessons = graphPlan.plan.lessons.map((l, i) => ({
+          title: l.title,
+          learnGoal: l.learnGoal,
+          prereqIds: i === 0 ? [] : [i - 1],
+          _graphKpId: l.kpId,
+          _graphLayer: l.layer,
+          _graphDifficulty: l.difficulty,
+        }));
+        return { lessons, source: 'curriculum-graph', targetKpIds: graphPlan.plan.targetKpIds };
+      }
+    } catch (err) {
+      console.error('[designSequence] curriculum-graph path failed, falling through to LLM:', err.message);
+    }
+  }
 
   // Lacquer Loop v0: classify archetype + assemble primitive directives.
   // opts.disableLacquer=true → vanilla baseline arm (no archetype, no directives).
@@ -2720,6 +3310,102 @@ function _buildCharacterContractBlock(agentId) {
   return lines.join('\n');
 }
 
+// γ10 (2026-05-15) — distilled persona corpus overlay. When a
+// vault/.persona-wisdom/<personaId>.md file exists (and is NOT
+// 'WAITING_DISTILL'), render it as a "PERSONA WISDOM" appendix block to be
+// stacked AFTER the string-register TUTOR PERSONA block (in classic mode)
+// or alongside the CHARACTER CONTRACT block (in learn mode). The string
+// register stays the spine — wisdom is an *overlay* that thickens the voice
+// with corpus-derived priors. Empty string when no wisdom file exists or
+// loader throws, so callers can `.filter(Boolean).join('\n\n')` safely.
+//
+// Returns { block, status } so the caller can emit an event
+// `persona_wisdom_injected` with the status enum surfaced.
+function _buildPersonaWisdomBlock(personaId) {
+  if (!personaId || typeof personaId !== 'string') return { block: '', status: null };
+  let wisdom = null;
+  try {
+    const wisdomLoader = require('./lib/personas/load-wisdom');
+    wisdom = wisdomLoader.loadPersonaWisdom(personaId);
+  } catch (_) {
+    return { block: '', status: null };
+  }
+  if (!wisdom || wisdom.status === 'WAITING_DISTILL') return { block: '', status: null };
+
+  const sections = wisdom.sections || {};
+  // Sections we surface in the system-prompt overlay. Order matters — the
+  // identity sentence anchors first, then the teaching-move arsenal, then
+  // hedging / limits, then idiolect + anti-patterns. Sections that aren't
+  // present in this persona's wisdom file are skipped silently.
+  const SURFACED = [
+    // Old English schema (karpathy / limu / munger / tao / tolkien distilled
+    // pre-2026-05-15).
+    'What he is, in one line',
+    'What she is, in one line',
+    'What they are, in one line',
+    'Six load-bearing teaching moves',
+    'Load-bearing teaching moves',
+    'How he hedges',
+    'How she hedges',
+    'How they hedge',
+    'How he admits limits',
+    'How she admits limits',
+    'How they admit limits',
+    'Idiolect to keep available, not to mimic verbatim',
+    'Idiolect',
+    'Where he is *not* a fit',
+    'Where she is *not* a fit',
+    'Where they are *not* a fit',
+    'Where he is not a fit',
+    'Where she is not a fit',
+    'Where they are not a fit',
+    // New CN schema (distill-corpus.js post-2026-05-15, e.g.
+    // nobel-literature-critic). Order = identity → voice → moves → anti → register.
+    '整体调子 (register)',
+    '核心信念 (core_beliefs)',
+    '标志性表达 (signature_voice)',
+    '思维模式 (thought_patterns)',
+    '反模式 (anti_patterns)',
+    '常用 referent (favorite_referents)',
+    '不碰的话题 (topics_he_avoids)',
+  ];
+  // Build a case-insensitive lookup so we don't miss minor punctuation
+  // variants between personas.
+  const sectionKeys = Object.keys(sections);
+  const lookup = new Map();
+  for (const k of sectionKeys) lookup.set(k.toLowerCase(), k);
+
+  const lines = [];
+  const headerName = wisdom.display_name || personaId;
+  lines.push(`=== PERSONA WISDOM · ${headerName} (distilled corpus, ${wisdom.distilled || 'undated'}) ===`);
+  lines.push('');
+  lines.push('This block overlays the TUTOR PERSONA register above with corpus-derived voice priors. The string register tells you HOW to teach; this block tells you the corpus from which that register was distilled. Honor the priors below — but the STUDENT block and the CHARACTER CONTRACT still outrank this overlay.');
+
+  const seen = new Set();
+  let surfacedCount = 0;
+  for (const want of SURFACED) {
+    const k = lookup.get(want.toLowerCase());
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    const body = String(sections[k] || '').trim();
+    if (!body) continue;
+    lines.push('');
+    lines.push(`-- ${k} --`);
+    // Soft cap: 1200 chars per section keeps the overlay block under ~6KB
+    // even for chatty personas. Far more important is keeping the order
+    // (identity → moves → hedge → limits → idiolect) than the absolute
+    // length; the LLM will pick up cadence from this much prose easily.
+    lines.push(body.length > 1200 ? body.slice(0, 1200).trimEnd() + ' …' : body);
+    surfacedCount += 1;
+  }
+
+  if (surfacedCount === 0) return { block: '', status: wisdom.status };
+
+  lines.push('');
+  lines.push('=== END PERSONA WISDOM ===');
+  return { block: lines.join('\n'), status: wisdom.status };
+}
+
 // v0.2 Surface Finishing Track B B2 — render the pre-lesson body v2 brief
 // (thesis + canonical_example + 2 misconceptions + exit_proof) as a LESSON
 // BRIEF block. Reads vault/<slug>/lesson-<idx>.body.json. Returns '' when
@@ -2742,6 +3428,56 @@ function _buildLessonBriefBlock(slug, idx) {
   const lines = [];
   lines.push(`LESSON BRIEF (your own prep — read first, anchor every turn here):`);
   lines.push(`  thesis: ${String(body.thesis).trim()}`);
+
+  // R-DIDACTIC (2026-05-13) — surface knowledge_points list + relation edges
+  // so HOOK 首轮 can render the 减法 骨架 instead of falling back to narrative.
+  // Source priority: body.knowledge_points (v0.3+ KP arc schema) → KP arc
+  // sidecar at vault/<slug>/lesson-N.kp-arcs.json (post-curriculum:approve_and_body)
+  // → final fallback to skeleton lessonPlan slot's own title/learn_goal (legacy).
+  // Tutor sees a numbered list it MUST enumerate verbatim per learn-start.txt
+  // HOOK · DIDACTIC TEMPLATE.
+  let kpList = null;
+  if (Array.isArray(body.knowledge_points) && body.knowledge_points.length > 0) {
+    kpList = body.knowledge_points;
+  } else {
+    try {
+      const vault2 = require('./lib/vault');
+      const arcs = vault2.readJSON(`${slug}/lesson-${idx}.kp-arcs.json`, null);
+      if (arcs && Array.isArray(arcs.arcs) && arcs.arcs.length > 0) {
+        kpList = arcs.arcs.map(a => ({
+          id: a.id || a.kp_id,
+          title: a.title || (a.kp_seed && a.kp_seed.title) || '',
+          prereq_ids: a.prereq_ids || (a.connects_to_prev || []).map(c => c.target_kp_id || c),
+          relations: (a.connects_to_next || []).map(c => ({ target: c.target_kp_id, relation: c.relation })),
+        }));
+      }
+    } catch (_) { /* sidecar absent — fall through */ }
+  }
+  if (Array.isArray(kpList) && kpList.length > 0) {
+    lines.push(`  knowledge_points (本节减法后的骨架 — HOOK 必须列出全部, EXPOSE/EXTEND 逐个进):`);
+    kpList.slice(0, 9).forEach((kp, i) => {
+      const id = kp.id || `kp-${i + 1}`;
+      const title = String(kp.title || '').trim() || '(untitled)';
+      const prereq = Array.isArray(kp.prereq_ids) && kp.prereq_ids.length
+        ? `prereq: ${kp.prereq_ids.slice(0, 3).join(', ')}`
+        : 'prereq: 无';
+      lines.push(`    ${i + 1}. ${id}: ${title} — ${prereq}`);
+    });
+    // relation edges — across KPs, name relation type
+    const edges = [];
+    kpList.forEach(kp => {
+      (kp.relations || []).slice(0, 3).forEach(r => {
+        if (r && r.target) edges.push({ from: kp.id, to: r.target, rel: r.relation || '推出' });
+      });
+    });
+    if (edges.length > 0) {
+      lines.push(`  relation_edges (knowledge_points 间关系, HOOK 第 3 段挑 2-3 条说):`);
+      edges.slice(0, 6).forEach(e => {
+        lines.push(`    - ${e.from} --(${e.rel})--> ${e.to}`);
+      });
+    }
+  }
+
   if (body.canonical_example) {
     lines.push(`  canonical_example: ${String(body.canonical_example).replace(/\s+/g, ' ').trim().slice(0, 400)}`);
   }
@@ -2751,6 +3487,28 @@ function _buildLessonBriefBlock(slug, idx) {
       lines.push(`    ${i + 1}. ${String(m).replace(/\s+/g, ' ').trim().slice(0, 250)}`);
     });
   }
+  // W1.4 Misconception Engine — surface classified wrong-priors with category
+  // labels + cross-lesson wrong-priors learned in prior courses on this topic.
+  // The 4 categories (wrong_analogy / surface_understanding / dangerous_
+  // simplification / pseudo_understanding) cue the tutor to choose the right
+  // repair strategy when one fires mid-lesson. Cross-lesson recall reuses
+  // misconception data the user already paid for in prior slugs.
+  try {
+    const mcEngine = require('./lib/misconception-engine');
+    const mcVault = require('./lib/misconception-vault');
+    const own = mcEngine.extractMisconceptions(body, 'lesson-' + idx);
+    const cross = mcVault.crossLessonMisconceptionsForTopic(slug);
+    const merged = mcVault.dedupeMisconceptions(own, cross).slice(0, 6);
+    if (merged.length > 0) {
+      lines.push(`  MISCONCEPTIONS TO PRE-EMPT (4 categories, surface BEFORE the student walks in):`);
+      merged.forEach((m, i) => {
+        const cat = m.category || 'surface_understanding';
+        const sev = m.severity || 'medium';
+        const src = m._sourceSlug ? ` [cross-lesson: ${m._sourceSlug}]` : '';
+        lines.push(`    ${i + 1}. [${cat} / ${sev}]${src} ${String(m.text || '').slice(0, 200)}`);
+      });
+    }
+  } catch (_) { /* W1.4 engine optional — never block LESSON BRIEF */ }
   if (body.exit_proof) {
     lines.push(`  exit_proof (Feynman test you close on): ${String(body.exit_proof).replace(/\s+/g, ' ').trim().slice(0, 300)}`);
   }
@@ -2763,8 +3521,20 @@ function _buildLessonBriefBlock(slug, idx) {
   if (body.note_connection && !/first lesson — no prior note/i.test(String(body.note_connection))) {
     lines.push(`  note_connection: ${String(body.note_connection).trim()}`);
   }
+  // W3.3 Product Transfer surfacing — body.product_transfer may be either
+  // (a) the prep LLM's 1-sentence hint (string, ≤30 words) OR (b) the W3.3
+  // post-fill object { content, P, suggested_section }. Either form gets
+  // surfaced so the tutor can land the 10th-segment "迁移到你的产品" callout
+  // in-conversation when it fits the pulse. Object form wins when both exist.
+  const pt = body.product_transfer;
+  if (pt && typeof pt === 'object' && typeof pt.content === 'string' && pt.content.trim()) {
+    lines.push(`  product_transfer (P=${(pt.P != null ? pt.P.toFixed(2) : 'n/a')}, section=${pt.suggested_section || 'general'}):`);
+    lines.push(`    ${pt.content.replace(/\n+/g, '\n    ').slice(0, 800)}`);
+  } else if (typeof pt === 'string' && pt.trim()) {
+    lines.push(`  product_transfer_hint: ${pt.trim().slice(0, 250)}`);
+  }
   lines.push(``);
-  lines.push(`Honor this brief. The thesis is the ONE thing this 30-min landed; do NOT broaden into encyclopedia survey. The canonical_example is your recurring anchor — return to it across HOOK→VERIFY→EXTEND. The misconceptions are wrong-priors to surface and correct, not strawmen.`);
+  lines.push(`Honor this brief. The thesis is the ONE thing this 30-min landed; do NOT broaden into encyclopedia survey. The canonical_example is your recurring anchor — return to it across HOOK→VERIFY→EXTEND. The misconceptions are wrong-priors to surface and correct, not strawmen. The knowledge_points list above IS the HOOK 5-段 template's content for 段 2; the relation_edges feed 段 3.`);
   return lines.join('\n');
 }
 
@@ -2846,10 +3616,88 @@ async function designLesson({ topic, idx, sequence, sources, state, priorNotes, 
     const _characterContractBlock = _buildCharacterContractBlock(
       (agentProfile && agentProfile.agent_id) || 'mycelium-professor'
     );
-    const _appendix = [_characterContractBlock, _lessonBriefBlock, _structurePriorBlock, _pedagogyBlock].filter(Boolean).join('\n\n');
+    // γ10 (2026-05-15) — distilled persona corpus overlay (learn-mode path).
+    // Reads vault/.persona-wisdom/<personaId>.md when present and overlays
+    // it AFTER the character contract so the contract stays the outermost
+    // frame and the wisdom thickens the voice with corpus-derived priors.
+    // No-op (empty block) when the persona has no distilled wisdom yet.
+    const _learnPersonaId = (agentProfile && agentProfile.persona) || 'socratic';
+    const _learnPersonaWisdom = _buildPersonaWisdomBlock(_learnPersonaId);
+    if (_learnPersonaWisdom.block) {
+      try {
+        const _vw = require('./lib/vault');
+        const _slugForEvent = (state && state.slug)
+          || (sequence && sequence[0] && sequence[0].slug)
+          || (topic ? String(topic).toLowerCase().replace(/[^a-z0-9_-]+/g, '-') : '');
+        _vw.appendJSONL('events.jsonl', {
+          ts: new Date().toISOString(),
+          op: 'persona_wisdom_injected',
+          slug: _slugForEvent || null,
+          lessonIdx: Number.isFinite(idx) ? idx : null,
+          personaId: _learnPersonaId,
+          wisdom_status: _learnPersonaWisdom.status,
+          mode: 'learn',
+        });
+      } catch (_) { /* events.jsonl write must never break lesson generation */ }
+    }
+    // W6.3 Research Radar — pull last-7-days frontier citation block (if any).
+    // Anti-feed: lessonCitationHook returns '' when no recent reports exist;
+    // we never inject empty noise. designLesson stays the spine; radar only
+    // compiles INTO the lesson when there is something to compile.
+    let _radarCiteBlock = '';
+    try {
+      const _radarLib = require('./lib/research-radar');
+      const _slug = (state && state.slug)
+        || (sequence && sequence[0] && sequence[0].slug)
+        || (topic ? String(topic).toLowerCase().replace(/[^a-z0-9_-]+/g, '-') : '');
+      if (_slug) {
+        const hook = _radarLib.lessonCitationHook(_slug, idx);
+        if (hook && hook.ok && hook.citation_block) _radarCiteBlock = hook.citation_block;
+      }
+    } catch (_) { /* graceful — radar absence must not break lesson generation */ }
+    const _appendix = [_characterContractBlock, _learnPersonaWisdom.block, _lessonBriefBlock, _structurePriorBlock, _pedagogyBlock, _radarCiteBlock].filter(Boolean).join('\n\n');
     // Constitution prepended on top so manuscript register + identity gates
     // outrank the learn-mode prompt — same precedence as classic path.
-    return `${HYPHA_FULL}\n${body}${_appendix ? '\n\n' + _appendix : ''}`;
+    const _learnFinalPrompt = `${HYPHA_FULL}\n${body}${_appendix ? '\n\n' + _appendix : ''}`;
+
+    // 2026-05-16 consolidation — β20 Context Packer observability hook for
+    // learn-mode. Estimates per-block token cost + logs to
+    // vault/<slug>/.context-pack-log.jsonl. v0 is observability only; budget
+    // enforcement / truncation deferred to v0.5+. Fire-and-forget.
+    try {
+      const cp = require('./lib/infrastructure/context-packer');
+      const _slugForPack = (state && state.slug)
+        || (sequence && sequence[0] && sequence[0].slug)
+        || (topic ? String(topic).toLowerCase().replace(/[^a-z0-9_-]+/g, '-') : '');
+      if (_slugForPack && cp && typeof cp.logPackDecision === 'function') {
+        const blocks = [
+          { name: 'constitution',       content: HYPHA_FULL || '' },
+          { name: 'body',               content: body || '' },
+          { name: 'character_contract', content: _characterContractBlock || '' },
+          { name: 'persona_wisdom',     content: (_learnPersonaWisdom && _learnPersonaWisdom.block) || '' },
+          { name: 'lesson_brief',       content: _lessonBriefBlock || '' },
+          { name: 'structure_prior',    content: _structurePriorBlock || '' },
+          { name: 'pedagogy',           content: _pedagogyBlock || '' },
+          { name: 'radar_cite',         content: _radarCiteBlock || '' },
+        ];
+        const decision = {
+          accepted: blocks.map(b => ({
+            name: b.name, included: !!b.content, truncated: false,
+            tokens: cp.estimateTokens(b.content || ''),
+          })),
+          totalTokens: cp.estimateTokens(_learnFinalPrompt),
+          budget: 12000,
+          overBudget: false,
+          warnings: [],
+        };
+        Promise.resolve(cp.logPackDecision({
+          slug: _slugForPack, lessonIdx: Number.isFinite(idx) ? idx : null,
+          budget: 12000, blocks: decision.accepted, decision,
+        })).catch(() => { /* fire-and-forget */ });
+      }
+    } catch (_) { /* context-pack observability optional */ }
+
+    return _learnFinalPrompt;
   }
 
   // v0.9.0 HERMES-style — inject file-based user profile derived from this
@@ -2965,9 +3813,35 @@ async function designLesson({ topic, idx, sequence, sources, state, priorNotes, 
   const _classicCharacterContractBlock = _buildCharacterContractBlock(
     (agentProfile && agentProfile.agent_id) || 'mycelium-professor'
   );
-  const _classicAppendix = [_classicCharacterContractBlock, _classicLessonBriefBlock, _classicStructurePriorBlock, _classicPedagogyBlock].filter(Boolean).join('\n\n');
+  // γ10 (2026-05-15) — distilled persona corpus overlay (classic-mode path).
+  // Parallel to learn-mode injection above. The TUTOR PERSONA block (string
+  // register, hand-authored in personas.js) stays as the in-prompt spine;
+  // this overlay supplies corpus-derived voice priors when a wisdom file is
+  // available. classic-cli pure passthrough path (streamTurn line ~3956
+  // drops the system prompt entirely) does NOT see this overlay — TODO:
+  // when classic-cli regains a structured persona injection path, copy this
+  // wisdom block into the user-msg layer there too.
+  const _classicPersonaWisdom = _buildPersonaWisdomBlock(personaId);
+  if (_classicPersonaWisdom.block) {
+    try {
+      const _vw = require('./lib/vault');
+      const _slugForEvent = (state && state.slug)
+        || (sequence && sequence[0] && sequence[0].slug)
+        || (topic ? String(topic).toLowerCase().replace(/[^a-z0-9_-]+/g, '-') : '');
+      _vw.appendJSONL('events.jsonl', {
+        ts: new Date().toISOString(),
+        op: 'persona_wisdom_injected',
+        slug: _slugForEvent || null,
+        lessonIdx: Number.isFinite(idx) ? idx : null,
+        personaId,
+        wisdom_status: _classicPersonaWisdom.status,
+        mode: 'classic',
+      });
+    } catch (_) { /* events.jsonl write must never break lesson generation */ }
+  }
+  const _classicAppendix = [_classicCharacterContractBlock, _classicPersonaWisdom.block, _classicLessonBriefBlock, _classicStructurePriorBlock, _classicPedagogyBlock].filter(Boolean).join('\n\n');
 
-  return `${HYPHA_FULL}${languageBlock}You are a tutor inside Hypha. You are teaching one specific lesson now.
+  const _classicFinalPrompt = `${HYPHA_FULL}${languageBlock}You are a tutor inside Hypha. You are teaching one specific lesson now.
 
 Your name (as the student knows you): ${tutorDisplayName}. When self-introducing or signing off, use this name; don't reveal the underlying model name unless asked directly.
 
@@ -3029,20 +3903,268 @@ ${p6Active ? `1. **P6 PRIOR-INSTALL** (THIS LESSON'S OPENER MUST INSTALL THE CON
 7. NEVER use the words: AI, LLM, embedding, model, prompt, agent, RAG, vector. You are the teacher, not a tool.
 
 Begin now.${_classicAppendix ? '\n\n' + _classicAppendix : ''}`;
+
+  // 2026-05-16 consolidation — β20 Context Packer observability hook for
+  // classic-mode (parallel to learn-mode at line ~3549). Fire-and-forget log
+  // of per-block token cost. v0 observability only; truncation/budget
+  // enforcement deferred to v0.5+. Slug resolved best-effort.
+  try {
+    const cp = require('./lib/infrastructure/context-packer');
+    const _slugForPack = (state && state.slug)
+      || (sequence && sequence[0] && sequence[0].slug)
+      || (topic ? String(topic).toLowerCase().replace(/[^a-z0-9_-]+/g, '-') : '');
+    if (_slugForPack && cp && typeof cp.logPackDecision === 'function') {
+      const blocks = [
+        { name: 'constitution',       content: HYPHA_FULL || '' },
+        { name: 'language_block',     content: languageBlock || '' },
+        { name: 'character_contract', content: _classicCharacterContractBlock || '' },
+        { name: 'persona_wisdom',     content: (_classicPersonaWisdom && _classicPersonaWisdom.block) || '' },
+        { name: 'lesson_brief',       content: _classicLessonBriefBlock || '' },
+        { name: 'structure_prior',    content: _classicStructurePriorBlock || '' },
+        { name: 'pedagogy',           content: _classicPedagogyBlock || '' },
+      ];
+      const decision = {
+        accepted: blocks.map(b => ({
+          name: b.name, included: !!b.content, truncated: false,
+          tokens: cp.estimateTokens(b.content || ''),
+        })),
+        totalTokens: cp.estimateTokens(_classicFinalPrompt),
+        budget: 12000,
+        overBudget: false,
+        warnings: [],
+      };
+      Promise.resolve(cp.logPackDecision({
+        slug: _slugForPack, lessonIdx: Number.isFinite(idx) ? idx : null,
+        budget: 12000, blocks: decision.accepted, decision,
+      })).catch(() => { /* fire-and-forget */ });
+    }
+  } catch (_) { /* context-pack observability optional */ }
+
+  return _classicFinalPrompt;
 }
 
-async function streamTurn({ systemPrompt, history, userMsg, settings, signal, resumeSessionId, onSessionId }, onChunk) {
+// Machino-α8 (2026-05-15) — Anti-Slop post-stream sequential complaint loop.
+// Wires 3 backend-only detector modules (citation-verifier / pedagogy-claim /
+// confidence-leak) + anti-illusion + Prosecute-Judge-Rewrite over the freeform
+// tutor reply. Runs sequentially after ingratiation scrub (not in chunk path).
+// Result attaches to streamTurn return as `antiSlop`; caller (main.js) decides
+// whether to persist `rewritten` over `cleaned` and emit to renderer.
+// Never throws — all failures are wrapped non-fatal.
+async function _runAntiSlopPostStreamScan({ text, slug, lessonIdx, settings, sourceGrounded, archetype }) {
+  if (!text || typeof text !== 'string' || !text.trim()) return null;
+  try {
+    const citVerifier = require('./lib/anti-slop/citation-verifier');
+    const pedDetector = require('./lib/anti-slop/pedagogy-claim-detector');
+    const confLeak = require('./lib/anti-slop/confidence-leak-detector');
+    const metaphorDetector = require('./lib/anti-slop/metaphor-as-structure-detector');
+    let antiIllusion = null;
+    try { antiIllusion = require('./lib/anti-illusion'); } catch (_) { antiIllusion = null; }
+    const pjr = require('./lib/anti-slop/prosecute-judge-rewrite');
+
+    // Machino-α9 (2026-05-15) — resolve archetype for detector tuning.
+    // Priority: explicit caller param > vault/<slug>/state.json.archetype >
+    // 'TECH-CONCEPT' (strict default). Read-only; never mutates state.json.
+    let resolvedArchetype = (typeof archetype === 'string' && archetype.trim())
+      ? archetype.trim()
+      : null;
+    if (!resolvedArchetype && slug) {
+      try {
+        const vaultMod = require('./lib/vault');
+        const st = vaultMod.readJSON(`${slug}/state.json`, null);
+        if (st && typeof st.archetype === 'string' && st.archetype.trim()) {
+          resolvedArchetype = st.archetype.trim();
+        }
+      } catch (_) { /* state.json unreadable → keep null → strict fallback below */ }
+    }
+    if (!resolvedArchetype) resolvedArchetype = 'TECH-CONCEPT';
+
+    const ctx = { is_source_grounded: !!sourceGrounded, archetype: resolvedArchetype };
+
+    // Sequential — post-stream is not in UI hot path; saves API budget vs parallel race.
+    let citR = null, pedR = null, confR = null, illR = null, metaphorR = null;
+    try { citR = slug ? await citVerifier.verifyCitations(text, slug, { archetype: resolvedArchetype }) : null; }
+    catch (e) { console.warn('[anti-slop post-stream] citation-verifier failed:', e && e.message); }
+    try { pedR = pedDetector.detectPedagogyClaims(text); }
+    catch (e) { console.warn('[anti-slop post-stream] pedagogy-claim-detector failed:', e && e.message); }
+    try { confR = confLeak.detectConfidenceLeaks(text, ctx); }
+    catch (e) { console.warn('[anti-slop post-stream] confidence-leak-detector failed:', e && e.message); }
+    try {
+      if (antiIllusion && typeof antiIllusion.detectIllusion === 'function') {
+        illR = antiIllusion.detectIllusion(text, {});
+      }
+    } catch (e) { console.warn('[anti-slop post-stream] anti-illusion failed:', e && e.message); }
+    // Phase D.0 (2026-05-18) — metaphor-as-structure detector. Council verdict:
+    // metaphor without paired forcing function = entertainment, not transformation.
+    try { metaphorR = metaphorDetector.detectMetaphorAsStructure(text, { archetype: resolvedArchetype }); }
+    catch (e) { console.warn('[anti-slop post-stream] metaphor-as-structure failed:', e && e.message); }
+
+    const signals = {
+      citations: citR && citR.summary,
+      pedagogy: pedR && pedR.summary,
+      confidence: confR && confR.summary,
+      illusion: illR,
+      metaphor: metaphorR && metaphorR.summary,
+    };
+
+    // Surface scan metrics to events.jsonl so UI Trust Panel / future audits
+    // see scan happened even when nothing fired.
+    try {
+      const eventSlug = slug || '_global';
+      events.write(eventSlug, {
+        type: 'anti_slop_post_stream_scan',
+        op: 'anti_slop_post_stream_scan',
+        lesson_slug: slug || null,
+        lesson_idx: Number.isFinite(lessonIdx) ? lessonIdx : null,
+        archetype: resolvedArchetype,
+        cit_unverified: citR && citR.summary ? citR.summary.unverified : 0,
+        cit_no_source: citR && citR.summary ? citR.summary.no_source : 0,
+        cit_unsourced_allowed: citR && citR.summary && Number.isFinite(citR.summary.unsourced_allowed) ? citR.summary.unsourced_allowed : 0,
+        ped_unknown: pedR && pedR.summary ? pedR.summary.unknown : 0,
+        ped_inconsistent: pedR && pedR.summary ? pedR.summary.inconsistent : 0,
+        conf_leak_count: confR && confR.summary ? confR.summary.leak_count : 0,
+        illusion_detected: !!(illR && illR.illusion_detected),
+        illusion_type: illR && illR.illusion_type ? illR.illusion_type : null,
+        metaphor_verdict: metaphorR && metaphorR.summary ? metaphorR.summary.verdict : null,
+        metaphor_count: metaphorR && metaphorR.summary ? metaphorR.summary.metaphor_count : 0,
+        metaphor_unsupported_count: metaphorR && metaphorR.summary ? metaphorR.summary.unsupported_count : 0,
+        metaphor_force_pair_ratio: metaphorR && metaphorR.summary ? metaphorR.summary.force_pair_ratio : 1,
+      });
+    } catch (err) {
+      console.warn('[anti-slop post-stream] scan-event write failed:', err && err.message);
+    }
+
+    // Run Prosecute-Judge-Rewrite freeform path. MVP: math-derived severity +
+    // T6_STRONG rewrite only on mid/high. `pjrResult.rewritten` is null when
+    // nothing needs change OR rewrite was rejected (length guard / LLM err).
+    // Machino-β9 (2026-05-15) — pass archetype so PJR can gate rewriting
+    // (HUMANITIES never rewrites, LANG-ACQ/MINDSET only at 'high' severity).
+    let pjrResult = null;
+    try {
+      pjrResult = await pjr.runProsecuteJudgeOnFreeform({ text, signals, settings, slug, archetype: resolvedArchetype });
+    } catch (err) {
+      console.warn('[anti-slop post-stream] PJR failed:', err && err.message);
+    }
+
+    // β9 — if the archetype gate suppressed a would-be rewrite, emit a
+    // distinct event so the UI knows signals fired but PJR honored archetype.
+    if (pjrResult && pjrResult.verdict && pjrResult.verdict.gated_by_archetype) {
+      try {
+        const eventSlug = slug || '_global';
+        events.write(eventSlug, {
+          type: 'anti_slop_rewrite_gated_by_archetype',
+          op: 'anti_slop_rewrite_gated_by_archetype',
+          lesson_slug: slug || null,
+          lesson_idx: Number.isFinite(lessonIdx) ? lessonIdx : null,
+          severity: pjrResult.verdict.severity,
+          focus_axes: pjrResult.verdict.focus_axes,
+          archetype: pjrResult.verdict.archetype_used || null,
+        });
+      } catch (err) {
+        console.warn('[anti-slop post-stream] gated-event write failed:', err && err.message);
+      }
+    }
+
+    // If a rewrite actually landed, mark it so transcript / downstream see it.
+    if (pjrResult && pjrResult.rewritten) {
+      try {
+        const eventSlug = slug || '_global';
+        events.write(eventSlug, {
+          type: 'anti_slop_rewrite_applied',
+          op: 'anti_slop_rewrite_applied',
+          lesson_slug: slug || null,
+          lesson_idx: Number.isFinite(lessonIdx) ? lessonIdx : null,
+          severity: pjrResult.verdict && pjrResult.verdict.severity,
+          focus_axes: pjrResult.verdict && pjrResult.verdict.focus_axes,
+          archetype: (pjrResult.verdict && pjrResult.verdict.archetype_used) || resolvedArchetype || null,
+          provider: pjrResult.provider || null,
+          model: pjrResult.model || null,
+        });
+      } catch (err) {
+        console.warn('[anti-slop post-stream] rewrite-event write failed:', err && err.message);
+      }
+    }
+
+    return {
+      signals,
+      verdict: pjrResult && pjrResult.verdict,
+      rewritten: pjrResult && pjrResult.rewritten,
+      rewrite_skipped_reason: pjrResult && pjrResult.rewrite_skipped_reason,
+      rewrite_error: pjrResult && pjrResult.rewrite_error,
+    };
+  } catch (err) {
+    console.warn('[anti-slop post-stream] outer failure (non-fatal):', err && err.message);
+    return null;
+  }
+}
+
+async function streamTurn({ systemPrompt, history, userMsg, settings, signal, resumeSessionId, onSessionId, currentLesson, goalContract, slug, lessonIdx, archetype }, onChunk) {
   // 2026-05-05 (Appendix D) — claude-cli session continuity. When
   // resumeSessionId is set, the model has its own history via --resume; we
   // skip transcript replay and send ONLY the current user message. Approaches
   // native Terminal `claude` experience.
   const isResumePath = !!resumeSessionId;
+
+  // W2.3 Goal Guardian + Affective Router. Scan the current user turn
+  // (cheap regex, <1ms, no network) + last 2 user turns from history. When
+  // a non-on_track state fires, prepend an italic Garamond modifier to the
+  // system prompt so THIS reply (tutor's response to the user's message)
+  // adopts the gentler tone / lower difficulty. State row is best-effort
+  // appended to events.jsonl by the IPC handler — agent.js path swallows
+  // failures silently so guardian never breaks the tutor stream.
+  let _guardianAmendedSystem = systemPrompt;
+  try {
+    if (userMsg && userMsg !== '__begin__') {
+      const router = require('./lib/affective-router');
+      const guardian = require('./lib/goal-guardian');
+      const recentUserHistory = (history || []).filter(h => h && h.role === 'user').slice(-2).map(h => ({ role: 'user', text: h.content || '' }));
+      const recentTurns = [...recentUserHistory, { role: 'user', text: userMsg }];
+      const state = guardian.assessGuardianState({
+        userTrace: { recentTurns },
+        goalContract: goalContract || null,
+        currentLesson: currentLesson || null,
+        slug, lessonIdx,
+      });
+      if (state && state.state && state.state !== 'on_track') {
+        const intervention = guardian.decideIntervention(state.state, currentLesson || null);
+        if (intervention && intervention.prompt_modifier) {
+          _guardianAmendedSystem = `${systemPrompt}\n\n[GUARDIAN ${state.state.toUpperCase()} · diff=${intervention.difficulty_adjust}]\n${intervention.prompt_modifier}`;
+          try {
+            const _vaultMod = require('./lib/vault');
+            _vaultMod.appendJSONL('events.jsonl', { ts: new Date().toISOString(), op: 'guardian_prompt_injected', slug: slug || null, lesson_idx: Number.isFinite(lessonIdx) ? lessonIdx : null, state: state.state, signals: (state.affect && state.affect.signals) || [], guardian_action: state.guardian_action, difficulty_adjust: intervention.difficulty_adjust });
+          } catch (_) {}
+        }
+      }
+    }
+  } catch (_) { /* guardian failure must never break tutor stream */ }
+
+  // 2026-05-16 consolidation — Privacy Memory scrub pass on userMsg + history
+  // BEFORE messages leave Hypha boundary. Redactions live at vault/data/
+  // privacy-memory.jsonl (global, not per-slug). _scrubOne is best-effort: if
+  // the privacy module errors or has no rows, original text passes through.
+  // Streamed reply (model → user) NOT scrubbed here — that's anti-ingratiation
+  // territory. This boundary protects only outbound user-authored text.
+  const _scrubOne = async (text) => {
+    if (typeof text !== 'string' || !text.length) return text;
+    try {
+      const pm = require('./lib/infrastructure/privacy-memory');
+      const r = await pm.scrubText({ text });
+      if (r && r.ok && typeof r.scrubbed === 'string') return r.scrubbed;
+    } catch (_) { /* swallow; never break tutor stream */ }
+    return text;
+  };
+
   const messages = [];
   if (!isResumePath) {
-    messages.push({ role: 'system', content: systemPrompt });
-    for (const h of (history || [])) messages.push({ role: h.role, content: h.content });
+    messages.push({ role: 'system', content: _guardianAmendedSystem });
+    for (const h of (history || [])) {
+      const scrubbedContent = h && h.role === 'user' ? await _scrubOne(h.content) : h.content;
+      messages.push({ role: h.role, content: scrubbedContent });
+    }
   }
-  if (userMsg && userMsg !== '__begin__') messages.push({ role: 'user', content: userMsg });
+  if (userMsg && userMsg !== '__begin__') {
+    const scrubbedUserMsg = await _scrubOne(userMsg);
+    messages.push({ role: 'user', content: scrubbedUserMsg });
+  }
   else if (!isResumePath) messages.push({ role: 'user', content: '[Lesson start. Begin with your first question.]' });
 
   // 2026-05-02 — accumulate the full reply transparently so we can run
@@ -3052,6 +4174,82 @@ async function streamTurn({ systemPrompt, history, userMsg, settings, signal, re
   const _wrappedOnChunk = (text) => {
     _accumulated += text;
     onChunk(text);
+  };
+  // 2026-05-14 (Audit-B fix) — ingratiation scrub captured here so streamTurn
+  // can return { cleaned, violations } to caller. Caller persists `cleaned`
+  // into vault/<slug>/sessions/L<idx>-<ts>.jsonl assistant turn. Streamed
+  // chunks (renderer) still see uncleaned text — real-time chunk-level scrub
+  // deferred to v0.4 (SSE protocol change). Until then: post-stream transcript
+  // + downstream consumers (confession / extract-from-lesson / re-stream
+  // prompts) see the clean version.
+  let _scrubResult = { clean_text: '', violations: [] };
+  const _runIngratiationScan = () => {
+    _scrubResult = _detectAndLogIngratiation(_accumulated, settings, { context: 'tutor_turn', lesson_slug: slug, lesson_idx: lessonIdx })
+      || { clean_text: _accumulated, violations: [] };
+  };
+
+  // Machino-α8 (2026-05-15) — post-stream anti-slop scan + PJR loop. Runs once
+  // per turn after ingratiation scrub completes. Result attaches to streamTurn
+  // return so the caller can persist `rewritten` text into transcript / emit
+  // `anti-slop:scan-complete` to renderer. Never throws.
+  let _antiSlopResult = null;
+  const _runAntiSlopScan = async () => {
+    const baseText = (_scrubResult && _scrubResult.clean_text) || _accumulated;
+    if (!baseText || !baseText.trim()) { _antiSlopResult = null; return; }
+    _antiSlopResult = await _runAntiSlopPostStreamScan({
+      text: baseText,
+      slug,
+      lessonIdx,
+      settings,
+      // is_source_grounded — let confidence-leak relax assertive penalties when
+      // the curriculum has user-supplied sources.json (course context).
+      sourceGrounded: !!slug,
+      // β9 (2026-05-15) — archetype routes PJR rewrite gate: HUMANITIES never
+      // rewrites, LANG-ACQ/MINDSET only at 'high' severity; tech/decl-mass strict.
+      archetype,
+    });
+  };
+
+  // P10 (boot-4, 2026-05-19) — Companion emotion-tone bridge. Composes W3.5
+  // 6-trigger schema with rolling emotion-state classifier. Suppression matrix:
+  // BOUNDARY_PROTECT + lesson_complete/product_spark_sprout → silent. Escalation
+  // matrix: BOUNDARY + interrupt_resume → over_grind. Fires only when this turn
+  // looks like an interrupt-resume (user came back to an in-progress lesson —
+  // history has prior turns AND userMsg is real AND not the synthetic __begin__).
+  // Other W3.5 triggers (lesson_complete / finish_capture / product_spark_sprout /
+  // note_revival) fire from main.js paths, NOT streamTurn — keeps Lens 9 SURGICAL.
+  // Graceful fallback: bridge throws OR returns !ok → companionExpression = null,
+  // never breaks the tutor stream.
+  let _companionExpression = null;
+  const _runCompanionCompose = async () => {
+    try {
+      if (!userMsg || userMsg === '__begin__') return;
+      const priorAssistantTurns = (history || []).filter(h => h && h.role === 'assistant').length;
+      if (priorAssistantTurns <= 0) return;
+      const bridge = require('./lib/companion/emotion-tone-bridge');
+      const recentUserQuestions = (history || []).filter(h => h && h.role === 'user').map(h => h.content || '');
+      const verdict = await bridge.composeExpression({
+        trigger: 'interrupt_resume',
+        sessionContext: {
+          currentText: userMsg,
+          recentQuestions: recentUserQuestions,
+          turnCount: (history || []).length,
+        },
+      });
+      if (!verdict || verdict.ok !== true) return;
+      _companionExpression = {
+        suppressed: !!verdict.suppressed,
+        effective_trigger: verdict.effective_trigger || null,
+        emotion: verdict.emotion || null,
+        emotion_signal: verdict.emotion_signal || null,
+        register: (verdict.bias && verdict.bias.register) || null,
+        expression: verdict.suppressed ? null : (verdict.expression || null),
+        reason: verdict.reason || null,
+      };
+    } catch (err) {
+      console.warn('[streamTurn] companion compose failed (non-fatal):', err && err.message);
+      _companionExpression = null;
+    }
   };
 
   // 2026-05-02 — Anthropic SDK direct branch. Cleanest Opus output;
@@ -3065,10 +4263,12 @@ async function streamTurn({ systemPrompt, history, userMsg, settings, signal, re
       throw err;
     } finally {
       _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
-      _detectAndLogIngratiation(_accumulated, settings, { context: 'tutor_turn' });
+      _runIngratiationScan();
       _logMethodTag(_accumulated, settings, { context: 'tutor_turn' });
     }
-    return;
+    await _runAntiSlopScan();
+    await _runCompanionCompose();
+    return { accumulated: _accumulated, cleaned: _scrubResult.clean_text || _accumulated, violations: _scrubResult.violations || [], antiSlop: _antiSlopResult, companion: _companionExpression };
   }
 
   // CLI provider branch — Claude Max / Gemini CLI shell-out streaming.
@@ -3083,6 +4283,31 @@ async function streamTurn({ systemPrompt, history, userMsg, settings, signal, re
     const _cliCfgForPure = _resolveProviderConfig(settings);
     const _isClaudeCli = !!(_cliCfgForPure && _cliCfgForPure.binary
       && /^claude(\b|-)/i.test(_cliCfgForPure.binary));
+
+    // 2026-05-16 consolidation — cliPureMode strips the system prompt, which
+    // discards the PERSONA WISDOM block. Extract that block from the system
+    // prompt and prepend it to the first user message so claude-cli still
+    // sees the distilled corpus register. Resume turns (resumeSessionId set)
+    // skip this — the wisdom has already been injected on the lesson-open
+    // turn and persisted in claude-cli's --resume history.
+    if (_isClaudeCli && !isResumePath && Array.isArray(messages)) {
+      try {
+        const wisdomMatch = _guardianAmendedSystem.match(
+          /=== PERSONA WISDOM[\s\S]*?=== END PERSONA WISDOM ===/
+        );
+        if (wisdomMatch) {
+          const wisdomBlock = wisdomMatch[0];
+          const firstUserIdx = messages.findIndex(m => m && m.role === 'user');
+          if (firstUserIdx >= 0) {
+            messages[firstUserIdx] = {
+              role: 'user',
+              content: `${wisdomBlock}\n\n${messages[firstUserIdx].content || ''}`,
+            };
+          }
+        }
+      } catch (_) { /* wisdom injection optional; never break CLI path */ }
+    }
+
     try {
       await _runCliStream(messages, settings, _wrappedOnChunk, {
         signal,
@@ -3095,10 +4320,12 @@ async function streamTurn({ systemPrompt, history, userMsg, settings, signal, re
       throw err;
     } finally {
       _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
-      _detectAndLogIngratiation(_accumulated, settings, { context: 'tutor_turn' });
+      _runIngratiationScan();
       _logMethodTag(_accumulated, settings, { context: 'tutor_turn' });
     }
-    return;
+    await _runAntiSlopScan();
+    await _runCompanionCompose();
+    return { accumulated: _accumulated, cleaned: _scrubResult.clean_text || _accumulated, violations: _scrubResult.violations || [], antiSlop: _antiSlopResult, companion: _companionExpression };
   }
 
   const c = client(settings);
@@ -3160,17 +4387,20 @@ async function streamTurn({ systemPrompt, history, userMsg, settings, signal, re
     } catch (err) {
       console.error('[streamTurn] non-streaming fallback also failed:', err && err.message);
       _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
-      _detectAndLogIngratiation(_accumulated, settings, { context: 'tutor_turn' });
+      _runIngratiationScan();
       _logMethodTag(_accumulated, settings, { context: 'tutor_turn' });
       throw err;
     }
   } else if (lastError) {
     _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
-    _detectAndLogIngratiation(_accumulated, settings, { context: 'tutor_turn' });
+    _runIngratiationScan();
     throw lastError;
   }
   _detectAndLogPersonaLeak(_accumulated, settings, { context: 'tutor_turn' });
-  _detectAndLogIngratiation(_accumulated, settings, { context: 'tutor_turn' });
+  _runIngratiationScan();
+  await _runAntiSlopScan();
+  await _runCompanionCompose();
+  return { accumulated: _accumulated, cleaned: _scrubResult.clean_text || _accumulated, violations: _scrubResult.violations || [], antiSlop: _antiSlopResult, companion: _companionExpression };
 }
 
 async function synthesizeNote({ topic, idx, transcript, sources, sequence, mode, priorBody }, settings) {
@@ -3834,7 +5064,39 @@ duration_weeks should track lessons_count proportionally: ~7 lessons/week at mod
 ═══════════════════════════════════════════════════════════
 `;
 
-  const sys = `${HYPHA_FULL}${profileBlock}You design a LEARNING CHAIN of 3-8 topics that bridges the student from their current state to an ambitious learning goal. Use the STUDENT PROFILE block above (if present) to set the chain's starting point — if the student already has experience the chain would normally start from, COMPRESS or DROP those prerequisite links. Output JSON: { "links": [{ "topic": string, "duration_weeks": float, "lessons_count": int, "role": "prerequisite"|"core"|"ultimate", "rationale": string, "exit_criterion": string }], "warning": string|null, "alternatives": { "extend_time_to_weeks": int|null, "lower_target_to": string|null } }.${lessonsCountGuide}
+  // Phase C (2026-05-17) — 5-axis output targets per chain link. Without an
+  // explicit per-axis cumulative target the chain shows total weeks/lessons
+  // but says nothing about WHAT the user will have produced/practiced/read/
+  // reflected on. archetype-aware: HUMANITIES gets all 5; TECH-CONCEPT/TECH-
+  // PROC drop "read"; LANG-ACQ/DECL-MASS/MINDSET keep only learn+practice.
+  // See `app/lib/lifetime-ledger/axes.js` for canonical mapping.
+  const { ARCHETYPE_AXIS_SET: _AXIS_SET, ARCHETYPE_UNIT_HINTS: _AXIS_HINTS } = require('./lib/lifetime-ledger/axes');
+  const axisSet = _AXIS_SET[archetype] || ['learn', 'practice'];
+  const axisHints = _AXIS_HINTS[archetype] || { learn: '概念', practice: '小时' };
+  const axisHintLine = axisSet.map(a => `${a}:${axisHints[a] || '?'}`).join(' / ');
+  const axisGuide = `
+═══ 5-AXIS OUTPUT TARGETS (binding for archetype=${archetype || 'unknown'}) ═══
+Each link MUST include "output_targets" array with these axes ONLY: ${axisSet.join(', ')}.
+Per-axis unit hints: ${axisHintLine}
+Count = honest cumulative target for that link's duration_weeks (! random, anchor on benchmark people if possible).
+
+Example for HUMANITIES (e.g. 诺奖文学 link "20世纪现代主义诗学" 12 weeks):
+  "output_targets": [
+    {"axis":"learn","unit":"流派","count":8},
+    {"axis":"practice","unit":"精读片段","count":120},
+    {"axis":"produce","unit":"札记","count":30},
+    {"axis":"read","unit":"本","count":35},
+    {"axis":"reflect","unit":"论辩往返","count":10}
+  ],
+  "frontier_axis_p50": {"learn":8,"practice":100,"produce":25,"read":30,"reflect":8}
+
+Also include "frontier_axis_p50": {[axis]: number} — your honest p50 estimate
+based on what an actual benchmark person (compared to user's goal) would log
+in this stage. If you don't know, set field to null. ! 编 false numbers.
+═══════════════════════════════════════════════════
+`;
+
+  const sys = `${HYPHA_FULL}${profileBlock}You design a LEARNING CHAIN of 3-8 topics that bridges the student from their current state to an ambitious learning goal. Use the STUDENT PROFILE block above (if present) to set the chain's starting point — if the student already has experience the chain would normally start from, COMPRESS or DROP those prerequisite links. Output JSON: { "links": [{ "topic": string, "duration_weeks": float, "lessons_count": int, "role": "prerequisite"|"core"|"ultimate", "rationale": string, "exit_criterion": string, "output_targets": Axis[], "frontier_axis_p50": object | null }], "warning": string|null, "alternatives": { "extend_time_to_weeks": int|null, "lower_target_to": string|null } }.${lessonsCountGuide}${axisGuide}
 
 ${langInstruction}
 
@@ -4002,6 +5264,35 @@ Return JSON now.`;
     };
   }
 
+  // 2026-05-17 Phase C Gap 2 — frontier_axis_p50 LLM hallucination
+  // validator. If LLM-reported p50 differs > 3x (either direction) from
+  // its own output_targets count on the same axis, flag quality_warning
+  // 'axis_p50_unanchored'. Surfaces to UI as gray "数值参考" hint without
+  // blocking the chain. ! filter — keeps row, just signals uncertainty.
+  const _auditAxisP50 = (links) => {
+    const out = [];
+    (links || []).forEach((l, i) => {
+      const p50 = l && l.frontier_axis_p50;
+      const targets = Array.isArray(l && l.output_targets) ? l.output_targets : [];
+      if (!p50 || typeof p50 !== 'object' || targets.length === 0) return;
+      for (const t of targets) {
+        if (!t || typeof t.axis !== 'string') continue;
+        const tCount = Number(t.count);
+        const pVal = Number(p50[t.axis]);
+        if (!Number.isFinite(tCount) || tCount <= 0) continue;
+        if (!Number.isFinite(pVal) || pVal <= 0) continue;
+        const r = pVal / tCount;
+        // MEOW MID 2026-05-17 — tightened 3x → 2.5x to catch HUMANITIES
+        // chains where LLM target is 2-3x stricter than its own benchmark
+        // estimate (most common drift mode); 3x missed ~40% of real cases.
+        if (r > 2.5 || r < 1 / 2.5) {
+          out.push({ link_idx: i, axis: t.axis, target_count: tCount, p50_value: pVal, ratio: Number(r.toFixed(2)) });
+        }
+      }
+    });
+    return out;
+  };
+
   // Audit + regenerate-once if violations.
   let violations = _auditChain(parsed.links);
   if (violations.length > 0) {
@@ -4027,11 +5318,15 @@ These are NOT knowledge bodies — they are habit/schedule/tool-config tasks. Ea
     } catch (_) { /* regenerate failed; ship original with warnings */ }
   }
 
+  // Gap 2 — collect axis_p50 anchor mismatches (non-blocking).
+  const axisP50Issues = _auditAxisP50(parsed.links);
+
   return {
     links: Array.isArray(parsed.links) ? parsed.links : [],
     warning: parsed.warning || null,
     alternatives: parsed.alternatives || null,
     quality_warnings: violations.length > 0 ? violations : null,
+    axis_p50_warnings: axisP50Issues.length > 0 ? axisP50Issues : null,
   };
 }
 
@@ -4285,37 +5580,126 @@ function tierMultiplier(tier) {
   return 1.0; // moderate / unknown
 }
 
+// deriveLessonTarget — 2026-05-13 user pushback iteration 2:
+//   v1 (earlier today): intent + breadth bands, fixed 35 removed
+//   v2 (now): "100 天给 38 节什么意思, 至少一天一节" — TIME IS THE FLOOR.
+//   When user commits N days, lesson count ≥ N. Intent scales density UP from
+//   that floor, never below.
+//
+// Decision hierarchy:
+//   1. explicit customLessons (1-200) → verbatim (advanced override, ignores other signals)
+//   2. days available (from deadline date OR explicit days OR timeCommit enum)
+//      → lessons = days × intent_density (floor ≥ 1.0)
+//   3. neither → intent + breadth base (small numbers, 9-38)
+//
+// Intent density (≥ 1.0 floor per user 2026-05-13 "至少一天一节"):
+//   考研: 1.5× days  (cram intensity)
+//   论文: 1.2× days  (rigorous depth)
+//   兴趣: 1.0× days  (1 lesson per day — the floor)
+//   复盘: 1.0× days  (compression, still 1 per day)
+//
+// Topic-breadth bonus (only applies to no-days fallback path):
+//   broad: 1.4× / normal: 1.2× / focused: 1.0× (applied to intent-base, not to days path)
+//
+// Days resolution priority: days (number) > deadline date diff > timeCommit enum
+//   timeCommit enum → days: week=7, month=30, two-month=60, quarter=90, open=180
+function deriveLessonTarget({ timeCommit, customLessons, user_intent, topic, days, deadline }) {
+  const cn = Number(customLessons);
+  if (Number.isFinite(cn) && cn >= 1 && cn <= 200) {
+    return { target: Math.round(cn), reasoning: `custom=${cn}` };
+  }
+
+  // Resolve effective days from any of 3 inputs (priority order)
+  let daysEffective = null;
+  let daysSource = null;
+  const dn = Number(days);
+  if (Number.isFinite(dn) && dn >= 1 && dn <= 730) {
+    daysEffective = Math.round(dn);
+    daysSource = 'explicit-days';
+  }
+  if (!daysEffective && deadline) {
+    try {
+      const dateMs = Date.parse(deadline);
+      if (Number.isFinite(dateMs)) {
+        const diff = Math.ceil((dateMs - Date.now()) / (24 * 3600 * 1000));
+        if (diff >= 1 && diff <= 730) {
+          daysEffective = diff;
+          daysSource = `deadline(${deadline})`;
+        }
+      }
+    } catch (_) {}
+  }
+  if (!daysEffective && timeCommit) {
+    const ENUM_DAYS = { week: 7, month: 30, 'two-month': 60, quarter: 90, open: 180, 'open-ended': 180 };
+    if (ENUM_DAYS[timeCommit]) {
+      daysEffective = ENUM_DAYS[timeCommit];
+      daysSource = `timeCommit=${timeCommit}`;
+    }
+  }
+
+  const intent = (typeof user_intent === 'string' && user_intent.trim()) ? user_intent.trim() : '兴趣';
+
+  // PATH A — days available: lessons = days × intent_density (floor 1.0)
+  if (daysEffective) {
+    const INTENT_DENSITY = { '考研': 1.5, '论文': 1.2, '兴趣': 1.0, '复盘': 1.0 };
+    const density = INTENT_DENSITY[intent] || 1.0;
+    const target = Math.round(daysEffective * density);
+    return {
+      target: Math.max(2, Math.min(200, target)),
+      reasoning: `days=${daysEffective}(${daysSource}) × intent=${intent}/${density} = ${target}`,
+    };
+  }
+
+  // PATH B — no days info: fall back to intent + breadth base
+  const t = String(topic || '').trim();
+  const BROAD_RE = /(史|哲学|概览|入门|overview|introduction|全集|大全|总论|社会|经济|文化|历史)/i;
+  const isBroad = BROAD_RE.test(t) || t.length >= 8;
+  const isFocused = t.length > 0 && t.length <= 4 && !isBroad;
+  const breadth = isBroad ? 'broad' : (isFocused ? 'focused' : 'normal');
+
+  const INTENT_BASE = {
+    '考研':  { focused: 12, normal: 22, broad: 38 },
+    '论文':  { focused:  6, normal: 10, broad: 18 },
+    '兴趣':  { focused:  5, normal:  9, broad: 14 },
+    '复盘':  { focused:  3, normal:  5, broad:  8 },
+  };
+  const base = INTENT_BASE[intent] || INTENT_BASE['兴趣'];
+  const target = Math.max(2, Math.min(60, base[breadth]));
+  return {
+    target,
+    reasoning: `no-time-given/intent=${intent}/breadth=${breadth}/base=${base[breadth]} → ${target}`,
+  };
+}
+
 // computePhaseLessonCounts — distribute target total across phases by weight.
 //
-// Total mapping (depth-first; user pushed back on shallow counts 2026-05-01):
-//   week        →   6   (curiosity dive)
-//   month       →  35   (working understanding)
-//   two-month   →  70   (substantial)
-//   quarter     → 100   (deep traversal — bachelor-foundation territory)
-//   open        → 100   (default to deep)
-//   custom      → customLessons (clamped to 1-200)
-//
-// v0.6.0 — `tier` (gentle/moderate/heroic) modulates the base target by
-// 0.6/1.0/1.6×. Multiplier applies AFTER the time-commit base so a 'heroic'
-// month curriculum yields ~56 lessons instead of 35; 'gentle' month → ~21.
+// 2026-05-13: Total derivation replaced with deriveLessonTarget() which respects
+// user_intent (考研/论文/兴趣/复盘) + topic breadth heuristic. Fixed-35 default
+// removed per user feedback "固定 35 没意思". timeCommit + tier still honored as
+// modifiers when explicitly set.
 //
 // Largest-remainder method: floor(weight × target), then distribute leftover
 // to phases with largest fractional parts. Min 1 lesson per phase enforced.
-function computePhaseLessonCounts(phases, timeCommit, customLessons, tier) {
-  const TOTAL_BY_TIME = {
-    week: 6, month: 35, 'two-month': 70, quarter: 100, open: 100,
-  };
+function computePhaseLessonCounts(phases, timeCommit, customLessons, tier, opts) {
+  opts = opts || {};
+  // R3 2026-05-13 — when caller has already resolved the authoritative total
+  // (via resolveLessonShape), skip deriveLessonTarget + tier so the weight
+  // distributor honors the resolved figure exactly. Tier multiplier is the
+  // caller's responsibility in that path (resolveLessonShape doesn't apply it).
   let target;
-  const cn = Number(customLessons);
-  if (Number.isFinite(cn) && cn >= 1 && cn <= 200) {
-    target = Math.round(cn);
+  if (Number.isFinite(opts.totalOverride) && opts.totalOverride > 0) {
+    target = Math.round(opts.totalOverride);
   } else {
-    target = TOTAL_BY_TIME[timeCommit] || 35;
+    const derivation = deriveLessonTarget({
+      timeCommit,
+      customLessons,
+      user_intent: opts.user_intent,
+      topic: opts.topic,
+      deadline: opts.deadline,
+      days: opts.days,
+    });
+    target = Math.round(derivation.target * tierMultiplier(tier));
   }
-  // Apply tier multiplier (v0.6.0). Round AFTER multiply so distribution
-  // operates on a single integer target. Min phases.length still enforced
-  // below — gentle tier on a tiny phase template won't drop below 1/phase.
-  target = Math.round(target * tierMultiplier(tier));
   if (target < phases.length) target = phases.length; // ≥1 per phase
 
   let weights = phases.map(p => {
@@ -4353,6 +5737,225 @@ function computePhaseLessonCounts(phases, timeCommit, customLessons, tier) {
     }
   }
   return counts;
+}
+
+// resolveLessonShape — 2026-05-13 R3 dynamic lessonSplit integration.
+//
+// Returns the authoritative `{ totalLessons, perSlotKpTargets, source, reject }`
+// shape decision for a curriculum, reconciling 3 signals:
+//
+//   1. customLessons override (1-200)     → verbatim, source='custom-override'
+//   2. lessonSplit(kp_density, intent)    → primary signal, source='kp-density'
+//   3. deriveLessonTarget(time-floor)     → floor; max(floor, kp_density)
+//
+// `kpCandidateCount` should be the post-harvest KP candidate proxy
+// (structureAnchor.lectureSequence.length when anchor present; null otherwise).
+// When null, lessonSplit is skipped and we fall back to deriveLessonTarget alone
+// (source='time-floor' or 'intent-base' depending on whether days are known).
+//
+// When lessonSplit returns reject (kpCount ≥ 27 — Miller cap blown), we emit a
+// reject marker so designSeed/designSkeletonOnly can raise `topic_too_broad`.
+//
+// `perSlotKpTargets` is ALWAYS sum == lessonSplit's intended KP budget when
+// available; when finalLessons > lessonSplit.n_lessons, the per-slot budget is
+// proportionally re-distributed across the larger lesson count (each slot may
+// fall to 1-2 KP — that's the truthful answer for sparse-density topics).
+//
+// R3.1 (2026-05-13) — intent-density skew. lessonSplit is intent-AGNOSTIC by
+// design (locked pure function). Post-process its [target_counts] using a
+// per-intent target KP/lesson density: 考研 8.5 / 论文 7 / 兴趣 5.5 / 复盘 5.
+// Skew fires only when |density_ratio − 1| > 0.15 (≥15% drift), preserving
+// disjoint-threshold reject path and time-floor priority. Each slot stays in
+// Miller [3,9]. Skew operates on lessonSplit's signal BEFORE time-floor
+// reconciliation, so daysFloor still wins when it's larger.
+
+// INTENT_DENSITY_TARGET — per-intent median KP/lesson density used to skew
+// lessonSplit's intent-agnostic [target_counts] toward learner mode. Numbers
+// are pedagogical priors (考研 wants dense, 复盘 wants sparse), not data-fit.
+const INTENT_DENSITY_TARGET = Object.freeze({
+  '考研': 8.5,
+  '论文': 7,
+  '兴趣': 5.5,
+  '复盘': 5,
+});
+const INTENT_SKEW_DEAD_BAND = 0.15;       // |ratio − 1| ≤ this → no skew
+const INTENT_SKEW_SLOT_MIN = 3;            // Miller working-memory floor
+const INTENT_SKEW_SLOT_MAX = 9;            // Miller working-memory ceiling
+
+// applyIntentDensitySkew — pure transform over lessonSplit's
+// { n_lessons, target_counts } given a userIntent. Returns new
+// { n_lessons, target_counts, skewed, density_before, density_after,
+//   density_target } shape. Total KP sum is preserved via largest-remainder
+// even-distribute when re-binning. No-op (skewed=false) when intent unknown,
+// total KP < INTENT_SKEW_SLOT_MIN * 2 (can't split into ≥2 valid slots), or
+// density already inside ±15% of target.
+function applyIntentDensitySkew(splitTargetCounts, userIntent) {
+  const intent = (typeof userIntent === 'string' && userIntent.trim()) ? userIntent.trim() : null;
+  const target = intent && INTENT_DENSITY_TARGET[intent];
+  if (!target || !Array.isArray(splitTargetCounts) || splitTargetCounts.length === 0) {
+    return { n_lessons: (splitTargetCounts || []).length, target_counts: (splitTargetCounts || []).slice(),
+      skewed: false, density_before: null, density_after: null, density_target: target || null };
+  }
+  // Density signal = first-slot KP (the same proxy the task spec uses).
+  const densityBefore = splitTargetCounts[0];
+  const ratio = densityBefore / target;
+  // Dead band: drift < 15% → keep lessonSplit's output verbatim.
+  if (Math.abs(ratio - 1) <= INTENT_SKEW_DEAD_BAND) {
+    return { n_lessons: splitTargetCounts.length, target_counts: splitTargetCounts.slice(),
+      skewed: false, density_before: densityBefore, density_after: densityBefore, density_target: target };
+  }
+  // Re-bin total KP at target density. Clamp slot count so each slot stays in
+  // Miller [3,9] — if KP is too small to make ≥2 valid slots at this target,
+  // bail (skew can't help; fall back to lessonSplit's output).
+  const totalKp = splitTargetCounts.reduce((a, b) => a + b, 0);
+  const minSlots = Math.max(1, Math.ceil(totalKp / INTENT_SKEW_SLOT_MAX));
+  const maxSlots = Math.max(1, Math.floor(totalKp / INTENT_SKEW_SLOT_MIN));
+  if (maxSlots < minSlots) {
+    return { n_lessons: splitTargetCounts.length, target_counts: splitTargetCounts.slice(),
+      skewed: false, density_before: densityBefore, density_after: densityBefore, density_target: target };
+  }
+  let newN = Math.round(totalKp / target);
+  if (newN < minSlots) newN = minSlots;
+  if (newN > maxSlots) newN = maxSlots;
+  if (newN === splitTargetCounts.length) {
+    return { n_lessons: splitTargetCounts.length, target_counts: splitTargetCounts.slice(),
+      skewed: false, density_before: densityBefore, density_after: densityBefore, density_target: target };
+  }
+  // Largest-remainder distribute totalKp across newN slots, each in [3,9].
+  const base = Math.floor(totalKp / newN);
+  const remainder = totalKp % newN;
+  const newCounts = [];
+  for (let i = 0; i < newN; i++) {
+    newCounts.push(Math.min(INTENT_SKEW_SLOT_MAX,
+      Math.max(INTENT_SKEW_SLOT_MIN, base + (i < remainder ? 1 : 0))));
+  }
+  return {
+    n_lessons: newN,
+    target_counts: newCounts,
+    skewed: true,
+    density_before: densityBefore,
+    density_after: newCounts[0],
+    density_target: target,
+  };
+}
+function resolveLessonShape({ kpCandidateCount, userIntent, timeCommit, customLessons, deadline, days, topic, phaseCount }) {
+  // Hard override: customLessons skips both signals.
+  const cn = Number(customLessons);
+  if (Number.isFinite(cn) && cn >= 1 && cn <= 200) {
+    return {
+      totalLessons: Math.round(cn),
+      source: 'custom-override',
+      perSlotKpTargets: null,        // unknown; caller can synthesize from lessonSplit if it ran independently
+      lessonSplit: null,
+      daysFloor: null,
+      reject: null,
+    };
+  }
+
+  // Probe lessonSplit only when we have a real KP candidate count to ground it.
+  // Pure-fallback designSeed (no anchor) can pass null → we skip lessonSplit.
+  const haveKpProbe = Number.isFinite(kpCandidateCount) && kpCandidateCount > 0;
+  const splitRaw = haveKpProbe ? lessonSplit(kpCandidateCount, userIntent) : null;
+  if (splitRaw && splitRaw.reject) {
+    // R3.1 — preserve disjoint-threshold reject path (KP ≥ 27). No skew.
+    return {
+      totalLessons: 0,
+      source: 'reject',
+      perSlotKpTargets: null,
+      lessonSplit: splitRaw,
+      daysFloor: null,
+      reject: splitRaw.reject,
+    };
+  }
+
+  // R3.1 post-process — intent-density skew. lessonSplit is intent-agnostic;
+  // we redistribute its target_counts toward the user_intent's KP/lesson
+  // median (考研 dense / 复盘 sparse) while preserving total KP. Runs BEFORE
+  // time-floor reconciliation so the floor-vs-density comparison uses the
+  // skewed kp-density signal.
+  const skew = splitRaw
+    ? applyIntentDensitySkew(splitRaw.target_counts, userIntent)
+    : { skewed: false, n_lessons: 0, target_counts: [], density_before: null, density_after: null, density_target: null };
+  const split = splitRaw ? {
+    ...splitRaw,
+    n_lessons: skew.skewed ? skew.n_lessons : splitRaw.n_lessons,
+    target_counts: skew.skewed ? skew.target_counts.slice() : splitRaw.target_counts.slice(),
+    intent_skew: {
+      applied: skew.skewed,
+      density_before: skew.density_before,
+      density_after: skew.density_after,
+      density_target: skew.density_target,
+      n_lessons_before: splitRaw.n_lessons,
+      n_lessons_after: skew.skewed ? skew.n_lessons : splitRaw.n_lessons,
+      target_counts_before: splitRaw.target_counts.slice(),
+    },
+  } : null;
+
+  // Detect whether the caller actually committed to a time horizon. ONLY then
+  // does the day-floor apply (user 2026-05-13 "100 天 → ≥100 lessons 至少一天一节").
+  // Without a time anchor, kp-density is the only signal — we don't let the
+  // intent-base fallback inside deriveLessonTarget inflate the count past
+  // what KP density supports (would re-create v2 "100 天给 38 节" inversion
+  // in the no-time case).
+  const hasTimeAnchor = (
+    (Number.isFinite(Number(days)) && Number(days) >= 1) ||
+    (deadline && !Number.isNaN(Date.parse(deadline))) ||
+    (typeof timeCommit === 'string' && /^(week|month|two-month|quarter|open|open-ended)$/.test(timeCommit))
+  );
+
+  // Day-floor derivation reuses deriveLessonTarget (which we promised not to touch).
+  // We always compute it for telemetry, but only ENFORCE it when hasTimeAnchor.
+  const derivation = deriveLessonTarget({
+    timeCommit, customLessons: null, user_intent: userIntent, topic, deadline, days,
+  });
+  const daysFloor = hasTimeAnchor ? Math.max(phaseCount || 1, derivation.target) : null;
+
+  // No KP probe → fall back to time-floor (or pure intent-base when no time).
+  if (!split) {
+    return {
+      totalLessons: daysFloor != null ? daysFloor : Math.max(phaseCount || 1, derivation.target),
+      source: daysFloor != null ? 'time-floor' : 'intent-base',
+      perSlotKpTargets: null,
+      lessonSplit: null,
+      daysFloor,
+      reject: null,
+    };
+  }
+
+  // Both signals present. When no time anchor, kp-density wins. When time
+  // anchor, max(daysFloor, kpDensity) — typical case: daysFloor wins.
+  const kpDensity = split.n_lessons || 1;
+  const floorWins = daysFloor != null && daysFloor > kpDensity;
+  const totalLessons = floorWins ? daysFloor : kpDensity;
+  const source = floorWins ? 'time-floor' : 'kp-density';
+
+  // Distribute the KP budget across the FINAL lesson count.
+  // - When kp-density wins (totalLessons == split.n_lessons), use split.target_counts verbatim.
+  // - When floor wins (totalLessons > split.n_lessons), proportionally redistribute
+  //   the same KP budget (sum of target_counts) across the larger slot count.
+  //   Each slot may fall to 1 KP — that's the honest answer; we don't fabricate.
+  let perSlotKpTargets;
+  if (!floorWins) {
+    perSlotKpTargets = split.target_counts.slice();
+  } else {
+    const totalKpBudget = split.target_counts.reduce((a, b) => a + b, 0) || kpCandidateCount;
+    const base = Math.floor(totalKpBudget / totalLessons);
+    const remainder = totalKpBudget % totalLessons;
+    perSlotKpTargets = [];
+    for (let i = 0; i < totalLessons; i++) {
+      // floor 1 KP per lesson (each lesson needs ≥1 atom to teach)
+      perSlotKpTargets.push(Math.max(1, base + (i < remainder ? 1 : 0)));
+    }
+  }
+
+  return {
+    totalLessons,
+    source,
+    perSlotKpTargets,
+    lessonSplit: split,
+    daysFloor,
+    reject: null,
+  };
 }
 
 // v0.4 — 8-field source metadata schema defaults. Per-sourceType anchor
@@ -4483,9 +6086,32 @@ function rankSourcesBM25(sources, query, k = 5, opts = {}) {
 //                 + timeCommit. Each slot = { idx, phaseId, phaseLabel,
 //                 phaseLessonIdx, ghost: true }. Lesson 0 gets the firstLesson
 //                 fields filled; rest stay as pending ghosts.
-async function designSeed({ topic, goal, archetype, timeCommit, customLessons, tier, clarifications, sourceDigest }, settings) {
+async function designSeed({ topic, goal, archetype, timeCommit, customLessons, tier, clarifications, sourceDigest, goalContract }, settings) {
   const tmpl = loadArchetypeTemplate(archetype || 'TECH-CONCEPT');
-  const counts = computePhaseLessonCounts(tmpl.phases, timeCommit, customLessons, tier);
+  // 2026-05-13 v2 — time-floor + intent-density derivation.
+  const _userIntent = (goalContract && goalContract.user_intent) || null;
+  const _deadline = (goalContract && goalContract.deadline) || null;
+  const _days = (goalContract && goalContract.days) || null;
+  // 2026-05-13 R3 — designSeed has no KP candidate count (no harvest anchor in
+  // this path), so resolveLessonShape falls back to time-floor only. We still
+  // run it through the resolver to keep one canonical decision surface.
+  const _shape = resolveLessonShape({
+    kpCandidateCount: null,
+    userIntent: _userIntent,
+    timeCommit,
+    customLessons,
+    deadline: _deadline,
+    days: _days,
+    topic,
+    phaseCount: tmpl.phases.length,
+  });
+  const counts = computePhaseLessonCounts(tmpl.phases, timeCommit, customLessons, tier, {
+    user_intent: _userIntent,
+    topic,
+    deadline: _deadline,
+    days: _days,
+    totalOverride: _shape.source === 'custom-override' ? null : _shape.totalLessons,
+  });
   const phases = tmpl.phases.map((p, i) => ({
     id: p.id,
     label: p.label,
@@ -4568,7 +6194,19 @@ Return the JSON now. Lesson 1 should be the most accessible entry point that an 
       lessonPlan[i].ghost = true;
     }
   }
-  return { archetype: archetype || 'TECH-CONCEPT', phases, firstLesson, trajectory, lessonPlan };
+  // R3 — stamp per-slot target_count when resolveLessonShape produced one
+  // (only happens when a KP probe was available — not in pure designSeed path).
+  // Otherwise leave undefined; downstream falls back to default targetCount.
+  if (Array.isArray(_shape.perSlotKpTargets)) {
+    for (let i = 0; i < lessonPlan.length; i++) {
+      const t = _shape.perSlotKpTargets[i];
+      if (Number.isFinite(t) && t > 0) lessonPlan[i].target_count = t;
+    }
+  }
+  return {
+    archetype: archetype || 'TECH-CONCEPT', phases, firstLesson, trajectory, lessonPlan,
+    _shape: { source: _shape.source, totalLessons: _shape.totalLessons, daysFloor: _shape.daysFloor, lessonSplit: _shape.lessonSplit },
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -4636,6 +6274,9 @@ async function designSkeletonOnly(args, settings) {
       scope_in: '',
       scope_out: '',
       prerequisite: '',
+      // R3 — propagate target_count if designSeed stamped one (rare in this
+      // path since designSeed has no KP probe, but kept for completeness).
+      target_count: (Number.isFinite(slot.target_count) && slot.target_count > 0) ? slot.target_count : undefined,
     }));
     return {
       archetype: legacy.archetype,
@@ -4646,13 +6287,47 @@ async function designSkeletonOnly(args, settings) {
         deviations: [],
         structure_anchor_used: false,
         fallback_reason: 'no_structure_anchor — falling back to legacy designSeed shape',
+        lesson_shape: legacy._shape || null,
       },
     };
   }
 
   // ── Anchor present — drive skeleton from Layer 1 lectureSequence ─────
   const tmpl = loadArchetypeTemplate(archetype || 'TECH-CONCEPT');
-  const counts = computePhaseLessonCounts(tmpl.phases, timeCommit, customLessons, tier);
+  // 2026-05-13 v2 — time-floor + intent-density derivation (user: "100天给38节
+  // 什么意思 至少一天一节"). Resolves days from goalContract.deadline if set.
+  const _userIntent = (args && args.goalContract && args.goalContract.user_intent) || null;
+  const _deadline = (args && args.goalContract && args.goalContract.deadline) || null;
+  const _days = (args && args.goalContract && args.goalContract.days) || null;
+  // 2026-05-13 R3 — KP candidate count from harvested canonical lecture
+  // sequence. lessonSplit consumes this; resolveLessonShape reconciles
+  // kp-density vs day-floor. Reject signal (KP ≥ 27) propagates as a thrown
+  // error so main.js can emit `curriculum_v3_lesson_split_topic_too_broad`.
+  const _kpCandidateCount = (structureAnchor.lectureSequence || []).length;
+  const _shape = resolveLessonShape({
+    kpCandidateCount: _kpCandidateCount,
+    userIntent: _userIntent,
+    timeCommit,
+    customLessons,
+    deadline: _deadline,
+    days: _days,
+    topic,
+    phaseCount: tmpl.phases.length,
+  });
+  if (_shape.reject) {
+    const err = new Error(_shape.reject);
+    err.code = 'TOPIC_TOO_BROAD';
+    err.kpCandidateCount = _kpCandidateCount;
+    err.userIntent = _userIntent;
+    throw err;
+  }
+  const counts = computePhaseLessonCounts(tmpl.phases, timeCommit, customLessons, tier, {
+    user_intent: _userIntent,
+    topic,
+    deadline: _deadline,
+    days: _days,
+    totalOverride: _shape.source === 'custom-override' ? null : _shape.totalLessons,
+  });
   const phases = tmpl.phases.map((p, i) => ({
     id: p.id,
     label: p.label,
@@ -4698,9 +6373,42 @@ async function designSkeletonOnly(args, settings) {
   const profileBlock = userProfileBlock(settings && settings.userProfile);
   const frontierAnchor = (tmpl && tmpl.frontier_definition && tmpl.frontier_definition.prompt_anchor) || '';
 
+  // W6.1 Book Grounding (BLUEPRINT §4) — inject GROUNDING PROFILE block AHEAD
+  // of LIBRARY_EVIDENCE so the planner sees high-level book roles before
+  // chunk-level evidence. Synthesis was built by main.js before this call.
+  // Args may carry `groundingSynthesis` + `groundingProfiles` from main.js.
+  let groundingBlock = '';
+  try {
+    if (args && args.groundingSynthesis) {
+      const _grounding = require('./lib/grounding');
+      groundingBlock = _grounding.renderGroundingBlock(args.groundingSynthesis, args.groundingProfiles || []);
+    }
+  } catch (_) {
+    groundingBlock = '';
+  }
+  const groundingSection = groundingBlock ? `${groundingBlock}\n\n` : '';
+
+  // W8.2 Flywheel · Step 4 — Commons → Lesson hint. Find top-3 Commons packs
+  // relevant to the current topic and prepend COMMONS HINTS block AHEAD of
+  // LIBRARY_EVIDENCE. Same delivery contract as LIBRARY_EVIDENCE — purely
+  // additive system-prompt context. Best-effort; degrades to empty string
+  // when the flywheel lib isn't loadable.
+  let commonsHintsSection = '';
+  try {
+    const _c2l = require('./lib/flywheel/commons-to-lesson');
+    const lessonTopicProbe = (args && (args.topic || args.topicSlug)) || topic || '';
+    if (lessonTopicProbe) {
+      const found = _c2l.findRelevantCommonsForLesson(args && args.topicSlug || '', lessonTopicProbe, { topK: 3 });
+      const block = _c2l.injectCommonsIntoLessonPrompt({ topic: lessonTopicProbe }, (found && found.packs) || []);
+      commonsHintsSection = block ? `${block}\n\n` : '';
+    }
+  } catch (_) {
+    commonsHintsSection = '';
+  }
+
   const sys = `${HYPHA_FULL}${profileBlock}You are designing a curriculum skeleton. The user has invested time. Speed is anti-trust.
 
-CANONICAL SYLLABUS ORDER (from Layer 1 anchor courses — TREAT AS STRUCTURE ANCHOR):
+${commonsHintsSection}${groundingSection}CANONICAL SYLLABUS ORDER (from Layer 1 anchor courses — TREAT AS STRUCTURE ANCHOR):
 ${lectureSequenceFmt}
 
 PREREQUISITE CHAIN:
@@ -4784,6 +6492,7 @@ Return the JSON now. Anchor lesson 0 at the start of the canonical syllabus orde
         sqliteDb.recordChatCallEstimate(dispatch, 'designSkeletonOnly', {
           latency_ms: _latency,
           tuple_id: (args && args.topicSlug) || null,
+          slug: (args && args.topicSlug) || null,
           success: true,
         });
       } catch (err) {
@@ -4874,6 +6583,15 @@ Return the JSON now. Anchor lesson 0 at the start of the canonical syllabus orde
   // Final ghost-mark sweep — every slot is a ghost in skeleton-only path.
   for (const slot of lessonPlan) slot.ghost = true;
 
+  // R3 — stamp per-slot target_count from resolveLessonShape decision.
+  // Always present in this anchor-driven path (kpCandidateCount was set).
+  if (Array.isArray(_shape.perSlotKpTargets)) {
+    for (let i = 0; i < lessonPlan.length; i++) {
+      const t = _shape.perSlotKpTargets[i];
+      if (Number.isFinite(t) && t > 0) lessonPlan[i].target_count = t;
+    }
+  }
+
   return {
     archetype: archetype || 'TECH-CONCEPT',
     phases,
@@ -4882,7 +6600,331 @@ Return the JSON now. Anchor lesson 0 at the start of the canonical syllabus orde
     _meta: {
       deviations,
       structure_anchor_used: structureAnchorUsed,
+      lesson_shape: {
+        source: _shape.source,
+        totalLessons: _shape.totalLessons,
+        daysFloor: _shape.daysFloor,
+        kpCandidateCount: _kpCandidateCount,
+        lessonSplit: _shape.lessonSplit,
+      },
     },
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// critiqueAndRefineSkeleton — 4-wave critique + regen loop on top of
+// designSkeletonOnly. Per user 2026-05-13 "三令五申 ensure skeleton quality
+// — 1 min generation is anti-trust" feedback (memory `course_gen_slow_visible`
+// already articulated 5-15 min visible labor as the trust floor).
+//
+// Wave 1: input — initial skeleton from designSkeletonOnly (already done by caller)
+// Wave 2: parallel 3-agent critique (Lung / Muse / Scout, T4_JUDGE each, ~60-90s)
+//   - Lung divergent: missing KPs, cross-domain edges, training-frequency gaps
+//   - Muse critical: Feynman-test failures, encyclopedia framing, scope drift
+//   - Scout citation: evidence anchor strength per lesson (library/community/web)
+// Wave 3: synth + regen — fold critique into a regen call to LLM (T6_STRONG)
+// Wave 4: structural validation + return same shape as designSkeletonOnly
+//
+// onProgress is called at each wave boundary with { stage, ...extra } so the
+// caller can stream progress events to the UI (curriculum:progress channel).
+// ──────────────────────────────────────────────────────────────────────
+async function critiqueAndRefineSkeleton(args, settings) {
+  args = args || {};
+  const {
+    initialSkeleton,
+    topic,
+    goal,
+    archetype,
+    harvestContext,
+    sourceDigest,
+    structureAnchor,
+    onProgress,
+  } = args;
+  const emit = (stage, extra) => { try { onProgress && onProgress(stage, extra || {}); } catch (_) {} };
+
+  if (!initialSkeleton || !Array.isArray(initialSkeleton.lessonPlan) || initialSkeleton.lessonPlan.length === 0) {
+    emit('critique:skipped', { reason: 'no initial skeleton — nothing to critique' });
+    return initialSkeleton;
+  }
+
+  // Render skeleton as compact bullet list for critique prompts
+  const skeletonStr = initialSkeleton.lessonPlan.map(s =>
+    `${s.idx}. ${s.title || '(untitled)'} — goal: ${s.learnGoal || '(none)'} / scope_in: ${(s.scope_in || '').slice(0, 120)} / prereq: ${(s.prerequisite || '').slice(0, 120)}`
+  ).join('\n');
+
+  // Build LIBRARY_EVIDENCE + COMMUNITY_HINT context blocks (already rendered
+  // by lesson-generator for skeleton stage — duplicate logic here to keep
+  // critique calls self-sufficient without re-importing lesson-generator).
+  const ctxBlocks = [];
+  if (harvestContext && Array.isArray(harvestContext.libraryRollup) && harvestContext.libraryRollup.length > 0) {
+    const top = harvestContext.libraryRollup.slice(0, 3);
+    ctxBlocks.push('LIBRARY EVIDENCE:\n' + top.map(b => {
+      const author = b.book_author ? ` — ${b.book_author}` : '';
+      const tocLine = Array.isArray(b.toc) && b.toc.length > 0
+        ? '  TOC: ' + b.toc.slice(0, 10).map(t => t.title).join(' / ')
+        : '';
+      return `- ${b.book_title}${author} (D/P/R=${b.direct_hits}/${b.prereq_hits}/${b.related_hits})\n${tocLine}`;
+    }).join('\n'));
+  }
+  if (harvestContext && harvestContext.communityHint && Array.isArray(harvestContext.communityHint.packs_used) && harvestContext.communityHint.packs_used.length > 0) {
+    const syllabusByPack = {};
+    for (const item of (harvestContext.communityHint.syllabus_skeleton || [])) {
+      if (!syllabusByPack[item.pack_id]) syllabusByPack[item.pack_id] = [];
+      syllabusByPack[item.pack_id].push(item.chapter);
+    }
+    ctxBlocks.push('COMMUNITY PACK HINTS:\n' + harvestContext.communityHint.packs_used.map(p =>
+      `- ${p.id} (curator: ${p.curator}): ${(syllabusByPack[p.id] || []).slice(0, 6).join(' / ')}`
+    ).join('\n'));
+  }
+  const ctxStr = ctxBlocks.join('\n\n');
+
+  // ── Wave 2: 3 parallel critiques (Lung / Muse / Scout) ───────────────
+  emit('critique:start', { skeleton_n: initialSkeleton.lessonPlan.length });
+
+  const lungPrompt = `You are LUNG — divergent connection-finder. Audit this curriculum skeleton for what's MISSING.
+
+Topic: ${topic}
+Goal: ${goal || '(none)'}
+Archetype: ${archetype || '(none)'}
+
+CURRENT SKELETON:
+${skeletonStr}
+
+${ctxStr ? ctxStr + '\n\n' : ''}Find:
+1. Cross-domain edges the skeleton ignores (other fields' analogous concepts)
+2. KPs implicitly assumed but never made explicit
+3. Training-frequency bias — does the skeleton lean on famous-but-late icons over earlier necessary anchors? (Per pedagogy.md Galileo-skip bug — e.g. teaching Spinoza without Plato substance prereq)
+4. Adjacent useful concepts that would 10x understanding if added
+
+Return STRICT JSON: { "findings": [{ "type": "missing-kp|cross-domain|training-bias|adjacent-concept", "lesson_idx": <int|null>, "issue": "<≤120 char>", "fix_suggestion": "<≤200 char>" }], "overall_note": "<≤200 char>" }`;
+
+  const musePrompt = `You are MUSE — critical attacker, user-perspective challenger. Audit this curriculum skeleton for failures.
+
+Topic: ${topic}
+Goal: ${goal || '(none)'}
+
+CURRENT SKELETON:
+${skeletonStr}
+
+${ctxStr ? ctxStr + '\n\n' : ''}Find:
+1. Feynman test failures — lessons whose learnGoal you can't apply to a concrete instance (definition-only, encyclopedia framing)
+2. Scope drift — scope_in vs goal mismatch
+3. Prereq gaps — a lesson requires X but no prior lesson teaches X
+4. Vague titles ("Introduction to ___" / "Overview of ___") — banned anti-patterns
+
+Return STRICT JSON: { "findings": [{ "type": "feynman-fail|scope-drift|prereq-gap|vague-title", "lesson_idx": <int|null>, "issue": "<≤120 char>", "fix_suggestion": "<≤200 char>" }], "overall_note": "<≤200 char>" }`;
+
+  const scoutPrompt = `You are SCOUT — citation auditor. Audit this curriculum skeleton against the evidence base.
+
+Topic: ${topic}
+Goal: ${goal || '(none)'}
+
+CURRENT SKELETON:
+${skeletonStr}
+
+${ctxStr || '(no library/community evidence present — assess based on canonical priors only)'}
+
+Find:
+1. Lessons with NO evidence anchor in library/community/web sources (LLM training-frequency only)
+2. Lessons where the cited evidence type mismatches the lesson's claim type (definition vs argument vs critique)
+3. Lessons that should anchor to a specific book/pack section but currently float
+
+Return STRICT JSON: { "findings": [{ "type": "no-anchor|type-mismatch|float", "lesson_idx": <int|null>, "issue": "<≤120 char>", "fix_suggestion": "<≤200 char>" }], "overall_note": "<≤200 char>" }`;
+
+  const runCritique = async (label, prompt) => {
+    emit(`critique:${label}:start`, {});
+    let raw = '';
+    try {
+      let llm = null;
+      try { llm = require('./lib/llm'); } catch (_) { llm = null; }
+      if (llm && typeof llm.executeChat === 'function') {
+        const d = await llm.executeChat('T4_JUDGE', {
+          messages: [{ role: 'user', content: prompt }],
+          json: true,
+          temperature: 0.6,
+          maxTokens: 1500,
+          timeoutMs: 90000,
+        });
+        const r = d && d.result;
+        if (typeof r === 'string') raw = r;
+        else if (r && typeof r.content === 'string') raw = r.content;
+        else if (r && r.message && typeof r.message.content === 'string') raw = r.message.content;
+        else if (r && Array.isArray(r.choices) && r.choices[0] && r.choices[0].message && typeof r.choices[0].message.content === 'string') raw = r.choices[0].message.content;
+        else raw = JSON.stringify(r || d || {});
+      } else {
+        raw = await llmJSON([{ role: 'user', content: prompt }], settings, { json: true, temperature: 0.6, max_tokens: 1500, timeoutMs: 90_000, fn: `critique-${label}` });
+      }
+    } catch (e) {
+      console.error(`[critique:${label}] LLM call failed:`, e && e.message);
+      raw = '';
+    }
+    let parsed = null;
+    if (raw) {
+      try {
+        const cleaned = _extractFirstJSON(raw);
+        parsed = (typeof cleaned === 'string') ? JSON.parse(cleaned) : cleaned;
+      } catch (_) { parsed = null; }
+    }
+    const findings = (parsed && Array.isArray(parsed.findings)) ? parsed.findings.slice(0, 12) : [];
+    const overall = (parsed && typeof parsed.overall_note === 'string') ? parsed.overall_note.slice(0, 300) : '';
+    emit(`critique:${label}:done`, { findings_n: findings.length });
+    return { label, findings, overall };
+  };
+
+  const [lung, muse, scout] = await Promise.all([
+    runCritique('lung', lungPrompt),
+    runCritique('muse', musePrompt),
+    runCritique('scout', scoutPrompt),
+  ]);
+  emit('critique:done', {
+    lung_n: lung.findings.length,
+    muse_n: muse.findings.length,
+    scout_n: scout.findings.length,
+  });
+
+  // ── Wave 3: synth + regen ─────────────────────────────────────────────
+  emit('refine:start', {});
+
+  const formatFindings = (c) => c.findings.length === 0
+    ? `  (no issues found by ${c.label})`
+    : c.findings.map(f => `  - [lesson ${f.lesson_idx == null ? '*' : f.lesson_idx}] (${f.type}) ${f.issue}\n    → ${f.fix_suggestion}`).join('\n');
+
+  const totalFindings = lung.findings.length + muse.findings.length + scout.findings.length;
+  if (totalFindings === 0) {
+    // No critique findings — skip regen, return original
+    emit('refine:skipped', { reason: 'no critique findings' });
+    return Object.assign({}, initialSkeleton, {
+      _meta: Object.assign({}, initialSkeleton._meta || {}, {
+        critique: {
+          lung_findings_n: 0,
+          muse_findings_n: 0,
+          scout_findings_n: 0,
+          refined: false,
+        },
+      }),
+    });
+  }
+
+  const refinePrompt = `You are refining a curriculum skeleton based on critique from 3 advisors.
+
+Topic: ${topic}
+Goal: ${goal || '(none)'}
+Archetype: ${archetype || '(none)'}
+
+ORIGINAL SKELETON:
+${skeletonStr}
+
+CRITIQUE — LUNG (divergent, missing KPs):
+${formatFindings(lung)}
+  Overall: ${lung.overall || '(none)'}
+
+CRITIQUE — MUSE (Feynman test + scope):
+${formatFindings(muse)}
+  Overall: ${muse.overall || '(none)'}
+
+CRITIQUE — SCOUT (evidence anchor):
+${formatFindings(scout)}
+  Overall: ${scout.overall || '(none)'}
+
+${ctxStr ? ctxStr + '\n\n' : ''}TASK: Output a REVISED skeleton that addresses the critique. Keep ${initialSkeleton.lessonPlan.length} lessons unless critique explicitly demands a different count. Each lesson:
+  - title (4-10 words, concrete + specific, NEVER generic)
+  - learnGoal (single concrete claim/skill, plain sentence)
+  - conceptId (kebab-case stable id, 1-4 words)
+  - scope_in (1-2 sentences, named + specific)
+  - scope_out (1-2 sentences, explicitly excluded with reason)
+  - prerequisite (1 sentence, what user must already know)
+
+PRIORITIES: (a) anchor early lessons in prereq concepts (combat Galileo-skip). (b) replace vague titles with concrete mechanism names. (c) cite library/pack evidence where Scout flagged float.
+
+Forbidden words: AI, LLM, embedding, model, prompt, agent, RAG, vector, fine-tune.
+
+Output STRICT JSON: { "lessonPlan": [{ "idx": <int>, "title": "...", "learnGoal": "...", "conceptId": "...", "scope_in": "...", "scope_out": "...", "prerequisite": "..." }, ...], "trajectory": "<2-3 sentences>", "_meta": { "critique_applied": ["<lung_issue_addressed>", "<muse_issue_addressed>", ...], "deviations": [] } }`;
+
+  let refinedRaw = '';
+  try {
+    let llm = null;
+    try { llm = require('./lib/llm'); } catch (_) { llm = null; }
+    if (llm && typeof llm.executeChat === 'function') {
+      const d = await llm.executeChat('T6_STRONG', {
+        messages: [{ role: 'user', content: refinePrompt }],
+        json: true,
+        temperature: 0.4,
+        maxTokens: 4000,
+        timeoutMs: 120000,
+      });
+      const r = d && d.result;
+      if (typeof r === 'string') refinedRaw = r;
+      else if (r && typeof r.content === 'string') refinedRaw = r.content;
+      else if (r && r.message && typeof r.message.content === 'string') refinedRaw = r.message.content;
+      else if (r && Array.isArray(r.choices) && r.choices[0] && r.choices[0].message && typeof r.choices[0].message.content === 'string') refinedRaw = r.choices[0].message.content;
+      else refinedRaw = JSON.stringify(r || d || {});
+    } else {
+      refinedRaw = await llmJSON([{ role: 'user', content: refinePrompt }], settings, { json: true, temperature: 0.4, max_tokens: 4000, timeoutMs: 120_000, fn: 'refineSkeleton' });
+    }
+  } catch (e) {
+    console.error('[refine] LLM call failed:', e && e.message);
+    refinedRaw = '';
+  }
+
+  let refinedParsed = null;
+  if (refinedRaw) {
+    try {
+      const cleaned = _extractFirstJSON(refinedRaw);
+      refinedParsed = (typeof cleaned === 'string') ? JSON.parse(cleaned) : cleaned;
+    } catch (_) { refinedParsed = null; }
+  }
+
+  // ── Wave 4: structural validation + merge ─────────────────────────────
+  if (!refinedParsed || !Array.isArray(refinedParsed.lessonPlan) || refinedParsed.lessonPlan.length === 0) {
+    emit('refine:failed', { reason: 'refine LLM returned no usable lessonPlan; keeping original' });
+    return Object.assign({}, initialSkeleton, {
+      _meta: Object.assign({}, initialSkeleton._meta || {}, {
+        critique: {
+          lung_findings_n: lung.findings.length,
+          muse_findings_n: muse.findings.length,
+          scout_findings_n: scout.findings.length,
+          refined: false,
+          refine_failed: true,
+        },
+      }),
+    });
+  }
+
+  // Merge refined fields back into the canonical lessonPlan shape (preserve
+  // phaseId / phaseLabel / phaseLessonIdx / phaseTone from initial — those
+  // come from archetype template, not LLM output).
+  const refinedLessonPlan = initialSkeleton.lessonPlan.map((slot, i) => {
+    const entry = refinedParsed.lessonPlan.find(e => e && e.idx === i)
+      || refinedParsed.lessonPlan[i]
+      || null;
+    if (!entry) return slot;
+    return Object.assign({}, slot, {
+      title: String(entry.title || slot.title || '').slice(0, 200),
+      learnGoal: String(entry.learnGoal || slot.learnGoal || '').slice(0, 400),
+      conceptId: String(entry.conceptId || slot.conceptId || '').toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 60),
+      scope_in: String(entry.scope_in || slot.scope_in || '').slice(0, 400),
+      scope_out: String(entry.scope_out || slot.scope_out || '').slice(0, 400),
+      prerequisite: String(entry.prerequisite || slot.prerequisite || '').slice(0, 400),
+      ghost: true,
+    });
+  });
+
+  emit('refine:done', { lesson_n: refinedLessonPlan.length });
+
+  return {
+    archetype: initialSkeleton.archetype,
+    phases: initialSkeleton.phases,
+    lessonPlan: refinedLessonPlan,
+    trajectory: (typeof refinedParsed.trajectory === 'string' ? refinedParsed.trajectory.slice(0, 600) : initialSkeleton.trajectory),
+    _meta: Object.assign({}, initialSkeleton._meta || {}, {
+      critique: {
+        lung_findings_n: lung.findings.length,
+        muse_findings_n: muse.findings.length,
+        scout_findings_n: scout.findings.length,
+        critique_applied: Array.isArray(refinedParsed._meta && refinedParsed._meta.critique_applied) ? refinedParsed._meta.critique_applied : [],
+        refined: true,
+      },
+    }),
   };
 }
 
@@ -4965,6 +7007,28 @@ Write the next lesson now.`;
   };
 }
 
+// W2.1 — applyCadenceCoefficient. Optional KP-density adjuster that callers
+// can opt into BEFORE body generation. cadence-engine's kp_coefficient
+// (deep=1.00 / balanced=1.00 / compress=0.80 / final=0.60) multiplies the
+// per-slot KP target. Pure: returns new array. Never mutates input.
+// Does NOT touch lessonSplit / deriveLessonTarget / computePhaseLessonCounts;
+// runs ON TOP of their decisions as a soft cadence-aware overlay.
+//
+// Note: floors each slot at 1 KP (a lesson must have at least one atom).
+function applyCadenceCoefficient(perSlotKpTargets, kpCoefficient) {
+  if (!Array.isArray(perSlotKpTargets)) return perSlotKpTargets;
+  const coeff = Number(kpCoefficient);
+  if (!Number.isFinite(coeff) || coeff <= 0 || coeff >= 1) {
+    // No-op when coefficient is 1.0 or invalid.
+    return perSlotKpTargets.slice();
+  }
+  return perSlotKpTargets.map(n => {
+    const v = Number(n);
+    if (!Number.isFinite(v) || v <= 0) return v;
+    return Math.max(1, Math.round(v * coeff));
+  });
+}
+
 module.exports = {
   // v0158o — exposed for cli-install.js + main.js auth IPCs to spawn `claude`
   // with the SAME sandbox isolation that lesson dispatch uses. Otherwise login
@@ -4972,11 +7036,18 @@ module.exports = {
   _hyphaSandboxDir,
   _hyphaSandboxedSpawnOpts,
   llmJSON,                      // v0.11.0 — exposed for reflectionLLM (HERMES feedback loop)
+  getLibraryRollupForTopic,     // R-LIB Day 2 — skeleton stage reads per-book TOC + D/P/R hits
+  getCommunityHintForTopic,     // R-LIB Day 3 — skeleton stage reads pack syllabus + contested
+  critiqueAndRefineSkeleton,    // 2026-05-13 — 4-wave critique loop (Lung/Muse/Scout + refine)
   harvest,
   // v0.3 — Heavy Harvest dispatcher (5-layer) + skeleton-only design path
   harvestV3,
   clarifyQuestions,
   classifyArchetype,
+  // Layer 0 Subtract-First (pedagogy.md 2026-05-11) — visual topology + KP split
+  classifyVisualArchetype,
+  lessonSplit,
+  VISUAL_ARCHETYPES,
   getEmphasis,
   classifyDifficulty,
   classifyIntrinsicLoad,
@@ -5009,6 +7080,9 @@ module.exports = {
   // v0.6.0 — tier multiplier + probe + per-lesson re-harvest
   tierMultiplier,
   computePhaseLessonCounts,
+  deriveLessonTarget,           // 2026-05-13 — intent + breadth aware lesson-count derivation
+  resolveLessonShape,           // R3 2026-05-13 — authoritative lessonSplit + time-floor reconciler
+  applyCadenceCoefficient,      // W2.1 2026-05-13 — optional cadence-mode KP density overlay
   generateProbeMCQ,
   scoreProbe,
   _harvestPerLesson,

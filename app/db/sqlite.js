@@ -324,7 +324,25 @@ function recordChatCallEstimate(dispatch, taskType, taskMeta) {
     capability: dispatch.capability || meta.capability || null,
     estimation_source: estimationSource,
   };
-  return recordModelCall(row);
+  const rowId = recordModelCall(row);
+
+  // Cost Budget integration (2026-05-16) — fire per-curriculum spend record
+  // when a curriculum slug is available + cost is positive. Fire-and-forget;
+  // never blocks the sqlite write or LLM dispatch return path.
+  if (meta.slug && row.estimated_cost > 0) {
+    try {
+      const costBudget = require('../lib/infrastructure/cost-budget');
+      Promise.resolve(costBudget.recordSpend({
+        slug: meta.slug,
+        costUSD: row.estimated_cost,
+        provider: providerId,
+        model: row.model_name,
+        ts: row.ts,
+      })).catch(() => { /* fire-and-forget */ });
+    } catch (_) { /* cost-budget module missing — skip silently */ }
+  }
+
+  return rowId;
 }
 
 function aggregateCostMedian(filter) {
@@ -342,6 +360,84 @@ function aggregateCostMedian(filter) {
     : rows[mid].estimated_cost;
 }
 
+// V0.5 E1 — cost-ledger transparency surface.
+// Reads recent model_calls rows + a breakdown by estimation_source so the
+// UI can flag每一行 "real / tokenizer-fallback / placeholder / legacy" without
+// the renderer touching sqlite directly. PERIOD windows mirror cost-budget.js.
+//
+// @param filter — { period?: 'day'|'week'|'month'|'all', limit?: number, since?: string }
+// @returns { rows: Array<row>, breakdown: {[source]: count}, total: number, accurate_cnt, estimate_cnt, missing_cnt, legacy_cnt }
+function aggregateModelCallLedger(filter) {
+  const db = open();
+  const where = [];
+  const params = {};
+  const period = (filter && filter.period) || 'month';
+  const PERIOD_MS = {
+    day:   24 * 3600_000,
+    week:  7 * 24 * 3600_000,
+    month: 30 * 24 * 3600_000,
+  };
+  if (period !== 'all' && PERIOD_MS[period]) {
+    const cutoffIso = new Date(Date.now() - PERIOD_MS[period]).toISOString();
+    where.push('ts >= @since');
+    params.since = cutoffIso;
+  } else if (filter && filter.since) {
+    where.push('ts >= @since'); params.since = filter.since;
+  }
+  if (filter && filter.tuple_id) { where.push('tuple_id = @tuple_id'); params.tuple_id = filter.tuple_id; }
+  const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const limit = Math.max(1, Math.min(500, Number(filter && filter.limit) || 100));
+  const rows = db.prepare(`
+    SELECT id, ts, task_type, provider_id, model_name, capability,
+           input_tokens, output_tokens, estimated_cost, latency_ms, success,
+           estimation_source
+    FROM model_calls
+    ${whereSQL}
+    ORDER BY ts DESC
+    LIMIT ${limit}
+  `).all(params);
+
+  // Breakdown across the FULL window (not just visible rows) so honesty footer
+  // ("其中 N 估算, M 无数据") reflects真实 distribution, not the LIMIT slice.
+  const breakdownRows = db.prepare(`
+    SELECT
+      COALESCE(estimation_source, '__null__') AS source,
+      COUNT(*) AS cnt,
+      COALESCE(SUM(estimated_cost), 0) AS cost_sum
+    FROM model_calls
+    ${whereSQL}
+    GROUP BY estimation_source
+  `).all(params);
+
+  const breakdown = {};
+  let total = 0;
+  let totalCost = 0;
+  let accurateCnt = 0, estimateCnt = 0, missingCnt = 0, legacyCnt = 0;
+  for (const b of breakdownRows) {
+    const key = b.source === '__null__' ? 'legacy' : b.source;
+    breakdown[key] = { count: b.cnt, cost: Number(b.cost_sum) || 0 };
+    total += b.cnt;
+    totalCost += Number(b.cost_sum) || 0;
+    if (key === 'provider') accurateCnt += b.cnt;
+    else if (key === 'tokenizer-fallback') estimateCnt += b.cnt;
+    else if (key === 'placeholder') missingCnt += b.cnt;
+    else legacyCnt += b.cnt; // 'legacy', 'legacy-broken', null, anything else
+  }
+
+  return {
+    rows,
+    breakdown,
+    total,
+    total_cost: Number(totalCost.toFixed(6)),
+    accurate_cnt: accurateCnt,
+    estimate_cnt: estimateCnt,
+    missing_cnt: missingCnt,
+    legacy_cnt: legacyCnt,
+    period,
+  };
+}
+
 module.exports = {
   open,
   close,
@@ -351,4 +447,5 @@ module.exports = {
   recordEvaluatorRun,
   recordLessonOutcome,
   aggregateCostMedian,
+  aggregateModelCallLedger,
 };

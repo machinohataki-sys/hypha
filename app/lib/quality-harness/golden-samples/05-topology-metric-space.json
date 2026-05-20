@@ -1,0 +1,37 @@
+{
+  "id": "golden-05-topology-metric-space",
+  "topic": "拓扑学度量空间",
+  "user_profile": "进阶",
+  "goal": "理解为何 metric topology 是 topology 的特例而不是相反",
+  "ideal_lesson_body": {
+    "thesis": "By the end of this lesson, the learner will construct a topology that is not metrizable, showing metric structure is strictly stronger than topological structure.",
+    "canonical_example": "Sierpiński space ({a,b}, τ={∅,{a},{a,b}}) — 满足 topology 三公理, 但无 metric 可生此 τ (违 Hausdorff).",
+    "common_misconceptions": [
+      "Metric 给出 distance, distance 给 open balls, open balls 给 topology, 所以 metric ⊂ topology. 这是正确方向, 但学生常反推 '任何 topology 都来自某 metric', 错.",
+      "Hausdorff 是 topology 的定义之一. 错: Hausdorff 是 separation axiom, 非必需; 度量空间自动 Hausdorff 但反之不真."
+    ],
+    "exit_proof": "给学习者三个空间 (Sorgenfrey line / cofinite topology on R / discrete topology on R), 让 ta 判定哪些 metrizable 并给反例 / 度量.",
+    "mechanism_explanation": "把 topology 想成 '邻里关系图', metric 是 '邻里之间还配带尺子'. 没尺子也能说哪两户是邻居 (cofinite topology), 但有尺子的图必须满足 Hausdorff — 不同点之间不能距离 0.",
+    "jargon_list": [
+      "metrizable — 存在 metric d 使得 d 诱导的开集恰为原 topology τ",
+      "Hausdorff (T2) — 任两不同点有不相交邻域",
+      "Sierpiński space — 最小非平凡 non-Hausdorff topology"
+    ],
+    "note_connection": "(first lesson — no prior note to bind to)",
+    "learn_goal": "理解为何 metric topology 是 topology 的特例而不是相反",
+    "user_profile": "进阶",
+    "intro_hook_scene": "Hausdorff 1914 年《集合论纲要》第一次在两个不同记号 ('邻里关系' 与 '尺子距离') 之间划清界限 — 几十年后才有人意识到这个区分是 manifold 与 sheaf 的分水岭."
+  },
+  "nine_dim_target_scores": {
+    "goalCoherence": 95,
+    "jargonControl": 80,
+    "levelMatch": 90,
+    "misconceptionDefense": 95,
+    "evidenceOfLearning": 95,
+    "actionConversion": 70,
+    "productTransferQuality": 65,
+    "notGenericCourse": 90,
+    "hyphaSoul": 85
+  },
+  "notes": "Golden because: Sierpiński space 是最少的反例 (反 generic textbook 直接给 Sorgenfrey); exit_proof 三空间判定 force 进阶 user 真做 separation axiom 检验."
+}

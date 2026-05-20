@@ -1,0 +1,57 @@
+# Hypha — smoke harness on every push + PR.
+#
+# Runs the `npm run smoke:all` aggregator across Linux / Windows / macOS.
+# Any non-zero exit fails the job; a baseline JSON snapshot is uploaded so
+# regressions can be diff-checked across runs.
+#
+# Cost discipline: no LLM calls. Smokes are pure-JS regression tests
+# (`app/scripts/_dev_verify_*.js`).
+
+name: smoke
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: smoke · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci --no-audit --no-fund
+
+      - name: Run smoke aggregator
+        run: npm run smoke:all
+
+      - name: Upload smoke baseline
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-baseline-${{ matrix.os }}
+          path: |
+            vault/.hypha/smoke-baseline.json
+          if-no-files-found: ignore
+          retention-days: 14

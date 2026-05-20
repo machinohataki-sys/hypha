@@ -29,7 +29,14 @@ function resolveRoot() {
 function ensureRoot() {
   const root = resolveRoot();
   if (!fs.existsSync(root)) {
-    try { fs.mkdirSync(root, { recursive: true }); } catch (_) {}
+    try { fs.mkdirSync(root, { recursive: true }); }
+    catch (err) {
+      // ensureRoot failure is critical — every subsequent vault op will fail.
+      // EEXIST is benign (race), anything else is a hard env problem.
+      if (err && err.code !== 'EEXIST') {
+        console.error('[CRITICAL][vault.ensureRoot] mkdir failed:', err && err.message, 'root=', root);
+      }
+    }
   }
   return root;
 }
@@ -69,7 +76,7 @@ function timeSince(when) {
 }
 
 function safeReadText(abs) {
-  try { return fs.readFileSync(abs, 'utf-8'); } catch (_) { return ''; }
+  try { return fs.readFileSync(abs, 'utf-8'); } catch (_) { return ''; } // intentional: caller wants empty-on-miss for best-effort text reads
 }
 
 // List top-level folders in vault. Each folder yields { folder, count, items }.
@@ -91,8 +98,13 @@ function list() {
     let entries = [];
     try {
       entries = fs.readdirSync(sub, { withFileTypes: true })
-        .filter(e => e.isFile() && e.name.toLowerCase().endsWith('.md'));
-    } catch (_) { entries = []; }
+        .filter(e => e.isFile() && e.name.toLowerCase().endsWith('.md'))
+        // v1.0 boot-7 — atomic-write tmp orphans look like `lesson-N.md.tmp-1234-...`.
+        // Those would tail .md.tmp-... but lowercase().endsWith('.md') already
+        // rejects them. Defense-in-depth: explicitly drop any name containing
+        // `.tmp-` so a half-renamed tmp can never surface as a curriculum row.
+        .filter(e => !e.name.includes('.tmp-'));
+    } catch (_) { entries = []; } // intentional: unreadable subdir → render as empty (UI degrades gracefully)
     // v0.6.7 — hide chain meta-folders. A folder containing chain.json + zero
     // .md files is the meta directory holding chain.json/covenant.json/links-
     // state.json — not a curriculum. Showing it as an empty 0-node folder
@@ -107,13 +119,13 @@ function list() {
             continue;  // skip rendering this chain-meta folder
           }
         }
-      } catch (_) {}
+      } catch (_) {} // intentional: malformed chain.json → treat as non-meta folder + continue
     }
 
     const items = entries.map(e => {
       const full = path.join(sub, e.name);
       let stat = null;
-      try { stat = fs.statSync(full); } catch (_) {}
+      try { stat = fs.statSync(full); } catch (_) {} // intentional: ENOENT race → stat stays null + caller handles
       const text = safeReadText(full);
       const fm = parseFrontmatter(text);
       const phase = clampPhase(fm.phase);
@@ -201,7 +213,7 @@ function list() {
           chainPlaceholder = state.chainPlaceholder === true;
         }
       }
-    } catch (_) {}
+    } catch (_) {} // intentional: corrupt state.json → fall through with default chain fields
 
     // v0.10.1 — folder's earliest date_created across its items (used for
     // chain-vs-chain chronological sort below). Falls through to null if no
@@ -288,13 +300,26 @@ function read(rel) {
   };
 }
 
+// v1.0 boot-7 — atomic write enforcement. Power-cut / Electron crash mid-write
+// previously left .md / .json half-flushed (silent corruption surfaced when the
+// next read parsed truncated JSON). Now writes to <abs>.tmp-<pid>-<now> then
+// atomically renames over the destination. On error, the tmp is unlinked best-
+// effort so we don't leak orphan tmp files into vault/<slug>/ (which would
+// then be picked up by vault.list as "lesson-N.md.tmp-..." noise).
 function write(rel, body) {
   const root = ensureRoot();
   const safe = path.normalize(rel).replace(/^[\\/]+/, '');
   const abs = path.resolve(root, safe);
   if (!abs.startsWith(path.resolve(root))) throw new Error('path escapes vault');
   fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, body, 'utf-8');
+  const tmpAbs = `${abs}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    fs.writeFileSync(tmpAbs, body, 'utf-8');
+    fs.renameSync(tmpAbs, abs);
+  } catch (err) {
+    try { fs.unlinkSync(tmpAbs); } catch (_) { /* intentional: tmp may not exist if writeFileSync threw before creating it */ }
+    throw err;
+  }
   const stat = fs.statSync(abs);
   _backlinksCacheClear();   // body change can affect any backlink — clear all
   return { rel: safe.replace(/\\/g, '/'), mtime: stat.mtime.toISOString(), size: stat.size };
@@ -328,13 +353,23 @@ function del(rel) {
     fs.renameSync(abs, trashTarget);
     _backlinksCacheClear();
     return { ok: true, rel: safe.replace(/\\/g, '/'), trashedAs: path.basename(trashTarget) };
-  } catch (_) {
+  } catch (softErr) {
     // Fallback to hard delete if soft-delete fails (cross-device rename, perms)
+    if (softErr && softErr.name === 'TypeError') {
+      console.error('[CRITICAL][vault.del] soft-delete TypeError (API drift?):', softErr.message, 'rel=', rel);
+    }
     try {
       const stat = fs.statSync(abs);
       if (stat.isDirectory()) fs.rmSync(abs, { recursive: true, force: true });
       else fs.unlinkSync(abs);
-    } catch (_) {}
+    } catch (hardErr) {
+      if (hardErr && hardErr.name === 'TypeError') {
+        console.error('[CRITICAL][vault.del] hard-delete TypeError:', hardErr.message, 'rel=', rel);
+      } else if (hardErr && hardErr.code !== 'ENOENT') {
+        console.warn('[vault.del] hard-delete fallback failed:', hardErr && hardErr.message, 'rel=', rel);
+      }
+      // intentional: ENOENT means already gone; soft-trash + hard both failed = surface returns ok:true so UI promise resolves (caller treats vault state as best-effort)
+    }
     _backlinksCacheClear();
     return { ok: true, rel: safe.replace(/\\/g, '/'), trashedAs: null };
   }
@@ -361,9 +396,19 @@ function purgeStaleTrash(maxAgeMs) {
         if (st.isDirectory()) fs.rmSync(p, { recursive: true, force: true });
         else fs.unlinkSync(p);
         purged++;
-      } catch (_) {}
+      } catch (purgeErr) {
+        if (purgeErr && purgeErr.name === 'TypeError') {
+          console.error('[CRITICAL][vault.purgeStaleTrash] TypeError on entry:', purgeErr.message, 'entry=', e.name);
+        }
+        // intentional: ENOENT / EBUSY / EPERM per-entry — keep purging others
+      }
     }
-  } catch (_) {}
+  } catch (dirErr) {
+    if (dirErr && dirErr.name === 'TypeError') {
+      console.error('[CRITICAL][vault.purgeStaleTrash] TypeError reading trash dir:', dirErr.message);
+    }
+    // intentional: readdir on .trash failure (perm / race) — purge is opportunistic
+  }
   return { purged };
 }
 
@@ -423,7 +468,7 @@ function _buildBacklinksIndex() {
 
   function walk(dir, prefix) {
     let dirents;
-    try { dirents = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
+    try { dirents = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; } // intentional: unreadable subdir is skipped from backlink walk
     for (const d of dirents) {
       if (d.name.startsWith('.')) continue;
       const sub = path.join(dir, d.name);
@@ -495,7 +540,7 @@ function backlinks(targetRel) {
 function readJSON(rel, fallback = null) {
   const r = read(rel);
   if (!r) return fallback;
-  try { return JSON.parse(r.body); } catch (_) { return fallback; }
+  try { return JSON.parse(r.body); } catch (_) { return fallback; } // intentional: malformed JSON → return caller-supplied fallback
 }
 function writeJSON(rel, obj) { return write(rel, JSON.stringify(obj, null, 2)); }
 function appendJSONL(rel, obj) {
@@ -507,7 +552,7 @@ function readJSONL(rel) {
   const r = read(rel);
   if (!r) return [];
   return r.body.split('\n').filter(Boolean).map(l => {
-    try { return JSON.parse(l); } catch (_) { return null; }
+    try { return JSON.parse(l); } catch (_) { return null; } // intentional: malformed JSONL row → skip (filter below drops nulls)
   }).filter(Boolean);
 }
 function listDir(rel) {
@@ -517,11 +562,11 @@ function listDir(rel) {
     return fs.readdirSync(abs, { withFileTypes: true })
       .filter(d => !d.name.startsWith('.'))
       .map(d => ({ name: d.name, isDir: d.isDirectory() }));
-  } catch (_) { return []; }
+  } catch (_) { return []; } // intentional: unreadable dir → empty listing (UI shows no items)
 }
 function exists(rel) {
   try { const { abs } = safeAbs(rel); return fs.existsSync(abs); }
-  catch (_) { return false; }
+  catch (_) { return false; } // intentional: ENOENT means file absent → false (this IS the existence check)
 }
 
 module.exports = {

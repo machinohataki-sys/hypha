@@ -1,4 +1,4 @@
-/* global React, Icon, Watercolor */
+/* global React, Icon, Watercolor, Tooltip */
 // HYPHA · Home
 //
 // v0.4 (2026-05-08): vault-aware. When the boot probe in app.jsx finds
@@ -19,6 +19,14 @@
 // CSS keyframes live in app/colors_and_type.css under "搁置课程 D".
 
 const { useState } = React;
+
+const TIER_LABEL = {
+  'nearly-impossible': '几乎不可能',
+  'strained': '紧张',
+  'moderate': '适中',
+  'gentle': '宽松',
+  'heroic': '英雄',
+};
 
 function relativeAgo(ts) {
   if (!ts) return '';
@@ -177,16 +185,171 @@ const HomeScreen = ({ user, arc, onOpenLesson, onRoute, courses, onResumeCourse,
     }
   }, [cronEnabled]);
 
+  // Frontier last-harvest surface (2026-05-19). Reads frontierStatus on mount;
+  // when hasFrontier && harvestCount > 0, the panel substring after "前沿巡探 ·"
+  // becomes "N 条 · <relativeTime>" instead of "未启 · 点 6/12/24 时开启".
+  const [frontierMeta, setFrontierMeta] = React.useState(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const fn = window.ptor && window.ptor.hypha && window.ptor.hypha.frontierStatus;
+        if (typeof fn !== 'function') return;
+        const r = await fn();
+        if (cancelled || !r || r.ok !== true) return;
+        if (r.hasFrontier && typeof r.harvestCount === 'number' && r.harvestCount > 0) {
+          setFrontierMeta({ count: r.harvestCount, at: r.lastHarvestAt || 0 });
+        }
+      } catch (_) { /* non-fatal; fall back to existing copy */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Relative-time formatter scoped to frontier substring.
+  // Routes through window.ptor.util.formatRelativeTime (canonical impl at
+  // app/lib/util/relative-time.js); suffix '前抓' preserves hour/day display
+  // ("N 时前抓" / "N 天前抓"). Falls back to inline mirror if bridge missing.
+  const frontierRelative = React.useCallback((ts) => {
+    if (!ts) return '';
+    const fn = window.ptor && window.ptor.util && window.ptor.util.formatRelativeTime;
+    if (typeof fn === 'function') return fn(ts, { suffix: '前抓' });
+    const sec = Math.floor((Date.now() - ts) / 1000);
+    if (sec < 60) return '刚刚';
+    if (sec < 3600) return `${Math.floor(sec / 60)} 分钟前抓`;
+    if (sec < 86400) return `${Math.floor(sec / 3600)} 时前抓`;
+    return `${Math.floor(sec / 86400)} 天前抓`;
+  }, []);
+
+  // 编辑目标 handler (2026-05-19). Opens window.prompt seeded with current goal,
+  // calls editCourseGoal IPC, refreshes list on success, toasts on error.
+  const handleEditGoal = React.useCallback(async (course) => {
+    if (!course || !course.topic) return;
+    const seed = course.goal || course.northStarGoal || course.topic || '';
+    let next;
+    try {
+      next = window.prompt('编辑课程目标', seed);
+    } catch (_) { next = null; }
+    if (next === null) return;
+    const trimmed = String(next).trim();
+    if (!trimmed) return;
+    const fn = window.ptor && window.ptor.hypha && window.ptor.hypha.editCourseGoal;
+    if (typeof fn !== 'function') {
+      showToast('err', '编辑目标失败 · 桥接未连', 3600);
+      return;
+    }
+    try {
+      const r = await fn(course.topic, trimmed);
+      if (r && r.ok === true) {
+        showToast('ok', '目标已更新');
+        try {
+          const key = `editGoal_history_${course.topic}`;
+          const prev = JSON.parse(localStorage.getItem(key) || '[]');
+          prev.push({
+            ts: new Date().toISOString(),
+            type: 'north_star',
+            oldGoal: course.goal || course.northStarGoal || '',
+            newGoal: trimmed,
+          });
+          while (prev.length > 10) prev.shift();
+          localStorage.setItem(key, JSON.stringify(prev));
+        } catch (_) { /* localStorage full or absent — silent */ }
+        await refreshCourses();
+      } else {
+        showToast('err', '编辑目标失败 · ' + ((r && r.error) || '未知'), 3600);
+      }
+    } catch (e) {
+      showToast('err', '编辑目标异常 · ' + (e && e.message || e), 3600);
+    }
+  }, [refreshCourses]);
+
+  const handleEditUltimate = React.useCallback(async (course) => {
+    if (!course || !course.topic) return;
+    const seed = course.ultimateGoal || '';
+    let next;
+    try {
+      next = window.prompt('改课程 ultimate 目标', seed);
+    } catch (_) { next = null; }
+    if (next === null) return;
+    const trimmed = String(next).trim();
+    if (!trimmed || trimmed.length < 3) {
+      showToast('err', '目标过短 (至少 3 字)', 2400);
+      return;
+    }
+    const fn = window.ptor && window.ptor.hypha && window.ptor.hypha.chainEditUltimate;
+    if (typeof fn !== 'function') {
+      showToast('err', '改 ultimate 失败 · 桥接未连', 3600);
+      return;
+    }
+    try {
+      const r = await fn(course.topic, trimmed);
+      if (r && r.ok === true) {
+        showToast('ok', '已改 ultimate');
+        try {
+          const key = `editGoal_history_${course.topic}`;
+          const prev = JSON.parse(localStorage.getItem(key) || '[]');
+          prev.push({
+            ts: new Date().toISOString(),
+            type: 'ultimate',
+            oldGoal: course.ultimateGoal || '',
+            newGoal: trimmed,
+          });
+          while (prev.length > 10) prev.shift();
+          localStorage.setItem(key, JSON.stringify(prev));
+        } catch (_) { /* localStorage full or absent — silent */ }
+        await refreshCourses();
+      } else {
+        showToast('err', '改 ultimate 失败 · ' + ((r && r.error) || '未知'), 3600);
+      }
+    } catch (e) {
+      showToast('err', '改 ultimate 异常 · ' + (e && e.message || e), 3600);
+    }
+  }, [refreshCourses]);
+
+  // v0.4.11: setCourseSeries IPC dual-writes state.series + chain.parent_chain_slug
+  // under the hood (backend agent ship). "系列" semantically = parent_chain;
+  // toast text stays simple, prompt label clarifies cross-course scope.
+  // Seed from effectiveSeries (canonical view) then fall back to raw series.
+  const handleSetSeries = React.useCallback(async (course) => {
+    if (!course || !course.topic) return;
+    const seed = (course.effectiveSeries && typeof course.effectiveSeries === 'string')
+      ? course.effectiveSeries
+      : ((course.series && typeof course.series === 'string') ? course.series : '');
+    let next;
+    try {
+      next = window.prompt('设课程系列 (跨课分组 · 空 = 移出系列)', seed);
+    } catch (_) { next = null; }
+    if (next === null) return;
+    const trimmed = String(next).trim();
+    const fn = window.ptor && window.ptor.hypha && window.ptor.hypha.setCourseSeries;
+    if (typeof fn !== 'function') {
+      showToast('err', '设系列失败 · 桥接未连', 3600);
+      return;
+    }
+    try {
+      const r = await fn(course.topic, trimmed ? trimmed : null);
+      if (r && r.ok === true) {
+        showToast('ok', trimmed ? '已设系列 · ' + trimmed : '已移出系列');
+        await refreshCourses();
+      } else {
+        showToast('err', '设系列失败 · ' + ((r && r.error) || '未知'), 3600);
+      }
+    } catch (e) {
+      showToast('err', '设系列异常 · ' + (e && e.message || e), 3600);
+    }
+  }, [refreshCourses]);
+
   // Per-row gesture state: { [slug]: 'pressing' | 'aborted' | 'committed' }.
   const [pressState, setPressState] = React.useState({});
   const pressTimers = React.useRef({});
 
   // Toast for IPC envelope failures (Muse #2 anti-silent-catch — every
-  // {ok:false} surfaces here in italic peer voice, never swallowed).
-  const [toast, setToast] = React.useState(null);
+  // {ok:false} surfaces here in italic peer voice, never swallowed). v0.4.10
+  // delegates to the unified <ToastRoot/> mounted at App root; local state
+  // dropped. Signature preserved so call sites stay surgical.
   const showToast = React.useCallback((kind, text, ms = 2400) => {
-    setToast({ kind, text });
-    setTimeout(() => setToast(null), ms);
+    if (window.HyphaToast && typeof window.HyphaToast.showToast === 'function') {
+      window.HyphaToast.showToast(kind, text, ms);
+    }
   }, []);
 
   const setRowState = React.useCallback((slug, state) => {
@@ -335,16 +498,77 @@ const HomeScreen = ({ user, arc, onOpenLesson, onRoute, courses, onResumeCourse,
               : "还没织下第一根线。先开一节课，让今天有一个着力点。"}
           </div>
 
-          {!hasCourses && (
-            <div className="row gap-8" style={{ marginTop: 18 }}>
-              <button className="btn btn-primary" onClick={() => onRoute && onRoute("lesson")}>
-                <Icon name="play" size={14} /> 开始一节课
-              </button>
-              <button className="btn btn-ghost" onClick={() => onRoute && onRoute("library")}>
-                <Icon name="book" size={13} /> 带一份原文
-              </button>
-            </div>
-          )}
+          {/* Hero action row — smart label per vault state (2026-05-13).
+              语义: 创建课程 (新课立项) ≠ 开始课程 (进入已有课). User differentiated these
+              two actions in 2026-05-13 review. localCourses is sorted lastIdx-desc, [0] = 最近一节.
+              没课 → 创建课程 + 带一份原文.
+              有课 → 开始课程 (跳 [0]) + 创建课程 (新立项) + 带一份原文. */}
+          <div className="row gap-8" style={{ marginTop: 18 }}>
+            {hasCourses ? (
+              <>
+                <button
+                  className="btn btn-primary"
+                  disabled={!localCourses[0] || !localCourses[0].firstLessonRel}
+                  onClick={() => {
+                    const top = localCourses[0];
+                    if (top && typeof onResumeCourse === 'function') onResumeCourse(top);
+                  }}
+                >
+                  <Icon name="play" size={14} /> 开始课程
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => { if (typeof onCreateNew === 'function') onCreateNew(); }}
+                >
+                  <Icon name="plus" size={13} /> 创建课程
+                </button>
+                <button className="btn btn-ghost" onClick={() => onRoute && onRoute("library")}>
+                  <Icon name="book" size={13} /> 带一份原文
+                </button>
+                {/* W1.5 — real-classroom Capture Mode entry. Lectures, video
+                    courses, and longform reading all open the same low-
+                    interruption capture surface. */}
+                <button className="btn btn-ghost" onClick={() => onRoute && onRoute("capture")}>
+                  <Icon name="book" size={13} /> 真实课堂记录
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => { if (typeof onCreateNew === 'function') onCreateNew(); }}
+                >
+                  <Icon name="plus" size={14} /> 创建课程
+                </button>
+                <button className="btn btn-ghost" onClick={() => onRoute && onRoute("library")}>
+                  <Icon name="book" size={13} /> 带一份原文
+                </button>
+                <button className="btn btn-ghost" onClick={() => onRoute && onRoute("capture")}>
+                  <Icon name="book" size={13} /> 真实课堂记录
+                </button>
+              </>
+            )}
+          </div>
+          {/* 工具入口 (italic Garamond, low visual weight). 2026-05-13 七 pill 削枝:
+              砍 7-Day AI Builder (hardcoded preset, 主流程 = 自创课程, 7-day 留 Quick Start 模板 demo).
+              砍 跨学科 / 判断力 (独立屏 → 埋进 lesson chat 卡住时的 reframe pill).
+              砍 课程图 (硬编码 AI/CS 单领域 KP graph, 非通用学习者用例).
+              砍 Launch (dev-only readiness gate, 不对 user). */}
+          <div className="row" style={{ marginTop: 10, gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontFamily: 'EB Garamond, "Noto Serif SC", serif', fontStyle: 'italic', fontSize: 12, color: 'var(--ink-3, #8a7d68)', letterSpacing: '0.04em', marginRight: 4 }}>工具 ·</span>
+            <button className="btn btn-ghost" onClick={() => onRoute && onRoute("north-star")} style={{ fontSize: 12, fontFamily: 'EB Garamond, serif' }}>轨迹</button>
+            <button className="btn btn-ghost" onClick={() => onRoute && onRoute("product-blueprint")} style={{ fontSize: 12, fontFamily: 'EB Garamond, serif' }}>产品蓝图</button>
+            <button className="btn btn-ghost" onClick={() => onRoute && onRoute("spark-pool")} style={{ fontSize: 12, fontFamily: 'EB Garamond, serif' }}>Sparks</button>
+            <button className="btn btn-ghost" onClick={() => onRoute && onRoute("kpi-dashboard")} style={{ fontSize: 12, fontFamily: 'EB Garamond, serif' }}>KPI</button>
+            <button className="btn btn-ghost" onClick={() => onRoute && onRoute("flywheel-dashboard")} style={{ fontSize: 12, fontFamily: 'EB Garamond, serif' }}>Flywheel</button>
+            <button className="btn btn-ghost" onClick={() => onRoute && onRoute("pack-learning")} style={{ fontSize: 12, fontFamily: 'EB Garamond, serif' }}>Pack</button>
+            <button className="btn btn-ghost" onClick={() => onRoute && onRoute("exam-dashboard")} style={{ fontSize: 12, fontFamily: 'EB Garamond, serif' }}>考试</button>
+            <button className="btn btn-ghost" onClick={() => onRoute && onRoute("radar-dashboard")} style={{ fontSize: 12, fontFamily: 'EB Garamond, serif' }}>前沿雷达</button>
+            <button className="btn btn-ghost" onClick={() => onRoute && onRoute("ux-settings")} style={{ fontSize: 12, fontFamily: 'EB Garamond, serif' }}>设置</button>
+            <button className="btn btn-ghost" onClick={() => onRoute && onRoute("feedback")} style={{ fontSize: 12, fontFamily: 'EB Garamond, serif' }}>反馈</button>
+            <button className="btn btn-ghost" onClick={() => onRoute && onRoute("donate")} style={{ fontSize: 12, fontFamily: 'EB Garamond, serif' }}>Donate</button>
+            <button className="btn btn-ghost" onClick={() => onRoute && onRoute("cost-budget")} style={{ fontSize: 12, fontFamily: 'EB Garamond, serif' }}>预算</button>
+          </div>
         </div>
       </div>
 
@@ -357,13 +581,54 @@ const HomeScreen = ({ user, arc, onOpenLesson, onRoute, courses, onResumeCourse,
               <Icon name="plus" size={13} /> 创建新课
             </button>
           </div>
-          <div className="col gap-8">
-            {localCourses.map((c, i) => {
+          {(() => {
+            // 系列 grouping (2026-05-19, v0.4.11 updated to effectiveSeries).
+            // Prefer canonical c.effectiveSeries (backend: parentChainSlug ?? series ?? null);
+            // fall back to raw c.series for backward compat with stale lists.
+            // null/undefined → "其他". Skip section headers entirely if only one group total.
+            // Within each group, preserve incoming sort order (refreshCourses already sorts
+            // by lastIdx-desc).
+            const groups = new Map();
+            const OTHER = '__other__';
+            for (const c of localCourses) {
+              const eff = (c && typeof c.effectiveSeries === 'string' && c.effectiveSeries.trim())
+                ? c.effectiveSeries.trim()
+                : ((c && typeof c.series === 'string' && c.series.trim()) ? c.series.trim() : null);
+              const key = eff || OTHER;
+              if (!groups.has(key)) groups.set(key, []);
+              groups.get(key).push(c);
+            }
+            // Ordered: named series in first-seen order, "其他" last.
+            const orderedKeys = [];
+            for (const k of groups.keys()) if (k !== OTHER) orderedKeys.push(k);
+            if (groups.has(OTHER)) orderedKeys.push(OTHER);
+            const showHeaders = orderedKeys.length > 1;
+            return (
+              <div className="col gap-16">
+                {orderedKeys.map(key => {
+                  const list = groups.get(key) || [];
+                  const heading = key === OTHER ? '其他' : `系列 · ${key}`;
+                  return (
+                    <div key={key} className="col gap-8">
+                      {showHeaders && (
+                        <div className="eyebrow" style={{ marginTop: 4 }}>{heading}</div>
+                      )}
+                      <div className="col gap-8">
+                        {list.map((c, i) => {
               const lastN = (typeof c.lastIdx === 'number' && c.lastIdx >= 0) ? c.lastIdx + 1 : 0;
               const total = (typeof c.totalLessons === 'number') ? c.totalLessons : 0;
-              const progressLabel = total > 0
-                ? `${lastN} / ${total}`
-                : (lastN > 0 ? `第 ${lastN} 节` : "尚未开课");
+              // v0.4.11 (2026-05-19) — sessionsCount fallback. User complaint:
+              // "下午上了一节课, 此处全部都是 0" 因为 /finish 未跑 lastIdx ! bump.
+              // 若 lastIdx=-1 (无 finish) 但 sessionsCount > 0 显 "进行中 · N 次".
+              const sess = (typeof c.sessionsCount === 'number') ? c.sessionsCount : 0;
+              const genInFlight = c.lessonGenInFlight === true || c.genStatus === 'pending';
+              const progressLabel = genInFlight
+                ? '课程生成中...'
+                : (total > 0
+                    ? (lastN > 0
+                        ? `${lastN} / ${total}`
+                        : (sess > 0 ? `进行中 · ${sess} 次访问 / ${total} 节` : `0 / ${total} · 尚未开课`))
+                    : (lastN > 0 ? `第 ${lastN} 节` : (sess > 0 ? `进行中 · ${sess} 次访问` : "尚未开课")));
               const slug = c.topic;
               const rowState = pressState[slug];
               const rowClasses = [
@@ -392,8 +657,170 @@ const HomeScreen = ({ user, arc, onOpenLesson, onRoute, courses, onResumeCourse,
                     <div className="serif" style={{ fontSize: 18, lineHeight: 1.25, fontWeight: 500 }}>
                       {c.topic || "(untitled)"}
                     </div>
+                    {c.ultimateGoal && (() => {
+                      const truncated = c.ultimateGoal.length > 60;
+                      const display = truncated ? c.ultimateGoal.slice(0, 58) + '…' : c.ultimateGoal;
+                      const ultimateSpan = (
+                        <span style={{
+                          fontFamily: 'EB Garamond, "Noto Serif SC", serif',
+                          fontStyle: 'italic',
+                          fontSize: 13,
+                          color: 'var(--terracotta-2, #8B3A3A)',
+                          letterSpacing: '.01em',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          minWidth: 0,
+                          maxWidth: '100%',
+                        }} title={c.ultimateGoal}>
+                          ULTIMATE · {display}
+                        </span>
+                      );
+                      const feasBadge = c.feasibility ? (
+                        <span className="mono" style={{
+                          fontSize: 10,
+                          color: 'var(--terracotta-1, #A66D2C)',
+                          marginLeft: 8,
+                          letterSpacing: '.05em',
+                          whiteSpace: 'nowrap',
+                          cursor: 'help',
+                        }} title={`${TIER_LABEL[c.feasibility.tier] || c.feasibility.tier} · hoursNeeded ${c.feasibility.hoursNeeded} / hoursAvailable ${c.feasibility.hoursAvailable}`}>
+                          · {TIER_LABEL[c.feasibility.tier] || c.feasibility.tier} ({c.feasibility.hoursNeeded}h / {c.feasibility.hoursAvailable}h)
+                        </span>
+                      ) : null;
+                      const feasGap = c.feasibility
+                        ? Math.max(0, (c.feasibility.hoursNeeded || 0) - (c.feasibility.hoursAvailable || 0))
+                        : 0;
+                      const feasTipContent = c.feasibility
+                        ? `${TIER_LABEL[c.feasibility.tier] || c.feasibility.tier} = ${c.feasibility.tier} · hoursNeeded ${c.feasibility.hoursNeeded} vs hoursAvailable ${c.feasibility.hoursAvailable} · gap ${feasGap}h`
+                        : '';
+                      return (
+                        <div className="row" style={{ marginTop: 4, marginBottom: 4, alignItems: 'baseline', minWidth: 0 }}>
+                          {truncated && typeof Tooltip === 'function' ? (
+                            <Tooltip position="bottom" maxWidth={420} content={c.ultimateGoal}>
+                              {ultimateSpan}
+                            </Tooltip>
+                          ) : ultimateSpan}
+                          {c.feasibility && (
+                            typeof Tooltip === 'function' ? (
+                              <Tooltip position="bottom" maxWidth={320} content={feasTipContent}>
+                                {feasBadge}
+                              </Tooltip>
+                            ) : feasBadge
+                          )}
+                        </div>
+                      );
+                    })()}
                     <div className="dispose-meta t-tiny mono" style={{ color: "var(--ink-4)", letterSpacing: ".06em" }}>
                       {progressLabel}
+                    </div>
+                    {/* v0.4.11 — surface canonical chain.parent_chain_slug when it
+                        diverges from raw state.series (e.g. post-migration scenario).
+                        Italic decoration register per feedback_italic_decoration_only —
+                        parenthetical editorial commentary, not an action label. */}
+                    {c.parentChainSlug && typeof c.parentChainSlug === 'string'
+                      && c.parentChainSlug !== c.series && (
+                      <div
+                        className="mono"
+                        style={{
+                          fontSize: 9,
+                          fontStyle: 'italic',
+                          color: 'var(--terracotta-1, #A66D2C)',
+                          letterSpacing: '.04em',
+                          marginTop: 1,
+                        }}
+                        title="canonical chain.parent_chain_slug"
+                      >
+                        · parent: {c.parentChainSlug}
+                      </div>
+                    )}
+                    {Array.isArray(c.chainLinks) && c.chainLinks.length > 0 && (
+                      <div className="row" style={{ marginTop: 6, gap: 2, alignItems: 'center', height: 4 }}>
+                        {c.chainLinks.map((link, idx) => {
+                          const ROLE_COLOR = {
+                            prerequisite: '#A8A8A8',
+                            core: 'var(--brass-mid, #B59465)',
+                            ultimate: 'var(--terracotta-2, #8B3A3A)',
+                          };
+                          const color = ROLE_COLOR[link.role] || '#A8A8A8';
+                          return (
+                            <div key={idx} style={{
+                              flex: link.lessons_count || 1,
+                              height: 4,
+                              background: color,
+                              borderRadius: 1,
+                              opacity: 0.85,
+                            }} title={`${link.role || 'unknown'} · ${link.lessons_count || 0} 节${link.topic ? ' · ' + link.topic : ''}`} />
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div className="row" style={{ gap: 14, alignItems: 'baseline', marginTop: 2 }}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); handleEditUltimate(c); }}
+                        title="改课程的 ultimate 目标 (chain.json.ultimate_goal)"
+                        style={{
+                          padding: '2px 0',
+                          background: 'transparent',
+                          border: 'none',
+                          fontFamily: 'EB Garamond, "Noto Serif SC", serif',
+                          fontSize: 12,
+                          color: 'var(--ink-3, #8a7d68)',
+                          letterSpacing: '0.04em',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid transparent',
+                          transition: 'color 160ms ease, border-bottom-color 160ms ease',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--brass-mid)'; e.currentTarget.style.borderBottomColor = 'var(--brass-mid)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--ink-3, #8a7d68)'; e.currentTarget.style.borderBottomColor = 'transparent'; }}
+                      >
+                        改 ultimate
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); handleEditGoal(c); }}
+                        title="改学习目标 (state.goalContract.north_star_goal — 进阶字段, 通常已与 ultimate 同步)"
+                        style={{
+                          padding: '2px 0',
+                          background: 'transparent',
+                          border: 'none',
+                          fontFamily: 'EB Garamond, "Noto Serif SC", serif',
+                          fontSize: 12,
+                          color: 'var(--ink-3, #8a7d68)',
+                          letterSpacing: '0.04em',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid transparent',
+                          transition: 'color 160ms ease, border-bottom-color 160ms ease',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--brass-mid)'; e.currentTarget.style.borderBottomColor = 'var(--brass-mid)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--ink-3, #8a7d68)'; e.currentTarget.style.borderBottomColor = 'transparent'; }}
+                      >
+                        编辑目标
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); handleSetSeries(c); }}
+                        style={{
+                          padding: '2px 0',
+                          background: 'transparent',
+                          border: 'none',
+                          fontFamily: 'EB Garamond, "Noto Serif SC", serif',
+                          fontSize: 12,
+                          color: 'var(--ink-3, #8a7d68)',
+                          letterSpacing: '0.04em',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid transparent',
+                          transition: 'color 160ms ease, border-bottom-color 160ms ease',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--brass-mid)'; e.currentTarget.style.borderBottomColor = 'var(--brass-mid)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--ink-3, #8a7d68)'; e.currentTarget.style.borderBottomColor = 'transparent'; }}
+                      >
+                        设系列
+                      </button>
                     </div>
                   </div>
                   <span className="spacer" />
@@ -411,7 +838,13 @@ const HomeScreen = ({ user, arc, onOpenLesson, onRoute, courses, onResumeCourse,
                 </div>
               );
             })}
-          </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           <div className="frontier-cron-row" style={{
             marginTop: 18,
@@ -429,7 +862,11 @@ const HomeScreen = ({ user, arc, onOpenLesson, onRoute, courses, onResumeCourse,
           }}>
             <span style={{ color: 'var(--ink-muted)' }}>前沿巡探</span>
             <span style={{ color: 'var(--ink-faint)' }}>
-              {cronEnabled ? `每 ${cronInterval} 时拉一次` : '休眠中'}
+              {cronEnabled
+                ? `每 ${cronInterval} 时拉一次`
+                : (frontierMeta
+                    ? `前沿 · ${frontierMeta.count} 条 · ${frontierRelative(frontierMeta.at)}`
+                    : '未启 · 点 6/12/24 时开启')}
             </span>
             <span style={{ flex: 1 }} />
             {[6, 12, 24].map(h => {
@@ -443,7 +880,6 @@ const HomeScreen = ({ user, arc, onOpenLesson, onRoute, courses, onResumeCourse,
                     background: 'transparent',
                     border: 'none',
                     fontFamily: 'inherit',
-                    fontStyle: 'italic',
                     fontSize: 13,
                     color: sel ? 'var(--brass-mid)' : 'var(--ink-faint)',
                     padding: '2px 0',
@@ -467,7 +903,6 @@ const HomeScreen = ({ user, arc, onOpenLesson, onRoute, courses, onResumeCourse,
                 background: 'transparent',
                 border: 'none',
                 fontFamily: 'inherit',
-                fontStyle: 'italic',
                 fontSize: 13,
                 color: cronEnabled ? 'var(--brass-mid)' : 'var(--ink-muted)',
                 padding: '2px 8px',
@@ -505,31 +940,8 @@ const HomeScreen = ({ user, arc, onOpenLesson, onRoute, courses, onResumeCourse,
         </div>
       )}
 
-      {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 28,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            padding: '10px 18px',
-            background: toast.kind === 'err'
-              ? 'color-mix(in srgb, var(--brass-amber) 14%, var(--bg-card, #fbf6ec))'
-              : 'color-mix(in srgb, var(--brass-mid) 8%, var(--bg-card, #fbf6ec))',
-            color: toast.kind === 'err' ? 'var(--brass-amber)' : 'var(--ink-primary)',
-            border: '1px solid var(--hairline-warm)',
-            borderRadius: 4,
-            fontStyle: 'italic',
-            fontSize: 14,
-            letterSpacing: '0.02em',
-            boxShadow: '0 6px 20px color-mix(in srgb, var(--brass-deep) 20%, transparent)',
-            zIndex: 100,
-            animation: 'fadeIn .25s ease both',
-          }}
-        >
-          {toast.text}
-        </div>
-      )}
+      {/* v0.4.10 — local toast JSX removed; <ToastRoot/> at App root renders
+          all toasts dispatched via window.HyphaToast.showToast. */}
     </div>
   );
 };

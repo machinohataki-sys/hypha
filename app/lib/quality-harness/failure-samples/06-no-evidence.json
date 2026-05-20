@@ -1,0 +1,32 @@
+{
+  "id": "failure-06-no-evidence",
+  "topic": "凯恩斯主义",
+  "failure_mode": "no-evidence",
+  "lesson_body_snippet": {
+    "thesis": "By the end of this lesson, the learner will understand that Keynesian economics is the most influential macroeconomic theory of the 20th century.",
+    "canonical_example": "Keynes 在 20 世纪上半叶提出, 政府应该在经济衰退时通过支出来刺激经济. 这个观点影响很大.",
+    "common_misconceptions": [
+      "凯恩斯主义就是大政府.",
+      "凯恩斯主义已经过时."
+    ],
+    "exit_proof": "Keynes 主义的核心观点是什么? 请简述.",
+    "mechanism_explanation": "凯恩斯认为衰退时总需求不足, 政府支出可以补充总需求, 从而带动经济复苏. 这个机制叫做 multiplier effect, 即一笔支出会带动更多支出.",
+    "jargon_list": [
+      "multiplier effect — 乘数效应",
+      "aggregate demand — 总需求"
+    ]
+  },
+  "why_fails": "整 lesson 0 个 citation / 0 个 datapoint / 0 个具体年份 / 0 个具体国家. thesis 'most influential' 无 evidence backing; canonical_example 没引《General Theory》没具体公式没历史 case; misconception 两条 vacuous; exit_proof 是 recall '请简述' 不是 apply; mechanism 提 multiplier 但不给 1/(1-c) 公式 也不给历史 case. 整 lesson 是 hedge phrase 堆叠.",
+  "nine_dim_actual_scores": {
+    "goalCoherence": 40,
+    "jargonControl": 50,
+    "levelMatch": 45,
+    "misconceptionDefense": 20,
+    "evidenceOfLearning": 15,
+    "actionConversion": 20,
+    "productTransferQuality": 20,
+    "notGenericCourse": 30,
+    "hyphaSoul": 20
+  },
+  "regression_assertion": "harness 必须把此 sample 判 FAIL — evidenceOfLearning < 25 且 notGenericCourse < 40. 此 failure 类是 P0 Evidence Ledger (v0.4.1+) 主要打击对象."
+}

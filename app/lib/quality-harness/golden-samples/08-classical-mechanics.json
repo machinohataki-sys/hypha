@@ -1,0 +1,37 @@
+{
+  "id": "golden-08-classical-mechanics",
+  "topic": "古典力学",
+  "user_profile": "零基础",
+  "goal": "理解 Newton 第二定律 F=ma 为何不是定义而是经验律",
+  "ideal_lesson_body": {
+    "thesis": "By the end of this lesson, the learner will see that F=ma is empirically falsifiable — and how it was falsified by Mercury's perihelion before being rescued by general relativity.",
+    "canonical_example": "1859 Le Verrier 计算: Mercury 近日点每世纪超额进动 43 角秒, 与 Newton 第二定律 + 万有引力的预测不符 — 1915 Einstein 用 GR 解释.",
+    "common_misconceptions": [
+      "F=ma 是 force 的定义. 错: F 与 m 由独立操作定义 (弹簧测力 / 天平称重), F=ma 是它们之间的经验关系, 可被 Mercury 这类数据驳倒.",
+      "Newton 力学是被相对论否定了. 错: 在 v <<c 极限 GR 退化为 Newton, Newton 是低速近似不是错的."
+    ],
+    "exit_proof": "给学习者一个虚构观测: 月球绕地球周期比 Newton 预测短 0.001%. 让 ta 判断 (a) 是不是 Newton 错了, (b) 应优先怀疑哪些前提.",
+    "mechanism_explanation": "把 F=ma 想成 '推一辆购物车的力 = 车的惯性 × 车被推得多快地加速'. 这不是 '力的定义就是推它加速的', 而是 '两个独立测的量, 经验上正好成正比'.",
+    "jargon_list": [
+      "perihelion precession — 行星椭圆轨道近日点位置每周转动一点",
+      "inertial frame — 不被加速的参考系 (F=ma 仅在此系成立)",
+      "falsifiable — 可被某种观测结果证伪 (Popper 1934)"
+    ],
+    "note_connection": "(first lesson — no prior note to bind to)",
+    "learn_goal": "理解 Newton 第二定律 F=ma 为何不是定义而是经验律",
+    "user_profile": "零基础",
+    "intro_hook_scene": "1859 年 9 月 12 日, 巴黎天文台, Le Verrier 把 50 年观测数据放下: 'Mercury 不听 Newton 的话, 每世纪偏 43 角秒.' 没人能解释, 直到 56 年后一个瑞士专利员."
+  },
+  "nine_dim_target_scores": {
+    "goalCoherence": 95,
+    "jargonControl": 80,
+    "levelMatch": 85,
+    "misconceptionDefense": 95,
+    "evidenceOfLearning": 90,
+    "actionConversion": 65,
+    "productTransferQuality": 60,
+    "notGenericCourse": 95,
+    "hyphaSoul": 90
+  },
+  "notes": "Golden because: thesis 击穿 high-school 教科书 'F=ma 是力的定义' framing; canonical_example 用 Mercury 1859 datapoint — 真实历史 falsification; exit_proof 让 user 做 Bayesian 推理判断要不要扔掉 Newton."
+}

@@ -66,9 +66,39 @@ class DeepSeekDirect extends LLMProvider {
       clearTimeout(tid);
     }
 
-    const content = response?.choices?.[0]?.message?.content;
+    let content = response?.choices?.[0]?.message?.content;
+    let reasoningContent = response?.choices?.[0]?.message?.reasoning_content;
+
+    // 2026-05-19 — DeepSeek V4 模型 reasoning tokens 先于 content tokens. 当
+    // caller 传小 maxTokens (micro-judge / harvest filter / drift 二审 typically
+    // 200-800), reasoning 可能烧光预算 → content=''. Auto-retry once with bumped
+    // budget if (a) content empty (b) reasoning_content 非空 (证实是 reasoning
+    // overflow, ! API 错误) (c) maxTokens 还有抬升空间.
+    // Per HYPHA CLAUDE.md: "DeepSeek V4 + GLM 5-series + Kimi K2.6 spend
+    // reasoning tokens before content tokens — a 5-token ping returns empty"
+    // (GLM 自己 thinking:disabled 解决了, DeepSeek 走 auto-retry 这条).
+    if (!content && reasoningContent) {
+      const bumpedTokens = Math.min(maxTokens * 4, 8000);
+      // Only retry if bumping actually buys headroom (caller already at 8000+
+      // → empty content is a different bug, retry won't help).
+      if (bumpedTokens > maxTokens) {
+        try {
+          const retryBody = { ...body, max_tokens: bumpedTokens };
+          const retryResp = await this.client.chat.completions.create(retryBody);
+          content = retryResp?.choices?.[0]?.message?.content;
+          if (content) {
+            // Splice in usage from retry so cost ledger captures full burn
+            response.usage = retryResp.usage || response.usage;
+          }
+        } catch (_e) { /* retry best-effort; fall through to throw below */ }
+      }
+    }
+
     if (!content) {
-      throw new LLMProviderError('DeepSeek returned empty content');
+      const reasonHint = reasoningContent
+        ? ` (reasoning_content=${reasoningContent.length} chars but no final content — increase maxTokens ≥ 2000)`
+        : '';
+      throw new LLMProviderError('DeepSeek returned empty content' + reasonHint);
     }
 
     // OpenAI-compat usage block. DeepSeek V4 returns {prompt_tokens,

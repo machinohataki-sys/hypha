@@ -102,6 +102,7 @@ async function prosecuteLessonBody({ plan, body, contract, capability = 'T4_JUDG
       sqliteDb.recordChatCallEstimate(dispatch, 'prosecuteAttack', {
         latency_ms: Date.now() - _t0,
         tuple_id: (plan && plan.lesson_slug) || null,
+        slug: (plan && plan.lesson_slug) || null,
         success: true,
       });
     } catch (err) {
@@ -190,6 +191,7 @@ async function judgeLessonProsecution({ plan, body, charges, contract, capabilit
       sqliteDb.recordChatCallEstimate(dispatch, 'judgeRule', {
         latency_ms: Date.now() - _t0,
         tuple_id: (plan && plan.lesson_slug) || null,
+        slug: (plan && plan.lesson_slug) || null,
         success: true,
       });
     } catch (err) {
@@ -285,6 +287,7 @@ async function rewriteLessonBody({ plan, body, upheldCharges, contract, capabili
       sqliteDb.recordChatCallEstimate(dispatch, 'rewriteFix', {
         latency_ms: Date.now() - _t0,
         tuple_id: (plan && plan.lesson_slug) || null,
+        slug: (plan && plan.lesson_slug) || null,
         success: true,
       });
     } catch (err) {
@@ -468,14 +471,229 @@ async function runProsecuteJudgeRewrite({ plan, body, contracts } = {}) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Freeform PJR (Machino-α8, 2026-05-15)
+//
+// Used by `streamTurn` post-stream complaint loop. Input = chat reply text
+// + signals from 4 detector modules (citation-verifier / pedagogy-claim /
+// confidence-leak / anti-illusion). No lesson plan, no body schema.
+//
+// MVP strategy per AMD-MEOW-P7 R4: skip JUDGE LLM, derive severity from
+// signal arithmetic; REWRITE LLM (T6_STRONG) only when severity ≥ mid.
+// Cheaper than runProsecuteJudgeRewrite; keeps PJR loop honest without
+// paying 3 LLM calls per chat turn.
+
+function _summarizeSignals(signals) {
+  const s = signals || {};
+  const cit_unverified = (s.citations && Number(s.citations.unverified)) || 0;
+  const ped_unknown = (s.pedagogy && Number(s.pedagogy.unknown)) || 0;
+  const ped_inconsistent = (s.pedagogy && Number(s.pedagogy.inconsistent)) || 0;
+  const conf_leak = (s.confidence && Number(s.confidence.leak_count)) || 0;
+  // anti-illusion `detectIllusion` returns { illusion_detected, illusion_type, all_signals }
+  const illusion_fire = (s.illusion && s.illusion.illusion_detected) ? 1 : 0;
+  // v0.4.10 (2026-05-19) — bias-correction-detector signals. detectBiasViolations
+  // returns { primaries_found, counters_found, missing_counter_for, summary }.
+  // We pull missing_counter count + should_flag from summary. Caller path
+  // (anti-slop integration in agent.js) computes once + injects to PJR.
+  const bias_missing = (s.bias && Number((s.bias.missing_counter_for || []).length)) || 0;
+  const bias_should_flag = !!(s.bias && s.bias.summary && s.bias.summary.should_flag);
+  const total_fire = (cit_unverified > 0 ? 1 : 0)
+    + ((ped_unknown + ped_inconsistent) > 0 ? 1 : 0)
+    + (conf_leak > 0 ? 1 : 0)
+    + illusion_fire
+    + (bias_should_flag ? 1 : 0);
+  return {
+    cit_unverified, ped_unknown, ped_inconsistent, conf_leak,
+    illusion_fire, bias_missing, bias_should_flag, total_fire,
+  };
+}
+
+// V0.4 archetype gate — humanities + langs are lower-fidelity domains,
+// rewriting them dilutes signal. Force needs_rewrite=false for HUMANITIES,
+// and only allow rewrite at 'high' for LANG-ACQ / MINDSET. Tech/decl-mass
+// keep strict (current behavior).
+const STRICT_ARCHETYPES = new Set(['TECH-CONCEPT', 'TECH-PROC', 'DECL-MASS']);
+
+// V0.4.4 (2026-05-19) — HUMANITIES gate split per-axis. Prose-quality axes
+// (citation / pedagogy) STAY blocked (rewriting prose ABOUT humanities can
+// introduce false historical claims — original 2026-05-15 rationale). But
+// epistemic-defect axes (confidence-leak / illusion) allow rewrite at sev
+// 'mid'+ because those defects are equally bad in humanities — overconfident
+// assertion + premature closure don't get a free pass just because the
+// domain is contested.
+// Source: 2026-05-19 council dialectic — Yogo A (P=0.32, sev 5) identified
+// that gate silenced ALL signals where it should silence only generative-risk
+// subset. Verify via events.jsonl `verdict.gated_by_archetype=true` counts.
+const ARCHETYPE_GATE = {
+  'HUMANITIES': (sev, focus_axes) => {
+    if (!Array.isArray(focus_axes)) return false;
+    const epistemic = focus_axes.includes('confidence') || focus_axes.includes('illusion');
+    if (!epistemic) return false;                  // prose-quality axes — stay blocked
+    return sev === 'mid' || sev === 'high';        // epistemic axes — allow rewrite
+  },
+  'LANG-ACQ': (sev) => sev === 'high',
+  'MINDSET': (sev) => sev === 'high',
+};
+
+function _deriveVerdict(summary, archetype) {
+  const { total_fire, cit_unverified, ped_unknown, ped_inconsistent, conf_leak } = summary;
+  const bias_should_flag = !!summary.bias_should_flag;
+  const bias_missing = Number(summary.bias_missing) || 0;
+  const focus_axes = [];
+  if (cit_unverified > 0) focus_axes.push('citations');
+  if ((ped_unknown + ped_inconsistent) > 0) focus_axes.push('pedagogy');
+  if (conf_leak > 0) focus_axes.push('confidence');
+  if (summary.illusion_fire) focus_axes.push('illusion');
+  // v0.4.10 (2026-05-19) — bias-correction axis. Treated as prose-quality
+  // (HUMANITIES gate blocks). Differs from confidence/illusion which are
+  // epistemic. Bias = "primary framework presented as settled when contested" —
+  // this IS the prose claim, not the assertion's hedge level.
+  if (bias_should_flag) focus_axes.push('bias');
+
+  let severity;
+  if (total_fire >= 4 || cit_unverified >= 3 || conf_leak >= 5 || bias_missing >= 3) {
+    severity = 'high';
+  } else if (total_fire >= 2 || cit_unverified >= 1 || (ped_unknown + ped_inconsistent) >= 1 || conf_leak >= 2 || bias_missing >= 2) {
+    severity = 'mid';
+  } else if (total_fire >= 1) {
+    severity = 'low';
+  } else {
+    severity = 'none';
+  }
+
+  // Default rule: rewrite when severity is mid/high. Low/none = no rewrite.
+  let needs_rewrite = severity !== 'none' && severity !== 'low';
+  const would_rewrite = needs_rewrite;
+
+  // V0.4 archetype gate — humanities + langs are lower-fidelity domains,
+  // rewriting them dilutes signal. Force needs_rewrite=false for HUMANITIES,
+  // and only allow rewrite at 'high' for LANG-ACQ / MINDSET. Tech/decl-mass
+  // keep strict (current behavior).
+  let gated_by_archetype = false;
+  if (archetype && !STRICT_ARCHETYPES.has(archetype)) {
+    const gate = ARCHETYPE_GATE[archetype];
+    if (gate) {
+      // V0.4.4 — gate gets focus_axes for per-axis decisions (HUMANITIES
+      // allows rewrite on confidence/illusion, blocks citation/pedagogy).
+      // Backward-compat: LANG-ACQ/MINDSET gates ignore the 2nd arg.
+      const gated_decision = gate(severity, focus_axes);
+      if (would_rewrite && !gated_decision) gated_by_archetype = true;
+      needs_rewrite = gated_decision;
+    }
+  }
+
+  return {
+    needs_rewrite,
+    severity,
+    focus_axes,
+    archetype_used: archetype || null,
+    gated_by_archetype,
+  };
+}
+
+function _buildRewriteHints(signals, summary) {
+  const hints = [];
+  if (summary.cit_unverified > 0) {
+    hints.push(`- ${summary.cit_unverified} 处引用未在 sources.json 中找到匹配:不要伪造引文。删除未支撑的引用或改写为 hedged inference ("据某些来源说...","若假设...,则...")。`);
+  }
+  if (summary.ped_unknown > 0) {
+    hints.push(`- ${summary.ped_unknown} 处教学法主张引用了 pedagogy.md 未定义的 primitive:删除或改用 pedagogy.md 内已定义的概念。`);
+  }
+  if (summary.ped_inconsistent > 0) {
+    hints.push(`- ${summary.ped_inconsistent} 处主张与 pedagogy.md canonical 不一致:校准措辞或显式标记 "与教学法基线不同的扩展"。`);
+  }
+  if (summary.conf_leak > 0) {
+    hints.push(`- ${summary.conf_leak} 处高断言无对冲 (assertive without hedge): 在适当位置加入诚实约束 ("据...","在 X 假设下","部分情况下")。`);
+  }
+  if (summary.illusion_fire) {
+    const types = (signals.illusion && signals.illusion.illusion_type) || 'illusion';
+    hints.push(`- 触发 anti-illusion 信号 (${types}): 用具体可执行的例子或迁移任务替代笼统结论。`);
+  }
+  return hints;
+}
+
+const REWRITE_SYSTEM_PROMPT = `你是 HYPHA 复审改写者。任务是接收一段对话回复 + 一份列出具体瑕疵的"控诉书",仅修正控诉书指出的瑕疵,其他段落保持逐字不变。
+
+规则:
+- 不引入新主题。不增加未被指出的内容。
+- 引文未验证 → 删除或改写为带 hedge 的推断。
+- 高断言无对冲 → 加入合适的语气限定,不要变成营销式吹捧。
+- pedagogy 不一致 → 校准措辞或显式承认是扩展。
+- 直接输出修订后的纯文本 (中文为主,与原文 register 一致),不要任何 JSON 包装、markdown 围栏或元说明。`;
+
+async function runProsecuteJudgeOnFreeform({ text, signals, settings, slug, archetype } = {}) {
+  const original = String(text || '');
+  if (!original.trim()) {
+    return { original, rewritten: null, verdict: { needs_rewrite: false, severity: 'none', focus_axes: [], archetype_used: archetype || null, gated_by_archetype: false }, signals_summary: _summarizeSignals(signals) };
+  }
+  const summary = _summarizeSignals(signals);
+  const verdict = _deriveVerdict(summary, archetype);
+
+  if (!verdict.needs_rewrite) {
+    return { original, rewritten: null, verdict, signals_summary: summary };
+  }
+
+  const hints = _buildRewriteHints(signals || {}, summary);
+  if (hints.length === 0) {
+    return { original, rewritten: null, verdict, signals_summary: summary };
+  }
+
+  const indictment = hints.join('\n');
+  const userMsg = `${_wrapData('ORIGINAL REPLY', original)}\n\n${_wrapData('INDICTMENT (fix only these axes)', indictment)}\n\n输出修订后的回复纯文本。`;
+
+  try {
+    const dispatch = await executeChat('T6_STRONG', {
+      messages: [
+        { role: 'system', content: REWRITE_SYSTEM_PROMPT + SENTINEL_INSTRUCTION },
+        { role: 'user', content: userMsg },
+      ],
+      json: false,
+      temperature: 0.3,
+      maxTokens: Math.min(4000, Math.max(800, Math.ceil(original.length * 1.4))),
+      timeoutMs: 60_000,
+    });
+    const out = typeof dispatch.result === 'string' ? dispatch.result.trim() : '';
+    // Guard: rewriter must not drastically expand or shrink (>2x or <30%)
+    // — that means the LLM ignored "preserve unchanged passages" rule.
+    const lenRatio = out.length / Math.max(1, original.length);
+    if (!out || lenRatio > 2.2 || lenRatio < 0.3) {
+      return {
+        original, rewritten: null, verdict, signals_summary: summary,
+        rewrite_skipped_reason: out ? `length ratio out of bounds (${lenRatio.toFixed(2)})` : 'empty rewrite',
+        provider: dispatch.providerId, model: dispatch.model,
+      };
+    }
+    return {
+      original,
+      rewritten: out,
+      verdict,
+      signals_summary: summary,
+      provider: dispatch.providerId,
+      model: dispatch.model,
+    };
+  } catch (err) {
+    return {
+      original, rewritten: null, verdict, signals_summary: summary,
+      rewrite_error: (err && err.message) || String(err),
+    };
+  }
+}
+
 module.exports = {
   prosecuteLessonBody,
   judgeLessonProsecution,
   rewriteLessonBody,
   runProsecuteJudgeRewrite,
+  runProsecuteJudgeOnFreeform,
   validateChargesPayload,
   validateRulingsPayload,
   CHARGE_TYPES,
   SEVERITY_LEVELS,
   RULING_STATUSES,
+  // V0.4.4 — expose internals for archetype gate smoke (2026-05-19).
+  _deriveVerdict,
+  _ARCHETYPE_GATE: ARCHETYPE_GATE,
+  _STRICT_ARCHETYPES: STRICT_ARCHETYPES,
+  // V0.4.10 — expose signal summarizer for bias-integration smoke.
+  _summarizeSignals,
 };

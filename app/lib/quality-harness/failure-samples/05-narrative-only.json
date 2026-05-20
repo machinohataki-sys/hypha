@@ -1,0 +1,29 @@
+{
+  "id": "failure-05-narrative-only",
+  "topic": "法国大革命",
+  "failure_mode": "narrative-only",
+  "lesson_body_snippet": {
+    "thesis": "By the end of this lesson, the learner will appreciate the drama and human story of the French Revolution.",
+    "canonical_example": "1789 年 7 月 14 日, 巴黎闷热, 街头喧嚣. Robespierre 还是律师, 罗兰夫人尚在沙龙. Bastille 烟尘升起, 一位女工跪在血泊中哭泣 — 那是大时代的悲歌.",
+    "common_misconceptions": [
+      "Bastille 是大监狱.",
+      "革命领袖都是好人."
+    ],
+    "exit_proof": "请用自己的话感受一下大革命的氛围, 写一段感想.",
+    "mechanism_explanation": "革命是一场波澜壮阔的人民运动, 涉及无数英雄与悲剧, 改变了世界. 我们今天仍能感受到它的回响.",
+    "jargon_list": []
+  },
+  "why_fails": "整 lesson 是叙事感染力 + 文学渲染, 0 个可被驳的 claim, 0 个可被应用的 mechanism. thesis 'appreciate drama' 不可证伪; canonical_example 是散文不是 anchor; exit_proof '写感想' = 0 落地 + 0 Track A 产出 + 0 Track B push back. 学完 user 啥也没学到任何能讲给真人 / 做成产品 的东西.",
+  "nine_dim_actual_scores": {
+    "goalCoherence": 35,
+    "jargonControl": 60,
+    "levelMatch": 55,
+    "misconceptionDefense": 25,
+    "evidenceOfLearning": 5,
+    "actionConversion": 5,
+    "productTransferQuality": 5,
+    "notGenericCourse": 30,
+    "hyphaSoul": 20
+  },
+  "regression_assertion": "harness 必须把此 sample 判 FAIL — actionConversion < 15 且 productTransferQuality < 15."
+}

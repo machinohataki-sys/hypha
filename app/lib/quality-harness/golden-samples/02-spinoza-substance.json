@@ -1,0 +1,37 @@
+{
+  "id": "golden-02-spinoza-substance",
+  "topic": "斯宾诺莎实体论",
+  "user_profile": "零基础",
+  "goal": "理解实体一元论 — 为什么斯宾诺莎认为只可能有一个实体",
+  "ideal_lesson_body": {
+    "thesis": "By the end of this lesson, the learner will follow Spinoza's argument that two infinite substances cannot coexist, therefore only one substance exists.",
+    "canonical_example": "Ethics Part I, Prop 5 (1677) — Spinoza 用反证法: 假设两个实体, 它们要么共享属性 (则非异), 要么不共享 (则其中一个非无限).",
+    "common_misconceptions": [
+      "'实体' = 物质东西. 错: 斯宾诺莎的 substantia 是 '自因之物 / 不依赖他者而存在', 与日常 'substance' 词义无关.",
+      "'一元论' = 万物皆物质. 错: Spinoza 的一元论是属性中立的, 物质和心灵都是同一实体的两个 attribute."
+    ],
+    "exit_proof": "给学习者一个未读过的哲学家断言 (莱布尼茨 monad 论), 让 ta 解释为何 Spinoza 会反对, 并指出 monad 论的实体定义在哪里不符 Spinoza 的 substantia 标准.",
+    "mechanism_explanation": "想象实体是一个 '自己解释自己' 的东西 — 若再有另一个同等自给的东西, 它必须用前者无法用到的概念定义自己, 但 '无限' 已包含一切概念. 矛盾出处于此.",
+    "jargon_list": [
+      "substantia — 自因之物 / 不依赖他者而存在的东西",
+      "attribute — 一个实体可被理智把握到的本质方面 (物质 / 思想)",
+      "modus — 实体在某 attribute 下的一个具体样态 (这块石头 / 这个念头)"
+    ],
+    "note_connection": "(first lesson — no prior note to bind to)",
+    "learn_goal": "理解实体一元论 — 为什么斯宾诺莎认为只可能有一个实体",
+    "user_profile": "零基础",
+    "intro_hook_scene": "1675 年阿姆斯特丹, Spinoza 把磨好的镜片放下, 给朋友写信: '如果上帝在万物之外, 我们就有两个上帝.'"
+  },
+  "nine_dim_target_scores": {
+    "goalCoherence": 95,
+    "jargonControl": 80,
+    "levelMatch": 85,
+    "misconceptionDefense": 95,
+    "evidenceOfLearning": 90,
+    "actionConversion": 70,
+    "productTransferQuality": 65,
+    "notGenericCourse": 90,
+    "hyphaSoul": 90
+  },
+  "notes": "Golden because: 直接抓 Prop 5 + Ethics 原文; misconception 命中典型读者偏差 (substance/material conflation); exit_proof 让 user 对未读哲学家做迁移判断 = 真 Feynman 测试; hook 用磨镜片场景反 encyclopedia framing."
+}

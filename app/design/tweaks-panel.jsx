@@ -295,7 +295,7 @@ function TweaksPanel({ title = 'Tweaks', noDeckControls = false, children }) {
           <b>{title}</b>
           <button className="twk-x" aria-label="Close tweaks"
                   onMouseDown={(e) => e.stopPropagation()}
-                  onClick={dismiss}>✕</button>
+                  onClick={dismiss}>×</button>
         </div>
         <div className="twk-body">
           {children}

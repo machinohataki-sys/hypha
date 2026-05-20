@@ -103,6 +103,7 @@ async function runOnce(messages, settings, opts = {}) {
   if (sysBlock) params.system = sysBlock;
 
   const timeoutMs = opts.timeoutMs || 90_000;
+  const _t0 = Date.now();
   const r = await c.messages.create(params, { timeout: timeoutMs });
 
   // Extract text from content blocks (Anthropic returns array of {type,text}).
@@ -110,6 +111,30 @@ async function runOnce(messages, settings, opts = {}) {
     .filter(b => b && b.type === 'text')
     .map(b => b.text || '')
     .join('');
+
+  // V0.5 E1 cost-ledger plug: anthropic-sdk path previously bypassed the
+  // ledger entirely. Record now so trigger-2 "100% coverage" holds for
+  // founder cohort's classic/learn mode. Non-fatal.
+  try {
+    const sqliteDb = require('../db/sqlite');
+    const usage = (r && r.usage) ? {
+      prompt_tokens: r.usage.input_tokens,
+      completion_tokens: r.usage.output_tokens,
+    } : null;
+    const dispatch = {
+      result: text,
+      usage,
+      providerId: 'anthropic-sdk',
+      model: params.model,
+      _requestMessages: messages,
+    };
+    sqliteDb.recordChatCallEstimate(dispatch, opts.taskType || 'llmJSON-anthropic', {
+      latency_ms: Date.now() - _t0,
+    });
+  } catch (err) {
+    console.warn('[recordChatCallEstimate] anthropic-adapter err=', err && err.message);
+  }
+
   return text;
 }
 

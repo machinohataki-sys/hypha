@@ -1,0 +1,37 @@
+{
+  "id": "golden-07-french-revolution",
+  "topic": "法国大革命",
+  "user_profile": "零基础",
+  "goal": "理解 1789 年起义不是因为 '人民太穷', 而是结构性赤字 + 特权阶层免税的合力",
+  "ideal_lesson_body": {
+    "thesis": "By the end of this lesson, the learner will explain that the 1789 revolt was triggered by fiscal collapse + privileged classes' tax immunity, not by absolute poverty of the populace.",
+    "canonical_example": "1788 年 Estates-General 召集前, France 国家债务利息已占财政收入 51% — 路易十六开 Estates-General 不是改革热情, 是没钱了.",
+    "common_misconceptions": [
+      "革命是因为人民饿. 错: 1789 法国农民生活水平实际高于英国农民; 革命的导火索是巴黎中产 + 律师 + 商人 (Third Estate) 对税制不公的怒火.",
+      "Bastille 被攻陷是为救政治犯. 错: 1789 年 7 月 14 日 Bastille 只关 7 个犯人, 群众真正目的是抢里面的火药."
+    ],
+    "exit_proof": "给学习者两个虚构国家 (A 国: 人均收入低但税制公平; B 国: 人均收入中高但前 5% 免税), 让 ta 不查史料判断哪个更易爆发革命并说明判据.",
+    "mechanism_explanation": "想象一根绳: 一头吊着国家债务在涨, 一头连着免税特权阶层的口袋. 绳越拉越紧, 一边是 '需要更多税', 一边是 '我们不交'. 第三方 (Third Estate) 被夹中间 — 直到绳断.",
+    "jargon_list": [
+      "Third Estate — 法国革命前三个阶层中的平民阶层 (96% 人口)",
+      "Estates-General — 三个阶层的代表会议, 175 年没召开过",
+      "cahiers de doléances — 1789 年由各地选民写的诉苦书, 是革命前唯一全国性 grievance 数据"
+    ],
+    "note_connection": "(first lesson — no prior note to bind to)",
+    "learn_goal": "理解 1789 年起义不是因为 '人民太穷', 而是结构性赤字 + 特权阶层免税的合力",
+    "user_profile": "零基础",
+    "intro_hook_scene": "1789 年 5 月 5 日, 凡尔赛, 第三阶层代表穿黑衣进 Estates-General 大厅, 贵族穿羽毛白, 教士穿紫袍 — 服装是阶级税制的视觉宣言."
+  },
+  "nine_dim_target_scores": {
+    "goalCoherence": 95,
+    "jargonControl": 80,
+    "levelMatch": 85,
+    "misconceptionDefense": 95,
+    "evidenceOfLearning": 90,
+    "actionConversion": 70,
+    "productTransferQuality": 65,
+    "notGenericCourse": 90,
+    "hyphaSoul": 85
+  },
+  "notes": "Golden because: thesis 直接驳教科书 'people were starving' 框架; misconception 两条都是高发流行误读 (Bastille 政治犯 + 饿肚子); exit_proof 用虚构对比让 user 真应用 fiscal-collapse heuristic."
+}

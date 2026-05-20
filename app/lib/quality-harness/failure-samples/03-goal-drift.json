@@ -1,0 +1,34 @@
+{
+  "id": "failure-03-goal-drift",
+  "topic": "斯宾诺莎实体论",
+  "failure_mode": "goal-drift",
+  "stated_goal": "理解实体一元论 — 为什么斯宾诺莎认为只可能有一个实体",
+  "lesson_body_snippet": {
+    "thesis": "斯宾诺莎的伦理学第一部分讨论了上帝的本质, 包括上帝的自由意志、不变性和善.",
+    "canonical_example": "Spinoza 1670 年发表《神学政治论》, 主张宗教宽容与思想自由, 影响了启蒙运动的洛克和卢梭.",
+    "common_misconceptions": [
+      "Spinoza 是无神论者. 错: 他是泛神论者.",
+      "Spinoza 被开除教会是因为偷东西. 错: 是因为思想异端."
+    ],
+    "exit_proof": "讲一讲 Spinoza 对启蒙运动的影响.",
+    "mechanism_explanation": "Spinoza 出生于阿姆斯特丹犹太社区, 后来因为思想被开除教会, 隐居磨镜片为生. 他的哲学受笛卡尔影响但走向了泛神论.",
+    "jargon_list": [
+      "泛神论 — 上帝即自然",
+      "启蒙运动 — 17-18 世纪欧洲思想运动",
+      "异端 — 与正统不符的信仰"
+    ]
+  },
+  "why_fails": "Stated goal = '实体一元论的论证'. 但整 lesson 滑向 '斯宾诺莎生平 + 神学政治论 + 启蒙运动影响' — 资讯流堆叠, 完全没碰 Ethics Part I Prop 5 的论证. thesis 改谈 '上帝的本质' (相邻话题); canonical_example 引《神学政治论》(1670) 而非 Ethics (1677); exit_proof 是 '讲讲影响' 不是 apply 实体一元论. 经典 goal-drift 模式.",
+  "nine_dim_actual_scores": {
+    "goalCoherence": 5,
+    "jargonControl": 65,
+    "levelMatch": 60,
+    "misconceptionDefense": 55,
+    "evidenceOfLearning": 15,
+    "actionConversion": 25,
+    "productTransferQuality": 20,
+    "notGenericCourse": 50,
+    "hyphaSoul": 25
+  },
+  "regression_assertion": "harness 必须把此 sample 判 FAIL — goalCoherence < 15 且 overall_score < 40."
+}

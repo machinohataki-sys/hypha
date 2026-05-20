@@ -13,6 +13,7 @@
 
 const { executeChat, LLMProviderError } = require('../llm');
 const { renderContractAsPrompt } = require('../agent-character/contract-loader');
+const { verifyConfessionAgainstTranscript } = require('./verify-confession-against-transcript');
 const sqliteDb = require('../../db/sqlite');
 
 const CONFESSION_SYSTEM_PROMPT_TEMPLATE = (contractText) => `${contractText}
@@ -108,6 +109,7 @@ async function generateConfession({ plan, body, transcript, characterContract, c
       sqliteDb.recordChatCallEstimate(dispatch, 'confession', {
         latency_ms: Date.now() - _t0,
         tuple_id: (plan && plan.lesson_slug) || null,
+        slug: (plan && plan.lesson_slug) || null,
         success: true,
       });
     } catch (err) {
@@ -117,6 +119,28 @@ async function generateConfession({ plan, body, transcript, characterContract, c
 
     const errors = validateConfession(result);
     if (errors.length === 0) {
+      // AMD-MEOW-P7 M2 hardening (2026-05-14): boilerplate detector
+      // (`gradeConfessionHonesty`) cannot tell a fabricated anchor from a
+      // real one ("path[2] 应该更深" sounds specific but may reference a
+      // path the transcript never reached). Run heuristic anchor verification
+      // and attach as `_verify` so downstream graders (and UI) can flag
+      // self-fooling confessions without re-extracting transcripts.
+      const boilerplateScore = gradeConfessionHonesty(result);
+      const verifyResult = verifyConfessionAgainstTranscript(result, transcript || []);
+      // Score-merge strategy: MIN (worst-of-two), so a fabricated-anchor
+      // confession can't laundry-cycle through the boilerplate filter.
+      // Normalize boilerplateScore (0..100) into 0..1 first.
+      const boilerplateNorm = Math.max(0, Math.min(1, boilerplateScore / 100));
+      const finalScore = Math.min(boilerplateNorm, verifyResult.score);
+      result._verify = {
+        boilerplate_score: boilerplateScore,
+        anchor_verify_score: verifyResult.score,
+        anchor_verify_verified: verifyResult.verified,
+        found_anchors: verifyResult.found_anchors,
+        missing_anchors: verifyResult.missing_anchors,
+        flags: verifyResult.flags,
+        final_score: finalScore,
+      };
       return {
         confession: result,
         _meta: {
@@ -213,5 +237,6 @@ module.exports = {
   generateConfession,
   validateConfession,
   gradeConfessionHonesty,
+  verifyConfessionAgainstTranscript,
   CONFESSION_SYSTEM_PROMPT_TEMPLATE,
 };

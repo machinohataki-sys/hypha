@@ -25,6 +25,19 @@ const INGRATIATION_PATTERNS = [
   '一个常被忽视的细节',
   '你的直觉是对的',
 
+  // 2026-05-19 v2 — bare-stem 中文 mirror-praise. Caught from "仪式优先性"
+  // HUMANITIES lesson 6-turn transcript where tutor used these 6× with zero
+  // substantive critique. v1 patterns ("你真正抓住了关键") prefixed with
+  // 真正/已经/更深 but actual transcript dropped the prefix. Bare forms must
+  // also fire.
+  '你抓住了关键',
+  '你抓住了核心',
+  '你做了它',
+  '结构相同',
+  '明白了',
+  /(?:^|[。,，!?\s])(就是这样|没错|正是|完全正确)(?=[。,，!?\s]|$)/u,
+  /(?:^|[。,，!?\s])(对|好)(?=[。,，!?\s]|$)/u,
+
   // 中文 伪坦诚 / 注意力操控
   '说实话',
   '坦白说',

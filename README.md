@@ -76,6 +76,14 @@ Discarded. Old course state archived to `vault/.archive-pre-v0.5/2026-05-10/` an
 
 It does not claim to be a private university. It does not claim to teach better than other tools. It does not claim that language-model judgments of learning are reliable. The point of the exercise is to find out whether a different substrate works, and to be specific about how that question is being answered.
 
+## User-facing docs
+
+For people running Hypha as a learning tool rather than auditing the methodology:
+
+- [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — install, first goal, first lesson (zh)
+- [`docs/PRIVACY.md`](docs/PRIVACY.md) — what stays local, what is sent to providers (zh)
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — process split, ten systems, vault layout (en)
+
 ## Contributing
 
 See `CONTRIBUTING.md` for how to add a golden item, how to add a verification channel, how to run the evaluator, and how to read the κ and F1 numbers.

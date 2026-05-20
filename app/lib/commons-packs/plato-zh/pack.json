@@ -1,0 +1,45 @@
+{
+  "topic": "柏拉图",
+  "lang": "zh",
+  "curator": "hypha-org",
+  "version": 0.1,
+  "ratified_by": ["hypha-team"],
+  "ratified_at": "2026-05-12",
+  "aliases": ["Plato", "Platon", "柏拉图"],
+  "syllabus_skeleton": [
+    {
+      "chapter": "理念论 (Theory of Forms)",
+      "kp_candidates": ["分有 (methexis)", "回忆说 (anamnesis)", "线段比喻", "洞穴比喻"]
+    },
+    {
+      "chapter": "灵魂论",
+      "kp_candidates": ["三分灵魂 (理性/激情/欲望)", "灵魂不朽"]
+    },
+    {
+      "chapter": "理想国 (Republic) 政治哲学",
+      "kp_candidates": ["哲人王", "正义 (dikaiosune)", "城邦三阶层"]
+    }
+  ],
+  "recommended_sources": [
+    {
+      "title": "Copleston — A History of Philosophy, Vol I: Greece and Rome",
+      "type": "book",
+      "reason": "标准入门, Plato 章节系统"
+    },
+    {
+      "title": "Cornford — Plato's Theory of Knowledge",
+      "type": "book",
+      "reason": "经典英语注释"
+    },
+    {
+      "url": "https://plato.stanford.edu/entries/plato/",
+      "type": "web",
+      "reason": "SEP canonical"
+    }
+  ],
+  "contested_questions": [
+    "理念是否独立存在? 还是只是心智构造?",
+    "Plato 的政治哲学是 极权主义雏形 还是被 Popper 误读?",
+    "回忆说与现代认知科学如何对话?"
+  ]
+}

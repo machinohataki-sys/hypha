@@ -1,0 +1,37 @@
+{
+  "id": "golden-03-information-theory",
+  "topic": "信息论基础",
+  "user_profile": "零基础",
+  "goal": "理解 Shannon entropy 为何用 log2 而不是别的函数",
+  "ideal_lesson_body": {
+    "thesis": "By the end of this lesson, the learner will derive why H = -Σp log p is the only function satisfying additivity + symmetry + continuity simultaneously.",
+    "canonical_example": "1948 Shannon 'A Mathematical Theory of Communication' §6 — 用扔一枚 / 两枚硬币的不确定性须能相加, 推出 log 是唯一候选.",
+    "common_misconceptions": [
+      "log 是约定俗成. 错: Shannon 在原文 §6 给出三公理唯一性证明, 不是 convention.",
+      "entropy = 信息量. 错: entropy 是不确定性, 收到消息后 entropy 减少的量才是 information."
+    ],
+    "exit_proof": "给学习者一个三面骰 (p=1/3, 1/3, 1/3) 和一个偏置硬币 (p=0.9, 0.1), 让 ta 不查公式估哪个 entropy 大, 并解释推理.",
+    "mechanism_explanation": "把 '惊讶程度' 想成扔硬币时心里 '哎' 那一声 — 公平硬币每次 '哎', 偏置硬币常 '哦果然'. log 把 '事件 X 出现概率 p' 翻成 '心里那声 哎 的力度'.",
+    "jargon_list": [
+      "entropy — 平均的 '哎' 力度",
+      "additivity — 两个独立事件的 entropy 直接相加",
+      "log2 — 以比特为单位时用的对数底"
+    ],
+    "note_connection": "(first lesson — no prior note to bind to)",
+    "learn_goal": "理解 Shannon entropy 为何用 log2 而不是别的函数",
+    "user_profile": "零基础",
+    "intro_hook_scene": "1948 年 7 月, Bell Labs 食堂, Shannon 把刚发表的 BSTJ 文章扔到 von Neumann 桌上: '这玩意该叫什么?' 'entropy.' 'Why?' 'Because no one knows what it really is.'"
+  },
+  "nine_dim_target_scores": {
+    "goalCoherence": 90,
+    "jargonControl": 85,
+    "levelMatch": 80,
+    "misconceptionDefense": 90,
+    "evidenceOfLearning": 85,
+    "actionConversion": 70,
+    "productTransferQuality": 65,
+    "notGenericCourse": 85,
+    "hyphaSoul": 85
+  },
+  "notes": "Golden because: thesis 抓唯一性证明 (反工业网课只讲公式); misconception 第二条修正 entropy vs information 真高发混淆; mechanism 用 '哎声' 隐喻替 -log p 避免推 0 基础到符号."
+}

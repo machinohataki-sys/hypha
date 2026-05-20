@@ -255,6 +255,7 @@ Classify evidence type, run baseline check, output JSON.`;
       sqliteDb.recordChatCallEstimate(dispatch, 'scoring', {
         latency_ms: Date.now() - _t0,
         tuple_id: null,
+        slug: (plan && plan.lesson_slug) || null,
         success: true,
       });
     } catch (err) {
@@ -279,6 +280,26 @@ Classify evidence type, run baseline check, output JSON.`;
         attempts: attempt + 1,
         networkAttempts: dispatch.attempts,
       };
+
+      // 2026-05-16 consolidation — Mastery auto-record. Fire-and-forget signal
+      // when scoring has slug + concept. Maps passed/false_positive_risk to one
+      // of the 6 mastery signals. Concept resolves from plan.target_concept ||
+      // plan.lesson_kp_id || expected_signal. Never blocks scoring.
+      try {
+        const slug = plan && plan.lesson_slug;
+        const concept = (plan && (plan.target_concept || plan.lesson_kp_id))
+          || (mp && typeof mp.expected_signal === 'string' ? mp.expected_signal.slice(0, 80) : null);
+        if (slug && concept) {
+          let signalKind;
+          if (result.passed && result.false_positive_risk < 0.3) signalKind = 'correct';
+          else if (result.passed) signalKind = 'partial';
+          else signalKind = 'wrong';
+          const mastery = require('./lesson-system/mastery-tracker');
+          Promise.resolve(mastery.recordSignal({ slug, concept, signal: signalKind }))
+            .catch(() => { /* fire-and-forget */ });
+        }
+      } catch (_) { /* mastery wiring optional — skip silently */ }
+
       return result;
     }
 

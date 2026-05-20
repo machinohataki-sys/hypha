@@ -18,6 +18,11 @@ const STATES = Object.freeze({
   EXPOSE: 'EXPOSE',
   EXPOSE_PRIME: 'EXPOSE_PRIME',
   VERIFY: 'VERIFY',
+  // 2026-05-19 v0.4.5 — APPLY = Feynman transfer-test state. VERIFY hit
+  // routes here FIRST (not directly to EXTEND) — student must apply concept
+  // to a new case from lesson body's transfer_cases array before lesson
+  // advances. Prevents "surface recognition counted as understanding".
+  APPLY: 'APPLY',
   EXTEND: 'EXTEND',
   CONNECT: 'CONNECT',
   LATCH: 'LATCH',
@@ -29,6 +34,7 @@ const STATE_LABELS = Object.freeze({
   EXPOSE:       '— 探查 —',
   EXPOSE_PRIME: '— 再探 —',
   VERIFY:       '— 校核 —',
+  APPLY:        '— 应用 —',
   EXTEND:       '— 延展 —',
   CONNECT:      '— 串联 —',
   LATCH:        '— 收纳 —',
@@ -39,7 +45,11 @@ const TRANSITIONS = Object.freeze({
   HOOK:         { always: 'EXPOSE' },
   EXPOSE:       { always: 'VERIFY' },
   EXPOSE_PRIME: { always: 'VERIFY' },
-  VERIFY:       { hit: 'EXTEND', miss: 'EXPOSE_PRIME', partial: 'VERIFY' },
+  // v0.4.5 — VERIFY hit → APPLY (NOT EXTEND directly). APPLY-skipping is a
+  // pacing violation per user 2026-05-19 lock. The pacing validator below
+  // catches transcripts where VERIFY → EXTEND with no APPLY between.
+  VERIFY:       { hit: 'APPLY', miss: 'EXPOSE_PRIME', partial: 'VERIFY' },
+  APPLY:        { transfer_hit: 'EXTEND', transfer_miss: 'EXPOSE_PRIME', partial: 'APPLY' },
   EXTEND:       { landed: 'CONNECT' },
   CONNECT:      { linked: 'LATCH' },
   LATCH:        { done: 'END' },
@@ -109,6 +119,65 @@ function formatStateTag(state) {
   return STATE_LABELS[state] || '';
 }
 
+/**
+ * v0.4.5 (2026-05-19) — Pacing violation detector. Scans state history for
+ * v0.4.5 rule infractions:
+ *   1. VERIFY→EXTEND skip-APPLY (transfer-test bypassed = surface VERIFY counted as deep)
+ *   2. APPLY count > 3 in single lesson (infinite ping-pong)
+ *   3. Total state-transition count < 8 (lesson < 25-min target, "死板速通")
+ *
+ * @param {Array<string>} stateHistory  — chronological list of state names emitted
+ * @param {object} [opts]
+ * @param {number} [opts.minTransitions=8]  — floor for "real lesson" length
+ * @returns {{ ok: boolean, violations: Array<{type, msg, turn}>, summary: object }}
+ */
+function detectPacingViolations(stateHistory, opts = {}) {
+  const minTransitions = typeof opts.minTransitions === 'number' ? opts.minTransitions : 8;
+  if (!Array.isArray(stateHistory)) {
+    return { ok: false, violations: [{ type: 'INVALID_INPUT', msg: 'stateHistory must be array', turn: -1 }], summary: {} };
+  }
+  const violations = [];
+  let applyCount = 0;
+  for (let i = 1; i < stateHistory.length; i++) {
+    const prev = _normalize(stateHistory[i - 1]);
+    const curr = _normalize(stateHistory[i]);
+    // Rule 1: VERIFY→EXTEND skip APPLY
+    if (prev === 'VERIFY' && curr === 'EXTEND') {
+      violations.push({
+        type: 'VERIFY_TO_EXTEND_SKIP_APPLY',
+        msg: 'v0.4.5 spec: VERIFY hit should route APPLY (transfer-test) before EXTEND. Surface VERIFY = recognition, not understanding.',
+        turn: i,
+      });
+    }
+    if (curr === 'APPLY') applyCount++;
+  }
+  // Rule 2: APPLY count > 3
+  if (applyCount > 3) {
+    violations.push({
+      type: 'APPLY_COUNT_EXCEEDED',
+      msg: `APPLY fired ${applyCount}× — v0.4.5 ceiling is 3. Accept partial transfer and advance to EXTEND.`,
+      turn: -1,
+    });
+  }
+  // Rule 3: total transitions < floor (lesson too short)
+  if (stateHistory.length > 0 && stateHistory.length < minTransitions) {
+    violations.push({
+      type: 'LESSON_TOO_SHORT',
+      msg: `lesson had ${stateHistory.length} state transitions (< ${minTransitions} floor). User 2026-05-19 lock: 25-30 min in-session = ~12-18 transitions. "死板速通" = failure mode.`,
+      turn: -1,
+    });
+  }
+  return {
+    ok: violations.length === 0,
+    violations,
+    summary: {
+      total_transitions: stateHistory.length,
+      apply_count: applyCount,
+      ended_at: stateHistory[stateHistory.length - 1] || null,
+    },
+  };
+}
+
 module.exports = {
   STATES,
   STATE_LABELS,
@@ -119,4 +188,5 @@ module.exports = {
   validateTransition,
   nextState,
   formatStateTag,
+  detectPacingViolations,
 };

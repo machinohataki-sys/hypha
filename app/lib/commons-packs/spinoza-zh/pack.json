@@ -1,0 +1,65 @@
+{
+  "topic": "斯宾诺莎",
+  "lang": "zh",
+  "curator": "hypha-org",
+  "version": 0.1,
+  "ratified_by": ["hypha-team"],
+  "ratified_at": "2026-05-12",
+  "aliases": [
+    "Spinoza",
+    "Baruch Spinoza",
+    "巴鲁赫·斯宾诺莎",
+    "Benedictus de Spinoza"
+  ],
+  "syllabus_skeleton": [
+    {
+      "chapter": "实体一元论 (Substance Monism)",
+      "kp_candidates": ["实体 (substance)", "自因 (causa sui)", "属性 (attribute)", "样态 (mode)", "神即自然 (Deus sive Natura)"]
+    },
+    {
+      "chapter": "几何学方法 (more geometrico)",
+      "kp_candidates": ["公理化 (axiomatic method)", "演绎链条", "定义-公理-命题-证明结构"]
+    },
+    {
+      "chapter": "知识三阶 (Three kinds of knowledge)",
+      "kp_candidates": ["想象 (imaginatio)", "理性 (ratio)", "直观 (scientia intuitiva)"]
+    },
+    {
+      "chapter": "伦理学 (Ethics)",
+      "kp_candidates": ["conatus", "情感 (affectus)", "幸福 (beatitudo)", "自由人"]
+    }
+  ],
+  "recommended_sources": [
+    {
+      "title": "Copleston — A History of Philosophy, Vol IV: Descartes to Leibniz",
+      "type": "book",
+      "reason": "standard 哲学史教科书, Spinoza 章节 8 节"
+    },
+    {
+      "title": "Wolfson — The Philosophy of Spinoza",
+      "type": "book",
+      "reason": "textual analysis 权威, 两卷本逐命题解读"
+    },
+    {
+      "title": "Curley — Behind the Geometrical Method",
+      "type": "book",
+      "reason": "现代分析哲学进路的 Spinoza 重读"
+    },
+    {
+      "url": "https://plato.stanford.edu/entries/spinoza/",
+      "type": "web",
+      "reason": "SEP canonical entry"
+    },
+    {
+      "url": "https://www.iep.utm.edu/spinoza/",
+      "type": "web",
+      "reason": "IEP 补充入门视角"
+    }
+  ],
+  "contested_questions": [
+    "斯宾诺莎的'神即自然' 是泛神论 (pantheism), 还是无神论的伪装?",
+    "几何学方法能否真的应用于伦理学? 还是 Spinoza 在 借形式之名走捷径?",
+    "Spinoza 的决定论与人的自由如何调和? conatus 提供的'自由'是否只是名义?",
+    "三类知识中, 直观 (scientia intuitiva) 与 ratio 的真正分界何在?"
+  ]
+}

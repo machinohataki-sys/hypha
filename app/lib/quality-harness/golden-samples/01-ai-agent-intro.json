@@ -1,0 +1,37 @@
+{
+  "id": "golden-01-ai-agent-intro",
+  "topic": "AI Agent 入门",
+  "user_profile": "零基础",
+  "goal": "理解 agent 与 chatbot 的本质区别, 并能判断一个给定系统是不是 agent",
+  "ideal_lesson_body": {
+    "thesis": "By the end of this lesson, the learner will see that an agent is a chatbot plus a closed feedback loop with real-world side effects.",
+    "canonical_example": "2023 Princeton ReAct (Yao et al.) — single model alternates 'Thought' / 'Action' / 'Observation' on HotpotQA; without the Observation step it degrades to chatbot.",
+    "common_misconceptions": [
+      "Agent = chatbot with system prompt. 错: 缺少 action + observation 循环就只是 wrapper.",
+      "Agent = 多个 model 串联. 错: 串联但无环境反馈仍是 pipeline 不是 agent."
+    ],
+    "exit_proof": "给出 3 个真实系统 (Bing Chat / Devin / ChatGPT Code Interpreter), 学习者判定每个是不是 agent 并说明判据.",
+    "mechanism_explanation": "Agent 的最小循环 = perceive → think → act → observe → update. 像盲人摸象, 每次 action 后必须摸一下环境才下一步; 失去 observe 等于断手.",
+    "jargon_list": [
+      "ReAct — 让 model 交替 Thought 和 Action 的提示模式",
+      "tool-use — model 调外部 API 取信息 / 改世界",
+      "observation — action 执行完真世界回的信号"
+    ],
+    "note_connection": "(first lesson — no prior note to bind to)",
+    "learn_goal": "理解 agent 与 chatbot 的本质区别, 并能判断一个给定系统是不是 agent",
+    "user_profile": "零基础",
+    "intro_hook_scene": "2023 年 3 月, AutoGPT 第一次能自己开浏览器订机票 — 但 60% 任务它点错按钮后不知道自己点错了."
+  },
+  "nine_dim_target_scores": {
+    "goalCoherence": 90,
+    "jargonControl": 85,
+    "levelMatch": 90,
+    "misconceptionDefense": 90,
+    "evidenceOfLearning": 85,
+    "actionConversion": 75,
+    "productTransferQuality": 70,
+    "notGenericCourse": 85,
+    "hyphaSoul": 80
+  },
+  "notes": "Golden because: thesis 一句话区分 agent vs chatbot (反 encyclopedia framing); canonical_example 命名 ReAct + 年份 + 论文; misconception 两条都是真正高发先验; exit_proof 用 3 个真实系统 force 判定 (非 recall)."
+}

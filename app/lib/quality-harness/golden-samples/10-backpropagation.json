@@ -1,0 +1,37 @@
+{
+  "id": "golden-10-backpropagation",
+  "topic": "神经网络反向传播",
+  "user_profile": "进阶",
+  "goal": "理解 backprop 本质是链式法则的高效缓存, 不是 'magic'",
+  "ideal_lesson_body": {
+    "thesis": "By the end of this lesson, the learner will derive backprop for a 2-layer network from scratch using the chain rule + a single insight: store forward activations so the backward pass costs O(forward).",
+    "canonical_example": "Rumelhart, Hinton, Williams 1986 paper Fig.1 — 单 hidden 层 XOR network, 4 个 weights 用 chain rule 手推 ∂L/∂w. 真正的 idea 是 reuse intermediate values 不是新数学.",
+    "common_misconceptions": [
+      "Backprop 是 deep learning 的核心创新. 错: chain rule 是 17 世纪的数学; 创新是 1980s 把它系统应用 + 计算 reuse 让训练实际可行.",
+      "Backprop 直接给 global optimum. 错: 它给 local gradient; 在 non-convex loss 上只能保证 local minimum, 不保证 global."
+    ],
+    "exit_proof": "给学习者一个 3-layer network 的计算图, 让 ta 不用框架, 在纸上手算 forward + backward 对 1 个 weight 的 partial — 并标出哪些值在 forward 时缓存.",
+    "mechanism_explanation": "想象一条流水线: forward 从输入算到 loss, 每一步记账 (intermediate values). backward 是 '反向报销' — 从 loss 沿账本反推回输入, 每一步用账本里已记的中间值, 不重新算.",
+    "jargon_list": [
+      "computation graph — forward pass 形成的有向无环图, 节点 = 中间值",
+      "Jacobian — 多变量函数的偏导矩阵, backprop 实际是 Jacobian-vector product",
+      "checkpointing — 牺牲 forward 重计算换 backward 存储的 trade-off"
+    ],
+    "note_connection": "(first lesson — no prior note to bind to)",
+    "learn_goal": "理解 backprop 本质是链式法则的高效缓存, 不是 'magic'",
+    "user_profile": "进阶",
+    "intro_hook_scene": "1986 年, Hinton 在 multidisciplinary 会上汇报 backprop 训练成功, 一位老 statistician 站起来: 'I've been doing this since 1962.' Linnainmaa 1970 master's thesis 早把 reverse-mode autodiff 写明了."
+  },
+  "nine_dim_target_scores": {
+    "goalCoherence": 95,
+    "jargonControl": 85,
+    "levelMatch": 90,
+    "misconceptionDefense": 90,
+    "evidenceOfLearning": 95,
+    "actionConversion": 80,
+    "productTransferQuality": 75,
+    "notGenericCourse": 95,
+    "hyphaSoul": 90
+  },
+  "notes": "Golden because: thesis 把 backprop 去 magic 化 = HYPHA 反神秘姿态; misconception 第一条用 Linnainmaa 1970 真历史驳; exit_proof 手算 3-layer = 真 Feynman 测试, 框架解决不了的 user 真懂."
+}

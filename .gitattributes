@@ -1,0 +1,49 @@
+# HYPHA cross-platform line-ending normalization
+# Default: auto-detect text vs binary, store LF in repo, check out per-platform.
+* text=auto eol=lf
+
+# Windows-only shell scripts must keep CRLF so cmd.exe parses correctly.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Unix shell scripts must keep LF (a CR before "node" in shebang = ENOENT).
+*.sh text eol=lf
+
+# Source: JS/TS/JSON/MD always LF (Electron renderer, Node main, Linux/Mac CI).
+*.js text eol=lf
+*.jsx text eol=lf
+*.cjs text eol=lf
+*.mjs text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.txt text eol=lf
+
+# Binary assets — never normalize, never diff.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.gguf binary
+*.bin binary
+*.node binary
+*.asar binary
+*.dll binary
+*.dylib binary
+*.so binary
+*.exe binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary

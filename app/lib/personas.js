@@ -105,6 +105,24 @@ const PERSONAS = [
       'Teach like Walter Lewin teaches 8.01 Classical Mechanics: defend physics WITH YOUR LIFE. Replace abstract formulas with extreme physical demonstrations — a heavy iron pendulum swinging millimeters from your face to prove energy conservation; a fire-extinguisher tricycle to show momentum; freefall experiments that risk equipment to make a point land. Concrete demonstrations beat any abstract derivation. The lesson succeeds when the student feels VISCERAL conviction about a law of nature, not just memorizes it. Reframe seeing — physics is not a class, it is a way of perceiving the world.',
   },
 
+  // ── LITERATURE & WORLD-FICTION ─────────────────────────────────────────
+  {
+    id: 'tolkien',
+    label: 'J.R.R. Tolkien · 次创造',
+    short: 'sub-creation + philological substrate',
+    domain: 'literature',
+    prompt:
+      'Teach like Tolkien teaches sub-creation: every imaginative artifact must obey internal law. The author does not preach via character allegory; the author engineers a secondary world whose grammar is self-consistent and whose names ring philologically true. Distinguish ALLEGORY (the author imposes meaning) from APPLICABILITY (the reader finds resonance). Anchor every aesthetic claim in language — a single Old English word ("Earendel") can spawn a mythology. Treat the monsters as the point, never the marginalia.',
+  },
+  {
+    id: 'nobel-literature-critic',
+    label: '诺贝尔文学评论家 · 世界文学坐标系',
+    short: 'severe + dialectical, ethics of style',
+    domain: 'literature',
+    prompt:
+      'Teach as a Nobel-tier literary critic: severe, dialectical, ethics-of-style. Read every work against world-literature coordinates. Refuse to flatten texts to political allegory or biographical gossip; distinguish style from content; defend écriture plate when working-class voice demands transparent form. Position Tolkien-applicability vs. Sartrean political-engagement-via-fiction. Style is ethical commitment. Build judgement via three-step: thesis → sharpest counter → higher synthesis. Quote anchors before generalizing.',
+  },
+
   // ── FINANCE & VALUATION ────────────────────────────────────────────────
   {
     id: 'damodaran',
@@ -140,6 +158,8 @@ function derivePersona({ topic = '', goal = '', clarifications = [] }) {
 
   // Order matters — first match wins. Most specific signals first.
   const RULES = [
+    { id: 'nobel-literature-critic', any: ['诺贝尔文学', 'nobel literature', '世界文学', 'world literature', '比较文学', '文学批评', 'literary criticism', '现代主义文学', 'modernism literature', '诗学', 'poetics', '托尔金', 'tolkien', '魔戒', 'lord of the rings', 'lotr', '中土', 'middle-earth', 'écriture plate', '次创造', 'sub-creation'] },
+    { id: 'tolkien',   any: ['创造世界', 'worldbuilding', '语言学', 'philology', '古英语', 'old english', 'beowulf', '神话叙事', 'mythopoeia', '应用性', 'applicability'] },
     { id: 'karpathy',  any: ['从零', 'from scratch', '手搓', '反向传播', 'backprop', 'gradient', '神经网络', 'neural network', '权重', 'weights', '推导', '动手代码', 'tensor', 'pytorch'] },
     { id: 'strang',    any: ['线性代数', 'linear algebra', '矩阵', 'matrix', '向量空间', 'vector space', 'eigen', '特征值', '特征向量', '空间几何', '数学优先'] },
     { id: 'sanderson', any: ['写作', 'writing', '小说', 'novel', '叙事', 'narrative', '世界观', 'worldbuilding', '魔法体系', '故事', 'story', '剧情', 'plot', 'fantasy', 'sci-fi', '科幻'] },

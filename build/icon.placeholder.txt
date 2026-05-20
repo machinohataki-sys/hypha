@@ -1,0 +1,44 @@
+HYPHA icon requirements — placeholder manifest
+================================================
+// intentional-placeholder: icon.icns generation needs image tooling
+// (iconutil on macOS, png2icns on Linux, or electron-icon-builder).
+// This config-only slice intentionally excludes binary icon generation
+// per task scope ("DO NOT generate real icons"). Manifest below lists
+// the exact spec so the next image-tooling slice can ship icon.icns
+// without re-discovering requirements.
+
+Current state (2026-05-20):
+  build/icon-source.svg   ✓ vector master
+  build/icon.png          ✓ 1024×1024 PNG (Linux + fallback)
+  build/icon@512.png      ✓ secondary
+  build/icon.ico          ✓ Windows multi-res
+  build/icon.icns         ✗ MISSING — macOS DMG needs this
+
+To generate the missing icon.icns:
+
+  Option A — electron-icon-builder (cross-platform, recommended)
+    npm install --save-dev electron-icon-builder
+    npx electron-icon-builder --input=build/icon-source.svg --output=build --flatten
+
+  Option B — iconutil on macOS (manual)
+    1. Build an iconset directory: icon.iconset/
+       Required: 16, 16@2x, 32, 32@2x, 128, 128@2x, 256, 256@2x, 512, 512@2x
+    2. iconutil -c icns icon.iconset -o build/icon.icns
+
+  Option C — png2icns (Linux/WSL)
+    sudo apt install icnsutils
+    png2icns build/icon.icns build/icon@512.png build/icon.png
+
+Spec requirements:
+  - icon.png   : 1024×1024, sRGB, transparent background
+  - icon.ico   : Multi-resolution embedded — 16, 32, 48, 64, 128, 256
+  - icon.icns  : Apple iconset — 16, 32, 64, 128, 256, 512, 1024 (×1 and @2x)
+
+Brand register (per CLAUDE.md):
+  - Cream / brass / aubergine palette
+  - Garamond cadence (no sharp geometry)
+  - No emoji, no flat startup-tier marks
+  - Manuscript register, dignified
+
+Do not regenerate icons inside this verification slice — config-only.
+Icon generation is a separate ship task with image tooling.
