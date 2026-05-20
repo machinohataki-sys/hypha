@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+// SKIP_HEADLESS — needs vault/.hypha/smoke-baseline.json from a prior local sweep; CI runs from fresh checkout.
 
 // HYPHA · _dev_verify_sweep_runner — smoke-harness audit (boot-11).
 //

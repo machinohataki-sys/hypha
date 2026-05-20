@@ -2,6 +2,7 @@
 'use strict';
 
 // RUN_SEQUENTIAL — LLM-bound, parallel pool causes rate-limit / timeout
+// SKIP_HEADLESS — needs GLM_API_KEY (or equivalent provider key) in env; CI fresh-runners don't carry secrets on PR.
 
 // HYPHA · _dev_verify_route_goal — smoke test for Pillar 1 dispatcher.
 //

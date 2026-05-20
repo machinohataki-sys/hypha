@@ -1,4 +1,5 @@
 'use strict';
+// SKIP_HEADLESS — needs GLM/DeepSeek/Kimi API keys + live HTTP call to assert response.usage token coverage; CI fresh-runners don't carry secrets on PR.
 // V0.5 E1 D-verify — cost-ledger token-metadata coverage smoke gate.
 //
 // Created 2026-05-11 on v0.5-substrate branch.

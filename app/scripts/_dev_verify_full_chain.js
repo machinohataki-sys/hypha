@@ -1,6 +1,7 @@
 'use strict';
 
 // RUN_SEQUENTIAL — LLM-bound, parallel pool causes rate-limit / timeout
+// SKIP_HEADLESS — needs GLM_API_KEY (or equivalent provider key) in env; CI fresh-runners don't carry secrets on PR.
 
 // HYPHA · Full-Chain dev-verify — extends `_dev_verify_creation_system.js` (8
 // steps) with 7 additional steps that cover Goal Guardian (LLM math floor),
