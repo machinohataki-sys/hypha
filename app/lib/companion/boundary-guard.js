@@ -16,8 +16,19 @@
 //      in tone-engine.generateValid; once here we don't re-call the model).
 //
 // Returned envelope:
-//   { allowed: true,  censored: <string> }   // safe to emit
-//   { allowed: false, reason: <string>, censored: null }
+//   { allowed: true,  censored: <string>, severity?: 'soft' }     // safe to emit
+//   { allowed: false, reason: <string>, censored: null, severity: 'soft'|'firm'|'hard' }
+//
+// Severity ladder (AMD-MEOW-P8, 2026-05-20):
+//   soft = passive silence (cooldown / turn budget / empty input).
+//          channel still healthy; next eligible trigger may fire normally.
+//   firm = channel-conflict silence (lesson_in_progress / settings_disabled).
+//          companion withholds because a higher-priority surface is active.
+//   hard = contract breach (forbidden / exclamation / emoji).
+//          regen exhausted; treat as content failure, not state.
+// Callers (tone-engine.generateValid / index.companionRespond) may use
+// severity to decide whether to retry, escalate cooldown, or log.
+// Allowed responses carry severity only when they were truncated ('soft').
 //
 // Companion state is per-session. Caller owns the session record (typically
 // W3.6 wires this into renderer state) and passes it via `state`. We do not
@@ -72,28 +83,28 @@ function enforceBoundary(expression, context = {}) {
   const contract = loadContract();
 
   if (typeof expression !== 'string' || !expression.trim()) {
-    return { allowed: false, reason: 'empty', censored: null };
+    return { allowed: false, reason: 'empty', severity: 'soft', censored: null };
   }
 
   if (context.settingsEnabled === false) {
-    return { allowed: false, reason: 'settings_disabled', censored: null };
+    return { allowed: false, reason: 'settings_disabled', severity: 'firm', censored: null };
   }
 
   if (context.lessonInProgress === true) {
-    return { allowed: false, reason: 'lesson_in_progress', censored: null };
+    return { allowed: false, reason: 'lesson_in_progress', severity: 'firm', censored: null };
   }
 
   const state = context.state || { turns_used: 0 };
   const maxTurns = contract.max_turns_per_session || 5;
   if ((state.turns_used || 0) >= maxTurns) {
-    return { allowed: false, reason: 'turn_budget_exhausted', censored: null };
+    return { allowed: false, reason: 'turn_budget_exhausted', severity: 'soft', censored: null };
   }
 
   const minSilenceMs = (contract.min_silence_seconds || 0) * 1000;
   if (state.last_expression_at && minSilenceMs > 0) {
     const now = context.nowMs || Date.now();
     if (now - state.last_expression_at < minSilenceMs) {
-      return { allowed: false, reason: 'cooldown', censored: null };
+      return { allowed: false, reason: 'cooldown', severity: 'soft', censored: null };
     }
   }
 
@@ -102,6 +113,7 @@ function enforceBoundary(expression, context = {}) {
     return {
       allowed: false,
       reason: `forbidden:${hit.group}:${hit.pattern}`,
+      severity: 'hard',
       censored: null,
     };
   }
@@ -110,12 +122,15 @@ function enforceBoundary(expression, context = {}) {
   // we re-check here so a hand-injected expression — e.g. dev console —
   // can't bypass).
   if (expression.includes('!') || expression.includes('！')) {
-    return { allowed: false, reason: 'forbidden:exclamation', censored: null };
+    return { allowed: false, reason: 'forbidden:exclamation', severity: 'hard', censored: null };
   }
 
   const maxChars = contract.max_response_chars || 80;
   const censored = _truncate(expression, maxChars);
-  return { allowed: true, censored };
+  const truncated = censored.length < expression.length;
+  return truncated
+    ? { allowed: true, censored, severity: 'soft' }
+    : { allowed: true, censored };
 }
 
 /**

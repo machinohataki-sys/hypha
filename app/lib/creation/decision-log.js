@@ -37,6 +37,18 @@ const FILE_NAME = 'decisions.jsonl';
 const MIN_DECISION_CHARS = 10;
 const MIN_PREDICTION_CHARS = 10;
 
+// Vague-falsifier guard (Scout S63 — falsifier must be concrete + measurable).
+// Reject if any vague hedge phrase, OR if the falsifier lacks at least one
+// concrete anchor (number / %, comparator <>≤≥, or full ISO date).
+const VAGUE_FALSIFIER_RE = /\b(we['’]ll see|tbd|probably|likely|maybe|might)\b/i;
+const CONCRETE_FALSIFIER_RE = /(\d+|%|<|>|≤|≥|\d{4}-\d{2}-\d{2})/;
+
+function _isVagueFalsifier(falsifier) {
+  if (VAGUE_FALSIFIER_RE.test(falsifier)) return true;
+  if (!CONCRETE_FALSIFIER_RE.test(falsifier)) return true;
+  return false;
+}
+
 // Validate optional prediction sub-document. Returns either a normalised
 // `{claim, falsifier, deadline_iso}` triple or null (silently dropped).
 // On invalid input emits a single console.warn so callers learn why their
@@ -68,6 +80,10 @@ function _validatePrediction(pred, ctx) {
   const parsed = Date.parse(deadlineRaw);
   if (!Number.isFinite(parsed)) {
     try { console.warn(`${ctx}: prediction.deadline_iso not parseable ISO date, dropped`); } catch (_) {}
+    return null;
+  }
+  if (_isVagueFalsifier(falsifier)) {
+    try { console.warn(`${ctx}: prediction.falsifier rejected — vague hedge or no numeric/comparator/date anchor, dropped (got: "${falsifier}")`); } catch (_) {}
     return null;
   }
   return { claim, falsifier, deadline_iso: deadlineRaw };

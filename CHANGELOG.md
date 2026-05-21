@@ -10,11 +10,51 @@ not a git-log dump.
 
 ## [Unreleased]
 
-### Added
+v2.0 development — system completeness push from rc.3 baseline. Multi-batch
+multi-agent ship sequence; each batch tracked here as it lands on `main`.
+
+### Added — v2 push batch 1 (2026-05-21)
+- **Companion persona-coherence metric** (Scout S68, arXiv 2605.12850):
+  Stability + Robustness scorer with harmonic-mean fusion, gate at ≥0.75.
+  Boundary-guard severity ladder (soft / firm / hard). Character contract
+  enriched: `identity`, `voice_patterns`, `no_go_zones`, `repair_patterns`.
+  Companion System ~60% → ~84%.
+- **Lesson critique-loop bundle** (Scout S66+S75+S80+S88): post-generation
+  Sonnet critic against Plan's success/failure test, MSIFR mid-stage rule
+  validators (syntax / namespace / silent-catch / scope-creep — cheap-first
+  short-circuit), A/B trace `quality-trace.jsonl`. Default-off behind
+  `experimental: true` config flag; A/B metadata emit unconditional.
+- **Prediction-field schema** (Scout S63+S67+S73): optional
+  `prediction:{claim, falsifier, deadline_iso}` on Decision Log + Assumption
+  Ledger. Vague-falsifier regex guard rejects entries without numeric /
+  comparator / ISO-date anchor. Kill Watcher emits `REVIEW` events to
+  `vault/.hypha/kill-watcher.jsonl` for past-deadline entries with
+  `suggested_transition` (active→ratified / active→invalidated /
+  review_needed). Non-mutating audit channel; existing auto-refute path
+  untouched.
+- **Source 5-layer lane router** (Scout S64+S81, project memory
+  `project_hypha_5layer_scrape_spec`): `routeLanes(archetype, query)` returns
+  ordered plan across Canonical / Pedagogy / Frontier / Engineering / User
+  layers with bb-browser / WebFetch / skip routing decisions. New
+  conference-field extractor (Tutorial / Workshop / Best-Paper /
+  OpenReview-review) + course-field extractor (Syllabus / Assignments /
+  Reading / Labs). Knowledge Source System ~82% → ~95%.
+- 5 new smokes (159 net new tests): `companion_persona_coherence` 14/14 +
+  `critique_loop` 25/25 + `prediction_field` 52/52 + `source_lane_router`
+  68/68 + (resolved) `full_chain` step12 10/10.
+
+### Resolved — v2 push batch 1
+- `_dev_verify_full_chain.js` step12 HUMANITIES archetype gate — was
+  tracked as rc.1 known issue. Investigation confirmed the regression was
+  already fixed by the per-axis HUMANITIES gate at
+  `app/lib/anti-slop/prosecute-judge-rewrite.js:527-536` (shipped v0.4.4,
+  2026-05-19). CHANGELOG entry was stale; smoke is 10/10 PASS.
+
+### Added (prior)
 - Founder cohort exit ramps for Track A (build-in-public artifact log)
   and Track B (public-channel narration).
 
-### Changed
+### Changed (prior)
 - Source extractor caps tightened: 200 MB per file, 8 files per call,
   800 MB total per ingest.
 

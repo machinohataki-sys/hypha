@@ -851,12 +851,102 @@ async function generateLessonBodyV2({
         };
       } catch (_) { /* monitor-only; never break body gen on ledger eval */ }
 
+      // Critique-Loop (S66 + S75 + S80 + S88, 2026-05-15 frontier digest).
+      // Experimental — OFF by default. Gates: `options.critiqueLoop.enabled`,
+      // OR env `HYPHA_CRITIQUE_LOOP=1`. When OFF: emit a 1-line A/B trace with
+      // critique_enabled=false (zero LLM cost) so a downstream harness can
+      // compare critique-on vs critique-off pass-rates on identical drafts.
+      // When ON: MSIFR validators first (cheap short-circuit), then T4_JUDGE
+      // critic; on must_revise=true regenerate ONCE max (same retry-loop
+      // mechanism as drift gate); on retry failure return original draft with
+      // _meta.critique populated for observability.
+      const critiqueCfg = (options && options.critiqueLoop) || {};
+      const critiqueOn = critiqueCfg.enabled === true
+                      || (process && process.env && process.env.HYPHA_CRITIQUE_LOOP === '1');
+      let critiqueMeta = null;
+      if (critiqueOn) {
+        try {
+          const { critiqueLessonDraft } = require('./lesson-critique');
+          const planForCritique = {
+            lessonTitle, learnGoal,
+            scope_in:     (plan && plan.scope_in)     || null,
+            scope_out:    (plan && plan.scope_out)    || null,
+            prerequisite: (plan && plan.prerequisite) || null,
+            success_test: (plan && plan.success_test) || (plan && plan.exit_proof) || null,
+            failure_test: (plan && plan.failure_test) || null,
+            archetype:    pedagogicalArchetype || null,
+            lesson_id:    Number.isFinite(idx) ? idx : null,
+          };
+          const critique = await critiqueLessonDraft({
+            draft: result,
+            plan: planForCritique,
+            modelDraft: dispatch && dispatch.model,
+            modelCritic: critiqueCfg.criticModel,
+            config: {
+              capability: critiqueCfg.capability || 'T4_JUDGE',
+              vaultRoot: critiqueCfg.vaultRoot,
+              llm: critiqueCfg.llm,
+            },
+          });
+          critiqueMeta = {
+            enabled: true,
+            score: critique.score,
+            must_revise: critique.must_revise,
+            criticism_count: (critique.criticism || []).length,
+            criticism_sample: (critique.criticism || []).slice(0, 3),
+          };
+          // must_revise → trigger ONE regeneration with critic feedback. If
+          // _driftRegenUsed already burned the regen budget this turn, we ship
+          // the original draft + populated critique meta (observability without
+          // double-LLM cost).
+          if (critique.must_revise && !_driftRegenUsed && attempt < maxRetries + 1) {
+            _driftRegenUsed = true; // share the regen budget with drift gate
+            _lastSchemaResult = result;
+            _lastSchemaMeta = baseMeta;
+            const critFeedback = (critique.criticism || []).slice(0, 5)
+              .map(c => '  - ' + c)
+              .join('\n') || '  (low score; tighten draft against learnGoal + success_test)';
+            messages = [
+              ...messages,
+              { role: 'assistant', content: JSON.stringify(result) },
+              { role: 'user', content: `CRITIC REVIEW (score=${critique.score != null ? critique.score.toFixed(2) : 'n/a'} < ${0.7}). Issues:\n${critFeedback}\n\nRewrite the body to address these issues. Same JSON shape; same schema; fix the listed gaps only.` },
+            ];
+            critiqueMeta.regen_triggered = true;
+            continue;
+          }
+        } catch (err) {
+          critiqueMeta = { enabled: true, error: (err && err.message) || String(err) };
+        }
+      } else {
+        // Flag-off path — emit a 1-line trace marker with critique_enabled=false
+        // so A/B comparison can be done from a single jsonl file. No LLM cost.
+        try {
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const vaultRoot = (critiqueCfg && critiqueCfg.vaultRoot)
+            || path.resolve(__dirname, '..', '..', 'vault');
+          const traceFile = path.join(vaultRoot, '.hypha', 'quality-trace.jsonl');
+          fs.mkdirSync(path.dirname(traceFile), { recursive: true });
+          fs.appendFileSync(traceFile, JSON.stringify({
+            ts: new Date().toISOString(),
+            lesson_id: Number.isFinite(idx) ? idx : null,
+            generator: (dispatch && dispatch.model) || 'unknown',
+            critic: null,
+            score_pre: null,
+            score_post: null,
+            divergence: 0,
+            critique_enabled: false,
+          }) + '\n', 'utf8');
+        } catch (_) { /* observability only */ }
+      }
+
       return {
         body: _applyAdaptive(result, slug),  // W8.3 adaptive UX surface pass
         _meta: {
           ...baseMeta,
           drift_score: driftScore,
           evidence_ledger: evidenceLedgerMeta,
+          critique: critiqueMeta,
           drift_warning: (driftScore !== null && driftScore > DRIFT_THRESHOLD)
             ? {
                 score: driftScore,

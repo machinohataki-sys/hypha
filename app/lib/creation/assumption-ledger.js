@@ -45,6 +45,15 @@ const FILE_NAME = 'assumptions.jsonl';
 const MIN_CLAIM_CHARS = 10;
 const MIN_PREDICTION_CHARS = 10;
 
+const VAGUE_FALSIFIER_RE = /\b(we['’]ll see|tbd|probably|likely|maybe|might)\b/i;
+const CONCRETE_FALSIFIER_RE = /(\d+|%|<|>|≤|≥|\d{4}-\d{2}-\d{2})/;
+
+function _isVagueFalsifier(falsifier) {
+  if (VAGUE_FALSIFIER_RE.test(falsifier)) return true;
+  if (!CONCRETE_FALSIFIER_RE.test(falsifier)) return true;
+  return false;
+}
+
 // Validate optional prediction sub-document. See decision-log.js for the
 // same contract; duplicated here to keep modules independent (no shared util
 // barrel — per BLUEPRINT §11.5/§11.6 each ledger owns its schema).
@@ -72,6 +81,10 @@ function _validatePrediction(pred, ctx) {
   const parsed = Date.parse(deadlineRaw);
   if (!Number.isFinite(parsed)) {
     try { console.warn(`${ctx}: prediction.deadline_iso not parseable ISO date, dropped`); } catch (_) {}
+    return null;
+  }
+  if (_isVagueFalsifier(falsifier)) {
+    try { console.warn(`${ctx}: prediction.falsifier rejected — vague hedge or no numeric/comparator/date anchor, dropped (got: "${falsifier}")`); } catch (_) {}
     return null;
   }
   return { claim, falsifier, deadline_iso: deadlineRaw };

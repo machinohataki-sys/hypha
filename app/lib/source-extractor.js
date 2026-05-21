@@ -364,9 +364,67 @@ function firstFileName(src) {
   return src.fileName || null;
 }
 
+// extractWithLanePlan — optional lane-router dispatcher.
+//
+// When the caller supplies a `lanePlan` (from source-lane-router.routeLanes),
+// dispatch a single URL to the layer-specific structured extractor:
+//   - frontier  → source-conference-extractor (if URL host matches conference)
+//   - canonical / pedagogy → source-course-extractor (if URL host matches course)
+//   - anything else → fall back to extractFromUrl (text + chapters)
+//
+// Backward compat: callers that don't pass a `lanePlan` get the original
+// extractFromUrl behavior via the standard extractFromUrl entry. This wrapper
+// is purely additive — no existing caller is affected.
+//
+// @param {string} url
+// @param {object} opts
+// @param {object} [opts.lanePlan]  output of source-lane-router.routeLanes
+// @param {string} [opts.html]      optional pre-fetched HTML (skip fetch)
+// @returns {Promise<object>}  { ok, kind: 'conference'|'course'|'text', ...fields }
+async function extractWithLanePlan(url, opts = {}) {
+  if (!url || typeof url !== 'string') {
+    return { ok: false, kind: 'invalid', reason: 'no url' };
+  }
+  let host = '';
+  try { host = new URL(url).hostname; } catch (_) { /* fall through */ }
+
+  // Lazy require to avoid circular deps + keep cold-boot fast.
+  const conferenceExtractor = require('./source-conference-extractor');
+  const courseExtractor = require('./source-course-extractor');
+
+  const isConference = conferenceExtractor._detectConferenceFromHost(url) !== null;
+  const isCourse = courseExtractor._detectInstitution(url) !== null;
+
+  // Caller may pre-fetch HTML (e.g. for synthetic fixtures or shared fetch).
+  // If not provided, we currently DO NOT auto-fetch — this batch's contract
+  // is "decision metadata + structured-field parser when given HTML". Real
+  // network fetching stays in extractFromUrl until v0.3 harvest integration.
+  if (typeof opts.html === 'string' && opts.html.length > 0) {
+    if (isConference) {
+      const r = conferenceExtractor.extractConferenceFields({ url, html: opts.html });
+      return { ok: r.ok, kind: 'conference', ...r };
+    }
+    if (isCourse) {
+      const r = courseExtractor.extractCourseFields({ url, html: opts.html });
+      return { ok: r.ok, kind: 'course', ...r };
+    }
+    return {
+      ok: false,
+      kind: 'text',
+      reason: `host ${host} did not match conference or course patterns; pass to extractFromUrl for plain text`,
+    };
+  }
+
+  // No html supplied → defer to extractFromUrl (which fetches + parses to MD).
+  // The kind is 'text'; structured-field extractors require explicit HTML.
+  const r = await extractFromUrl(url);
+  return { ok: true, kind: 'text', ...r };
+}
+
 module.exports = {
   extractFromPath,
   extractFromUrl,
+  extractWithLanePlan,
   _normalizeUploadedSource,
   firstFileName,
   MAX_FILE_BYTES,

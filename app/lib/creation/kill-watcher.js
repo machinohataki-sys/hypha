@@ -48,6 +48,13 @@ const SPARK_KILL_FROM      = new Set(['Seed', 'Considered']);
 
 const DECISION_REVIEW_FILE = 'decision-reviews.jsonl';
 
+// v1 REVIEW emission (spec — Scout S63+S67+S73): for every past-deadline
+// prediction-bearing entry, append a non-mutating REVIEW row to a vault-wide
+// audit log. UI / user reads this to decide lifecycle transition; the watcher
+// only *suggests*. Independent of the existing auto-refute/auto-reject path —
+// surface-additive, not a behaviour swap.
+const REVIEW_AUDIT_FILE = path.join('.hypha', 'kill-watcher.jsonl');
+
 // ---------------------------------------------------------------------------
 // IO helpers
 // ---------------------------------------------------------------------------
@@ -264,7 +271,73 @@ function _alreadyFlagged(target, decisionTs) {
 // Per-target sweep
 // ---------------------------------------------------------------------------
 
-function _sweepTarget(target, now, summary, errors) {
+// Map of {kind, currentState} → suggested lifecycle transition. Spec asks for
+// 'active→invalidated' | 'active→ratified' | 'review_needed' — but Hypha
+// ledgers use richer state machines. Translate:
+//   - assumption unvalidated|validating + deadline passed → 'active→invalidated'
+//     (matches auto-refute semantics)
+//   - assumption validated + deadline passed → 'active→ratified' (it survived)
+//   - assumption refuted + deadline passed → 'review_needed' (already dead, surface as audit)
+//   - decision rows (no state) + deadline passed → 'review_needed'
+function _suggestTransition(kind, state) {
+  if (kind === 'decision') return 'review_needed';
+  if (kind === 'assumption') {
+    if (state === 'unvalidated' || state === 'validating') return 'active→invalidated';
+    if (state === 'validated') return 'active→ratified';
+    return 'review_needed';
+  }
+  if (kind === 'spark') {
+    if (state === 'Seed' || state === 'Considered') return 'active→invalidated';
+    if (state === 'Accepted' || state === 'Implemented') return 'active→ratified';
+    return 'review_needed';
+  }
+  return 'review_needed';
+}
+
+// Append non-mutating REVIEW event to vault/.hypha/kill-watcher.jsonl.
+// One row per past-deadline entry per sweep, de-duped by (kind, target.label, entry_id).
+function _emitReview(vaultRoot, target, kind, entryId, row, suggestedTransition, now, summary, errors) {
+  try {
+    const abs = path.join(vaultRoot, REVIEW_AUDIT_FILE);
+    if (_reviewAlreadyEmitted(vaultRoot, kind, target.label, entryId)) return;
+    const event = {
+      ts: now.toISOString(),
+      entry_id: entryId,
+      kind,
+      slug: target.label,
+      target_kind: target.kind,
+      claim: kind === 'decision' ? row.decision : (kind === 'spark' ? row.core_transfer : row.claim),
+      falsifier: row.prediction.falsifier,
+      deadline_iso: row.prediction.deadline_iso,
+      current_state: row.state || null,
+      suggested_transition: suggestedTransition,
+    };
+    _appendJsonl(abs, event);
+    summary.by_kind.reviews_emitted.push({
+      entry_id: entryId,
+      kind,
+      slug: target.label,
+      suggested_transition: suggestedTransition,
+    });
+  } catch (err) {
+    errors.push({
+      slug: target.label,
+      file: REVIEW_AUDIT_FILE,
+      error_msg: `review emit failed: ${err.message}`,
+    });
+  }
+}
+
+function _reviewAlreadyEmitted(vaultRoot, kind, slug, entryId) {
+  const abs = path.join(vaultRoot, REVIEW_AUDIT_FILE);
+  const rows = _readJsonl(abs);
+  for (const r of rows) {
+    if (r && r.kind === kind && r.slug === slug && r.entry_id === entryId) return true;
+  }
+  return false;
+}
+
+function _sweepTarget(target, now, summary, errors, vaultRoot) {
   // assumptions.jsonl
   try {
     const abs = path.join(target.baseDir, 'assumptions.jsonl');
@@ -274,6 +347,8 @@ function _sweepTarget(target, now, summary, errors) {
       for (const latest of collapsed) {
         const deadline = _isDeadlinePassed(latest.prediction, now);
         if (!deadline) continue;
+        _emitReview(vaultRoot, target, 'assumption', latest.assumption_id, latest,
+          _suggestTransition('assumption', latest.state), now, summary, errors);
         if (!ASSUMPTION_KILL_FROM.has(latest.state)) continue;
         _killAssumption(target, latest, now, summary, errors);
       }
@@ -290,6 +365,8 @@ function _sweepTarget(target, now, summary, errors) {
       for (const latest of collapsed) {
         const deadline = _isDeadlinePassed(latest.prediction, now);
         if (!deadline) continue;
+        _emitReview(vaultRoot, target, 'spark', latest.spark_id, latest,
+          _suggestTransition('spark', latest.state), now, summary, errors);
         if (!SPARK_KILL_FROM.has(latest.state)) continue;
         _killSpark(target, latest, now, summary, errors);
       }
@@ -306,6 +383,8 @@ function _sweepTarget(target, now, summary, errors) {
         if (!row || !row.ts || typeof row.decision !== 'string') continue;
         const deadline = _isDeadlinePassed(row.prediction, now);
         if (!deadline) continue;
+        _emitReview(vaultRoot, target, 'decision', row.ts, row,
+          _suggestTransition('decision', null), now, summary, errors);
         if (_alreadyFlagged(target, row.ts)) continue;
         _flagDecision(target, row, now, summary, errors);
       }
@@ -330,6 +409,7 @@ async function runKillWatcherSweep({ vaultRoot, now } = {}) {
       assumptions_refuted: [],
       sparks_rejected: [],
       decisions_flagged: [],
+      reviews_emitted: [],
     },
     errors: [],
   };
@@ -340,7 +420,7 @@ async function runKillWatcherSweep({ vaultRoot, now } = {}) {
   summary.slugs_scanned = targets.length;
   for (const target of targets) {
     try {
-      _sweepTarget(target, nowDate, summary, summary.errors);
+      _sweepTarget(target, nowDate, summary, summary.errors, root);
     } catch (err) {
       summary.errors.push({
         slug: target.label,
@@ -374,11 +454,20 @@ function loadDecisionReviews(slug) {
   return _readJsonl(abs).filter(r => r && r.action === 'auto_review_flag');
 }
 
+// Helper for tests + UI: read the vault-wide REVIEW audit (kill-watcher.jsonl).
+function loadReviewEvents(vaultRoot) {
+  const root = vaultRoot || vault.resolveRoot();
+  const abs = path.join(root, REVIEW_AUDIT_FILE);
+  return _readJsonl(abs);
+}
+
 module.exports = {
   runKillWatcherSweep,
   loadDecisionReviews,
+  loadReviewEvents,
   // exposed for tests + introspection
   _ASSUMPTION_KILL_FROM: ASSUMPTION_KILL_FROM,
   _SPARK_KILL_FROM: SPARK_KILL_FROM,
   _DECISION_REVIEW_FILE: DECISION_REVIEW_FILE,
+  _REVIEW_AUDIT_FILE: REVIEW_AUDIT_FILE,
 };

@@ -350,7 +350,10 @@ function step6_predictionValidation() {
       decision: '有预测的决策 ≥10 字',
       prediction: {
         claim: '未来预测会发生在 7 天内复查',
-        falsifier: '若 X 发生说明决策错误了',
+        // Falsifier must carry a concrete anchor (number / % / <>≤≥ / ISO date)
+        // per the vague-falsifier guard added 2026-05-20 (Scout S63 hardening,
+        // mirrored in `_dev_verify_creation_system.js` step 4).
+        falsifier: '若 7 天后 conversion < 5% 则决策错误',
         deadline_iso: '2026-06-01',
       },
     });
@@ -523,7 +526,9 @@ async function step9_killWatcher() {
     state: 'unvalidated',
     prediction: {
       claim: '此假设若不被验证则证伪',
-      falsifier: '一天后仍未被验证就算败',
+      // Concrete anchor required by vague-falsifier guard (Scout S63, 2026-05-20),
+      // mirrored in `_dev_verify_creation_system.js` step 6 kill-watcher test.
+      falsifier: '1 天后 conversion < 5% 则证伪',
       deadline_iso: yesterday,
     },
   });
