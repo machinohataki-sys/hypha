@@ -127,6 +127,23 @@ function _filePath(safeSlug) {
   return path.join(root, safeSlug, FILE_NAME);
 }
 
+// Monotonic ISO stamper. On fast systems (Linux/macOS CI) two consecutive
+// appendDecision calls can land in the same millisecond → identical ts → the
+// dependency-graph rejects edges where from_id === to_id (self-edge). Forcing
+// strict-increase by ≥1 ms here keeps every entry uniquely addressable while
+// preserving valid ISO 8601 format. The stamper is module-local; Decision Log
+// is the only ts-as-identity store that needs this (Assumption Ledger uses
+// _newAssumptionId with random suffix).
+let _lastTs = '';
+function _monotonicNowIso() {
+  let candidate = new Date().toISOString();
+  if (candidate <= _lastTs) {
+    candidate = new Date(Date.parse(_lastTs) + 1).toISOString();
+  }
+  _lastTs = candidate;
+  return candidate;
+}
+
 function appendDecision(slug, row) {
   const safe = _safeSlug(slug);
   if (!safe) return { ok: false, error: 'decision-log: invalid slug' };
@@ -145,7 +162,7 @@ function appendDecision(slug, row) {
   const prediction = _validatePrediction(row.prediction, 'decision-log');
   const dependsOn = _normaliseDependsOn(row.depends_on, 'decision-log');
   const stamped = {
-    ts: typeof row.ts === 'string' && row.ts ? row.ts : new Date().toISOString(),
+    ts: typeof row.ts === 'string' && row.ts ? row.ts : _monotonicNowIso(),
     lesson_idx: lessonIdx,
     decision: decisionText,
     context: typeof row.context === 'string' ? row.context : '',

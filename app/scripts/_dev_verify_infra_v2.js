@@ -325,6 +325,13 @@ function t5_shield_gate_states() {
   const fs = require('node:fs');
   const os = require('node:os');
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'hypha-infra-v2-'));
+  // vault.js reads HYPHA_DATA, not HYPHA_VAULT_ROOT. Set both for compat with
+  // any code that reads either. The tmp dir is empty → no profile.json → shield
+  // falls through to caller-supplied tier. Without this, CI runners with no
+  // vault/data/profile.json default to caller 'pro' = loyalty-engine ¥30/day,
+  // while local devs with a profile.json may resolve to 'free' = ¥5/day. Test
+  // values below are scaled to caller tier 'free' (¥5/day) deterministically.
+  process.env.HYPHA_DATA = tmpRoot;
   process.env.HYPHA_VAULT_ROOT = tmpRoot;
   delete require.cache[VAULT_PATH];
   delete require.cache[SHIELD_PATH];
@@ -346,21 +353,24 @@ function t5_shield_gate_states() {
     }, null, 2));
   }
 
-  // Pro limit ¥5/day. Test 0.5 (OK), 4.5 (WARN_90), 5.0 (SOFT_BLOCK_100), 5.6 (HARD_BLOCK_110).
+  // Free tier daily cap = ¥5 (loyalty-engine TIER_DAILY_CAPS_CNY.free=5). Using
+  // 'free' explicitly so cap is deterministic regardless of profile.json state.
+  // Test values: 0.5 (OK), 4.6 (WARN_90 at 92%), 5.05 (SOFT_BLOCK_100 at 101%),
+  // 5.6 (HARD_BLOCK_110 at 112%).
   writeDailyState('u1', 0.5);
-  const s1 = liveShield.checkCashflowShield('u1', 'pro');
+  const s1 = liveShield.checkCashflowShield('u1', 'free');
   check('11 shield <90% → gate_state=OK', s1.gate_state === 'OK', `got ${s1.gate_state}`);
 
   writeDailyState('u2', 4.6);
-  const s2 = liveShield.checkCashflowShield('u2', 'pro');
+  const s2 = liveShield.checkCashflowShield('u2', 'free');
   check('12 shield 92% → gate_state=WARN_90', s2.gate_state === 'WARN_90', `got ${s2.gate_state} today=${s2.today_cost_cny}`);
 
   writeDailyState('u3', 5.05);
-  const s3 = liveShield.checkCashflowShield('u3', 'pro');
+  const s3 = liveShield.checkCashflowShield('u3', 'free');
   check('13 shield 101% → gate_state=SOFT_BLOCK_100', s3.gate_state === 'SOFT_BLOCK_100', `got ${s3.gate_state}`);
 
   writeDailyState('u4', 5.6);
-  const s4 = liveShield.checkCashflowShield('u4', 'pro');
+  const s4 = liveShield.checkCashflowShield('u4', 'free');
   check('14 shield 112% → gate_state=HARD_BLOCK_110 (ok:false)',
     s4.gate_state === 'HARD_BLOCK_110' && s4.ok === false,
     `gate=${s4.gate_state} ok=${s4.ok}`);
@@ -368,7 +378,7 @@ function t5_shield_gate_states() {
   // 15: enforceShield at HARD_BLOCK_110 must throw even with BYOK fallback flag
   let hardErr = null;
   try {
-    liveShield.enforceShield('u4', { tier: 'pro', estimated_cost_cny: 0.1, byok_fallback: true });
+    liveShield.enforceShield('u4', { tier: 'free', estimated_cost_cny: 0.1, byok_fallback: true });
   } catch (e) { hardErr = e; }
   check('15 enforceShield at 110% throws BudgetExceededError even with byok_fallback=true',
     hardErr && hardErr.name === 'BudgetExceededError'
@@ -380,7 +390,7 @@ function t5_shield_gate_states() {
   let softOk = null;
   let softErr = null;
   try {
-    softOk = liveShield.enforceShield('u5', { tier: 'pro', estimated_cost_cny: 0.02, byok_fallback: true });
+    softOk = liveShield.enforceShield('u5', { tier: 'free', estimated_cost_cny: 0.02, byok_fallback: true });
   } catch (e) { softErr = e; }
   check('16 enforceShield at 100% with byok_fallback=true passes',
     softOk && softOk.ok === true && !softErr,
@@ -389,7 +399,7 @@ function t5_shield_gate_states() {
   // 17: same SOFT_BLOCK state WITHOUT byok_fallback → throws with byok_fallback_available
   let softNoFb = null;
   try {
-    liveShield.enforceShield('u5', { tier: 'pro', estimated_cost_cny: 0.02 });
+    liveShield.enforceShield('u5', { tier: 'free', estimated_cost_cny: 0.02 });
   } catch (e) { softNoFb = e; }
   check('17 enforceShield at 100% without byok_fallback surfaces SOFT_BLOCK with byok_fallback_available',
     softNoFb && softNoFb.name === 'BudgetExceededError'
