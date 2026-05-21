@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-025",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Foucault Discipline and Punish part III ch. 3 (panopticism, 1975) + \"The Subject and Power\" (1982); SEP \"Michel Foucault\" §3-4",
+  "instance": "Foucault's analysis of disciplinary power treats power as productive (not merely repressive) and dispersed through institutions of surveillance and normalization. Apply the panopticon model to a contemporary case (algorithmic content moderation OR workplace activity tracking — pick one) and identify the structural feature that makes the analogy hold and one that makes it diverge.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "power is productive: it shapes behavior and constitutes subjects, not only forbids",
+      "alt_phrasings": [
+        "power produces conduct",
+        "shapes subjects not only restricts",
+        "productive not merely repressive",
+        "constitutes the self-monitoring subject",
+        "normalizing power produces behavior",
+        "not only negative power",
+        "power as productive of subjectivity"
+      ],
+      "phrasing_hashes": [
+        "94f1b6739f3e508a81630c531f4554253c19ec2f1898304255b4e65ae84701d8",
+        "9403196fc4f8a728690beab092f39c27de00d890a502647168897b875ff438ee",
+        "b47e1cb876cf54eea81f3b95c25e96c4f8fae3c9143e35ed46f4e5dd5ee1d194",
+        "796b459eae47497f5b09d124c089a54cb4ccd69817118aaba4a82a5d6437eaed",
+        "121cd81d4990454dbe4886032e6cc2f40bcfe89b6e2c265945ce041f8385c36c",
+        "2378ee11da2505469457ec6e07e2fd6798785c66fb012244e5600e1bd639fbad",
+        "481159ae934034e53e5256f66462265cba1fa73f205bcc510b1b4d9ecadd167b",
+        "ba349b24d3540ec7f26c702cf4df1d30ed84b503cfa3686a44d1bdfa4b036449"
+      ],
+      "claim_hash": "94f1b6739f3e508a81630c531f4554253c19ec2f1898304255b4e65ae84701d8"
+    },
+    {
+      "id": "f2",
+      "claim": "panoptic structure: visibility for the watched, opacity for the watcher, internalized self-monitoring",
+      "alt_phrasings": [
+        "watched are visible watcher is opaque",
+        "asymmetric visibility",
+        "internalized surveillance",
+        "visibility is a trap",
+        "self-monitoring induced",
+        "one-way visibility",
+        "opacity of watcher visibility of watched"
+      ],
+      "phrasing_hashes": [
+        "18568c7234b5c7c6a34d69f951578f07e0a4985a6f3daf551d487198fc668548",
+        "8b3361fd2fabf97b9fc571557ac1320479de2b8834dea93df829170d897b4a6c",
+        "ca364345135e37f5e2b06316719f28139e6ca7060485707ca6b412c5feb6caf5",
+        "578b6d9e0618d635223f7f785b54d316ff9f5c1e67eb3d7f932556c41e240503",
+        "d113327c4e0943444b79fc5937ebeb4d925ec6f913de123394ddc31513d81e5d",
+        "e774a3d9d1ed77fbd2b7f37399d7a814b5b8ce662198d232ede7161cc4ec349d",
+        "96d23fe1a178887338d4e9b38feb790e9581904635e7762b557f4c75f5596331",
+        "3402464c555e398bea5ac6894c572c2fcf9f4163a2f4870377df9c83ff955a99"
+      ],
+      "claim_hash": "18568c7234b5c7c6a34d69f951578f07e0a4985a6f3daf551d487198fc668548"
+    },
+    {
+      "id": "f3",
+      "claim": "divergence in modern case (continuous data trail / algorithmic verdicts / no individual watcher)",
+      "alt_phrasings": [
+        "no single watcher",
+        "continuous data record",
+        "algorithm replaces guard",
+        "machine pattern not human gaze",
+        "data trail is continuous and post-hoc",
+        "no architectural tower needed",
+        "distributed automated surveillance"
+      ],
+      "phrasing_hashes": [
+        "5dd61651d5cfb1321e026e2a4db1c72d19201ee9dde220ad0b2f3cf781433ba8",
+        "63ef992f4b23f53cfd0085e32c48d7d73483aaba8df8d1db2e3c8dc53ae3e567",
+        "77d694a0242ccbcbe76e45dffead98b66876d260155d5685d3850c7ab8dd032e",
+        "a43591f84b9cff5536df57dc137fd4e216cd3d896f41c4126d328bfea85c6e42",
+        "6a0dddb030e97b2eb9e81cbe398c478be6686fa5bf4af248ca3764bb3819ef2b",
+        "5bbe5dd4869dad9b095aadb101a571657ad40f737c2aa7fd079c2dee25e46189",
+        "0efc27098afa1e846fb55d49275ba60fb77abf01ee4cae39acfcc2a25b7268c5",
+        "45a29b57ce39ad7e6c8f00d91ab9ca211a945a6e11a9db3ad05882038ef3ac13"
+      ],
+      "claim_hash": "5dd61651d5cfb1321e026e2a4db1c72d19201ee9dde220ad0b2f3cf781433ba8"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Power is productive — it shapes how people act, not only what is forbidden. The panopticon's asymmetric visibility (watched visible, watcher opaque) induces self-monitoring. Workplace activity tracking shares the asymmetry and the internalized self-monitoring, but diverges because there is no individual watcher in the tower; verdicts come from continuous data trails and algorithmic patterning.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Foucault is critical of prisons and modern society.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Power produces conduct rather than only restricting it. The panoptic asymmetry holds; the divergence is the absence of a single watcher and the continuous machine record.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:18:15.282Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

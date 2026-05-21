@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-006",
+  "source_hash": "c863123772c3d781554133164ad506bbe216f8866e4c7661ee6646aeb92cff3c",
+  "translated_at": "2026-05-11T02:01:42.745Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const L=[2.1,1.8,2.3,1.9,2.0]; const m=L.reduce((a,b)=>a+b)/L.length; console.log(Math.exp(m).toFixed(4));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(2.02);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"7.5383\");"
+    }
+  ],
+  "prompt_text_zh": "给定每个标记 (token) 的交叉熵损失 (cross-entropy losses) [2.1, 1.8, 2.3, 1.9, 2.0]（以自然对数为底），计算困惑度 (perplexity) = exp(损失 (losses) 的均值)。打印到小数点后 4 位。"
+}

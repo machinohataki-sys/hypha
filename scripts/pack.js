@@ -84,6 +84,7 @@ async function main() {
       /^\/cloude-coke($|\/)/,
       /^\/ptor-design($|\/)/,
       /^\/ptor2-legacy-corpus-bet($|\/)/,
+      /^\/old-src($|\/)/,                 // legacy snapshot — not loaded by app, was dead bloat in v0112 asar
       /^\/.claude($|\/)/,
       /^\/.vscode($|\/)/,
       /^\/.idea($|\/)/,
@@ -117,8 +118,30 @@ async function main() {
   for (const p of appPaths) console.log('  ' + p);
   console.log('');
   if (platform === 'win32') {
-    console.log('  → double-click Hypha.exe inside the folder above');
-    console.log('  → or: copy folder to Desktop / Program Files');
+    // v0151 — Personal launcher. Writes Hypha-personal.bat NEXT TO (not inside)
+    // the Hypha-win32-x64/ folder so distribution = ship the inner folder
+    // alone. Operator double-clicks the .bat to launch with HYPHA_ALLOW_CLI=1
+    // baked in (skips main.js tutor-quality migration, allows claude-cli /
+    // gemini-cli / codex-cli providers in settings). Distributed users still
+    // launch Hypha.exe directly = no env = SDK-only path.
+    try {
+      const batPath = path.join(out, 'Hypha-personal.bat');
+      const batBody = [
+        '@echo off',
+        'rem Personal launcher — enables CLI provider access via HYPHA_ALLOW_CLI=1.',
+        'rem v0154 — kill any prior Hypha first to dodge single-instance / cache lock issues.',
+        'rem Distribution: ship Hypha-win32-x64\\ folder only, drop this .bat.',
+        'taskkill /IM Hypha.exe /F >nul 2>&1',
+        'set HYPHA_ALLOW_CLI=1',
+        'start "" "%~dp0Hypha-win32-x64\\Hypha.exe"',
+        '',
+      ].join('\r\n');
+      fs.writeFileSync(batPath, batBody, 'utf8');
+      console.log(`  + Hypha-personal.bat (CLI-enabled launcher) at ${batPath}`);
+    } catch (e) { console.log(`  ! could not write Hypha-personal.bat: ${e.message}`); }
+    console.log('  → double-click Hypha.exe inside the folder above (clean / SDK-only)');
+    console.log('  → or: double-click Hypha-personal.bat in the parent (CLI-enabled)');
+    console.log('  → for distribution: ship Hypha-win32-x64\\ only, omit the .bat');
   } else if (platform === 'darwin') {
     console.log('  → drag Hypha.app to Applications');
   } else {

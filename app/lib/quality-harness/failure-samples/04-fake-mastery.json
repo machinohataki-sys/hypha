@@ -1,0 +1,32 @@
+{
+  "id": "failure-04-fake-mastery",
+  "topic": "矩阵特征值",
+  "failure_mode": "fake-mastery",
+  "lesson_body_snippet": {
+    "thesis": "By the end of this lesson, the learner will master eigenvalues and eigenvectors completely.",
+    "canonical_example": "考虑矩阵 A=[[2,0],[0,3]]. 它的特征值是 2 和 3, 特征向量是 [1,0] 和 [0,1]. 太简单!",
+    "common_misconceptions": [
+      "学生有时不知道 eigenvalue 是什么.",
+      "学生有时会忘记算 characteristic polynomial."
+    ],
+    "exit_proof": "回答以下问题: (1) 什么是 eigenvalue? (2) 什么是 eigenvector? 答对就 mastered.",
+    "mechanism_explanation": "Eigenvalue 是 det(A-λI)=0 的解. Eigenvector 是 (A-λI)v=0 的非零解. 掌握公式即可掌握概念, 非常 straightforward.",
+    "jargon_list": [
+      "eigenvalue — λ",
+      "eigenvector — v"
+    ]
+  },
+  "why_fails": "Apparent-Success-Seeking 经典模式 — thesis 用 'master completely' 营销话术; canonical_example 用 diagonal matrix (0 难度) 然后说 '太简单!' = 自封成功; misconception 两条 strawman ('学生不知道是什么' = vacuous); exit_proof 是 recall 'what is X' 然后 '答对就 mastered' = fake-mastery 给定义; mechanism 公式 1 + 公式 2 + 'straightforward'. P7 Anti-Slop 重点打击.",
+  "nine_dim_actual_scores": {
+    "goalCoherence": 40,
+    "jargonControl": 50,
+    "levelMatch": 30,
+    "misconceptionDefense": 10,
+    "evidenceOfLearning": 5,
+    "actionConversion": 15,
+    "productTransferQuality": 10,
+    "notGenericCourse": 25,
+    "hyphaSoul": 5
+  },
+  "regression_assertion": "harness 必须把此 sample 判 FAIL — evidenceOfLearning < 15 且 hyphaSoul < 15. 此 failure 类与 P7 Confession Layer 镜像 — Anti-Illusion 风险源点."
+}

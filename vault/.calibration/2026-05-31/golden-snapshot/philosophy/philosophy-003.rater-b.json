@@ -1,0 +1,35 @@
+{
+  "rater_id": "b",
+  "name": "wolf",
+  "ts": "2026-05-10T12:53:34.839Z",
+  "ratings": {
+    "c1": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "Candidate correctly identifies conservation of mass-energy as holding analogy, branch prediction with speculative state as failing analogy, and static existence as the breaking premise.",
+      "ts": "2026-05-10T12:53:25.835Z"
+    },
+    "c2": {
+      "features_hit": [],
+      "verdict": "fail",
+      "justification": "Candidate response does not provide any analogy or identify breaking premise.",
+      "ts": "2026-05-10T12:53:28.146Z"
+    },
+    "c3": {
+      "features_hit": [
+        "f1",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "Covers closed-system analogy and identifies binary being as breaking premise, but lacks failing analogy.",
+      "ts": "2026-05-10T12:53:34.839Z"
+    }
+  },
+  "wolf_baseline": true,
+  "model": "deepseek-direct:deepseek-v4-flash",
+  "cost_estimate_yuan": 0.015
+}

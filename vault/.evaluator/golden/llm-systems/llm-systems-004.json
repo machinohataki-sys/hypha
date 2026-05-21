@@ -1,0 +1,47 @@
+{
+  "id": "llm-systems-004",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Ba, Kiros, Hinton 2016 \"Layer Normalization\" §3; Ioffe Szegedy 2015 \"Batch Normalization\" §2 (contrast)",
+  "prompt_text": "Apply layer normalization to feature vector [1, 2, 3, 4]: subtract mean, divide by population stddev (N divisor), 4-decimal precision. Print the result as a JSON array of 4-decimal strings.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const x=[1,2,3,4]; const mean=x.reduce((a,b)=>a+b,0)/x.length; const v=x.reduce((a,b)=>a+(b-mean)*(b-mean),0)/x.length; const std=Math.sqrt(v); const ln=x.map(xi=>((xi-mean)/std).toFixed(4)); console.log(JSON.stringify(ln));",
+    "expected_stdout_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: single-pass mean + population-variance reduction, alternate identifiers (mu, sigma).",
+      "code": "const features=[1,2,3,4]; const N=features.length; const mu=features.reduce((s,v)=>s+v,0)/N; const variance=features.reduce((s,v)=>s+(v-mu)**2,0)/N; const sigma=Math.sqrt(variance); const out=features.map(v=>((v-mu)/sigma).toFixed(4)); console.log(JSON.stringify(out));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: uses Bessel-corrected sample variance (divisor N-1) instead of population variance (divisor N).",
+      "code": "const x=[1,2,3,4]; const mean=x.reduce((a,b)=>a+b)/x.length; const v=x.reduce((a,b)=>a+(b-mean)**2,0)/(x.length-1); const std=Math.sqrt(v); console.log(JSON.stringify(x.map(xi=>((xi-mean)/std).toFixed(4))));",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: uses mean / sigma / Math.sqrt vocabulary, but replaces variance with mean-absolute-deviation under the same sqrt.",
+      "code": "const x=[1,2,3,4]; const mean=x.reduce((a,b)=>a+b)/x.length; const mad=x.reduce((a,b)=>a+Math.abs(b-mean),0)/x.length; const sigma=Math.sqrt(mad); console.log(JSON.stringify(x.map(xi=>((xi-mean)/sigma).toFixed(4))));",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T06:28:56.352Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "9058ea5476986da1d493d3fa00f79de5f0c01df02bfd3a8f7d0563f3c81750b7",
+  "code_hash": "3c4e0e2a3ab19e000290b8c4c61192f7bc070b9635ca504710b74e0e615f16f7",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
+}

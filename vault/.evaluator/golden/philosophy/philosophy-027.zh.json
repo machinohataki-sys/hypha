@@ -1,0 +1,48 @@
+{
+  "item_id": "philosophy-027",
+  "source_hash": "94488070f94c9d1b148624bbca8de032e0c76a86f93621d857e8a44cdcbf81cc",
+  "translated_at": "2026-05-11T01:48:48.210Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "instance_zh": "海德格尔对 此在 (Dasein) 的分析将处理工具的 上手状态 (zuhanden) 模式与理论审视的 现成状态 (vorhanden) 模式相对照，并最终将 向死存在 (being-toward-death) 视为使 此在 (Dasein) 个体化的结构。陈述这两种模式之间的结构差异，并解释为何 向死存在 (being-toward-death) 不能被关于死亡的平均谈论所替代。",
+  "features_zh": [
+    {
+      "id": "f1",
+      "statement_zh": "上手状态 (zuhanden)：工具在实用语境中是透明的并被吸纳其中，直到它损坏",
+      "alt_phrasings_zh": [
+        "使用中是透明的",
+        "吸纳性应对"
+      ]
+    },
+    {
+      "id": "f2",
+      "statement_zh": "现成状态 (vorhanden)：当实用流程中断时，对象变成了仅仅具有属性的物",
+      "alt_phrasings_zh": [
+        "损坏后的 现成状态 (vorhanden) 模式",
+        "作为具有属性的独立对象"
+      ]
+    },
+    {
+      "id": "f3",
+      "statement_zh": "向死存在 (being-toward-death) 使之个体化，因为死亡是非关系的、最本己的，且不能被代理",
+      "alt_phrasings_zh": [
+        "不能被代理",
+        "非关系的可能性"
+      ]
+    }
+  ],
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "上手状态 (zuhanden)：锤子在熟练敲击中是透明的，被吸纳进一个 为了... (in-order-to) 的语境中，仅在损坏时才可见。现成状态 (vorhanden)：一旦它损坏，锤子就变成了一个具有属性（重量、长度）供理论审视的物。向死存在 (being-toward-death) 不能坍缩为平均的“人终有一死”的谈论，因为死亡是非关系的且最本己的——没有人能替我死，这正是使 此在 (Dasein) 个体化的所在。"
+    },
+    {
+      "id": "c2",
+      "text_zh": "海德格尔认为我们应当是本真的并直面死亡。"
+    },
+    {
+      "id": "c3",
+      "text_zh": "在熟练使用中，工具是透明的。当流程中断时，它作为具有属性的对象显现。死亡使之个体化，因为它是本己的且不能被代理。"
+    }
+  ]
+}

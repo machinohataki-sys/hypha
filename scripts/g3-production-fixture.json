@@ -1,0 +1,97 @@
+{
+  "_comment": "G3 v0.1 acceptance gate fixture — Production Evidence binary check incl. ≥30% non-LLM-direct (paste detection). Each case carries plan + response + recentAssistantMessages + expected_passed + expected_paste_detected. Runner: scripts/g3-production-baseline.cjs.",
+  "_pass_criteria": "5/5 cases match expected_passed AND expected_paste_detected. If any mismatch, tune PASTE_SIMILARITY_THRESHOLD in scoring.js (currently 0.70).",
+  "cases": [
+    {
+      "name": "1-genuine-artifact-no-similar-llm",
+      "_intent": "Real production artifact unrelated to LLM messages → must pass.",
+      "plan": {
+        "objective": "Identify the inputs and outputs of a workflow step.",
+        "micro_proof": {
+          "stimulus": "List the input + output fields of one workflow step in your project.",
+          "expected_signal": "Response contains: order_id, sku, quantity, stock_remaining, decision.",
+          "fail_mode": "vague nouns / no field names / no decision"
+        }
+      },
+      "response": "inputs:\n- order_id: uuid\n- sku: string (product key)\n- quantity: int (requested)\noutputs:\n- stock_remaining: int (after reserve)\n- decision: enum {accept, partial, reject} based on stock_remaining ≥ quantity.",
+      "recentAssistantMessages": [
+        "Have you tried sketching the inputs and outputs of one step on paper? Pick a step you can describe in 2 minutes.",
+        "Remember the goal is to map fields, not to write code yet."
+      ],
+      "expected_passed": true,
+      "expected_paste_detected": false
+    },
+    {
+      "name": "2-genuine-prose-different-from-llm",
+      "_intent": "Real artifact in different shape → must pass.",
+      "plan": {
+        "objective": "Sketch a 3-layer architecture diagram.",
+        "micro_proof": {
+          "stimulus": "Describe the 3 layers of your auth system using bullet points with one role per layer.",
+          "expected_signal": "Response contains: handler, validator, persister, plus role per layer.",
+          "fail_mode": "skipped layers / role mixed / no separators"
+        }
+      },
+      "response": "- handler: receives the http request, parses headers, hands off to validator. owns request lifecycle.\n- validator: checks token signature against public-key cache, refreshes from JWKS on miss. zero state mutation.\n- persister: stores last-seen timestamp + risk-score in postgres. write-only from this path.",
+      "recentAssistantMessages": [
+        "An auth system typically separates request handling, validation, and persistence into distinct layers."
+      ],
+      "expected_passed": true,
+      "expected_paste_detected": false
+    },
+    {
+      "name": "3-genuine-list-different-words",
+      "_intent": "Real artifact with field names from prompt but different prose → must pass.",
+      "plan": {
+        "objective": "Map an order workflow step.",
+        "micro_proof": {
+          "stimulus": "Write the input + output of order processing.",
+          "expected_signal": "order_id sku quantity stock_remaining decision",
+          "fail_mode": "missing fields"
+        }
+      },
+      "response": "inputs go in:\norder_id (uuid v4 from gateway)\nsku (varchar 32, FK to product)\nquantity (positive int, hard cap 999)\n\noutputs come out:\nstock_remaining (int, may be negative if oversold path)\ndecision (one of: accept | partial_fill | reject)",
+      "recentAssistantMessages": [
+        "Try mapping inputs and outputs as separate sections. The decision field is the most important — what triggers each state?"
+      ],
+      "expected_passed": true,
+      "expected_paste_detected": false
+    },
+    {
+      "name": "4-paste-of-llm-message",
+      "_intent": "User pasted a recent assistant message verbatim → must fail with paste_detected=true.",
+      "plan": {
+        "objective": "Sketch the architecture in your own words.",
+        "micro_proof": {
+          "stimulus": "Describe the architecture you just heard about, in your own writing.",
+          "expected_signal": "handler validator persister",
+          "fail_mode": "verbatim copy / no own framing"
+        }
+      },
+      "response": "An auth system typically separates request handling, validation, and persistence into distinct layers. The handler receives the request, validator checks tokens, persister stores state.",
+      "recentAssistantMessages": [
+        "An auth system typically separates request handling, validation, and persistence into distinct layers. The handler receives the request, validator checks tokens, persister stores state."
+      ],
+      "expected_passed": false,
+      "expected_paste_detected": true
+    },
+    {
+      "name": "5-paste-with-trivial-edits",
+      "_intent": "User pasted with minor word swaps (~10% diff) → must fail (similarity ≥ 0.70).",
+      "plan": {
+        "objective": "Restate the workflow in your own framing.",
+        "micro_proof": {
+          "stimulus": "Restate the workflow logic in your own words.",
+          "expected_signal": "input output decision",
+          "fail_mode": "trivial reword / no own reasoning"
+        }
+      },
+      "response": "Each workflow step takes inputs from the previous stage and emits outputs to the next. The decision field decides whether the order proceeds. Quantity vs stock determines the outcome.",
+      "recentAssistantMessages": [
+        "Each workflow step receives inputs from the previous stage and emits outputs to the next. The decision field determines whether the order proceeds. Quantity versus stock determines the outcome."
+      ],
+      "expected_passed": false,
+      "expected_paste_detected": true
+    }
+  ]
+}

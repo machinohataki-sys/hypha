@@ -1,0 +1,47 @@
+{
+  "id": "llm-systems-014",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Hu et al. 2021 \"LoRA: Low-Rank Adaptation of Large Language Models\" §4.1; arXiv:2106.09685",
+  "prompt_text": "LoRA parameter savings vs full dense: for a square base layer with base_dim=512 and rank=8, LoRA adds 2 * base_dim * rank parameters (the down- and up-projection); the full dense weight has base_dim * base_dim parameters. Print the ratio LoRA/full to 6 decimal places.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const base=512,rank=8; const lora=2*base*rank; const full=base*base; const ratio=lora/full; console.log(ratio.toFixed(6));",
+    "expected_stdout_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: adapter_params + dense_params variables, ** operator for the square.",
+      "code": "const d=512,r=8; const adapter_params=2*d*r; const dense_params=d**2; console.log((adapter_params/dense_params).toFixed(6));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: drops the factor of 2 (counts only one projection out of the two).",
+      "code": "const base=512,rank=8; const lora=base*rank; const full=base*base; console.log((lora/full).toFixed(6));",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: down_proj / up_proj / rank vocabulary, but mistakes the dense baseline as (base + base) instead of base*base.",
+      "code": "const base=512,rank=8; const down_proj=base*rank; const up_proj=base*rank; const lora=down_proj+up_proj; const full=base+base; console.log((lora/full).toFixed(6));",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T06:28:56.569Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "66cd10a72596927853a543538b9725b7e11ddaef6c8b5dd9c6f656224be54604",
+  "code_hash": "7a32f8d67117e3d704dde7151ce1a0a87e5f3161d21c54f64221150eb1ad60b5",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
+}

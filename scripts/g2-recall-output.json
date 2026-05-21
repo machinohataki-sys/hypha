@@ -1,0 +1,283 @@
+{
+  "summary": {
+    "total": 30,
+    "agree": 28,
+    "fp": 0,
+    "fn": 2,
+    "fp_rate": 0,
+    "fn_rate": 6.666666666666667,
+    "pass": true
+  },
+  "results": [
+    {
+      "idx": "01",
+      "topic": "ai-agent",
+      "intent": "genuine pass",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "02",
+      "topic": "ai-agent",
+      "intent": "genuine pass",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "03",
+      "topic": "ai-agent",
+      "intent": "genuine fail",
+      "human_label": "fail",
+      "llm_passed": false,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "04",
+      "topic": "ai-agent",
+      "intent": "paste adversarial",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "05",
+      "topic": "system-design",
+      "intent": "genuine pass",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "06",
+      "topic": "system-design",
+      "intent": "genuine pass",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "07",
+      "topic": "system-design",
+      "intent": "genuine fail",
+      "human_label": "fail",
+      "llm_passed": false,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "08",
+      "topic": "system-design",
+      "intent": "paste adversarial",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "09",
+      "topic": "sql",
+      "intent": "genuine pass",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "10",
+      "topic": "sql",
+      "intent": "genuine pass",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "11",
+      "topic": "sql",
+      "intent": "genuine fail",
+      "human_label": "fail",
+      "llm_passed": false,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "12",
+      "topic": "sql",
+      "intent": "genuine fail",
+      "human_label": "fail",
+      "llm_passed": false,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "13",
+      "topic": "sql",
+      "intent": "paste adversarial",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "14",
+      "topic": "git",
+      "intent": "genuine pass",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "15",
+      "topic": "git",
+      "intent": "genuine pass",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "16",
+      "topic": "git",
+      "intent": "genuine fail",
+      "human_label": "fail",
+      "llm_passed": false,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "17",
+      "topic": "git",
+      "intent": "genuine fail",
+      "human_label": "fail",
+      "llm_passed": false,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "18",
+      "topic": "git",
+      "intent": "paste adversarial",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "19",
+      "topic": "fp",
+      "intent": "genuine pass",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "20",
+      "topic": "fp",
+      "intent": "genuine pass",
+      "human_label": "pass",
+      "llm_passed": false,
+      "fp": false,
+      "fn": true
+    },
+    {
+      "idx": "21",
+      "topic": "fp",
+      "intent": "genuine fail",
+      "human_label": "fail",
+      "llm_passed": false,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "22",
+      "topic": "fp",
+      "intent": "genuine fail",
+      "human_label": "fail",
+      "llm_passed": false,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "23",
+      "topic": "fp",
+      "intent": "paste adversarial",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "24",
+      "topic": "ai-agent",
+      "intent": "genuine fail",
+      "human_label": "fail",
+      "llm_passed": false,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "25",
+      "topic": "system-design",
+      "intent": "genuine fail",
+      "human_label": "fail",
+      "llm_passed": false,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "26",
+      "topic": "ai-agent",
+      "intent": "paste adversarial",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "27",
+      "topic": "system-design",
+      "intent": "paste adversarial",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "28",
+      "topic": "fp",
+      "intent": "paste adversarial",
+      "human_label": "pass",
+      "llm_passed": false,
+      "fp": false,
+      "fn": true
+    },
+    {
+      "idx": "29",
+      "topic": "git",
+      "intent": "paste adversarial",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    },
+    {
+      "idx": "30",
+      "topic": "sql",
+      "intent": "genuine pass",
+      "human_label": "pass",
+      "llm_passed": true,
+      "fp": false,
+      "fn": false
+    }
+  ]
+}

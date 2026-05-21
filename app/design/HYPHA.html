@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HYPHA · A Private University</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:wght@400;500;600&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Manrope:wght@400;500;600&family=Cardo:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <link rel="icon" type="image/png" href="brand-mark.png"/>
+</head>
+<body style="background-color: rgb(255, 244, 220); font-family: &quot;DM Sans&quot;">
+  <!-- Oil-paint SVG filters (referenced via CSS .oil / .oil-strong / .oil-canvas) -->
+  <svg width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+    <defs>
+      <filter id="oil-paint" x="-5%" y="-5%" width="110%" height="110%" colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.018 0.024" numOctaves="2" seed="3" result="noise"/>
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="9" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+      <filter id="oil-paint-strong" x="-8%" y="-8%" width="116%" height="116%" colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.008 0.014" numOctaves="3" seed="7" result="noise"/>
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="34" xChannelSelector="R" yChannelSelector="G" result="disp"/>
+        <feGaussianBlur in="disp" stdDeviation="0.6"/>
+      </filter>
+      <filter id="canvas-grain" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="1.6" numOctaves="2" seed="5" stitchTiles="stitch"/>
+        <feColorMatrix values="0 0 0 0 0.18  0 0 0 0 0.13  0 0 0 0 0.08  0 0 0 0.55 0"/>
+      </filter>
+      <filter id="brush-edge" x="-3%" y="-3%" width="106%" height="106%" colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.06 0.08" numOctaves="2" seed="11" result="noise"/>
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- Canvas-weave overlay (locked to viewport, sits above content for grain) -->
+  <div aria-hidden="true" style="position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.12;background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22260%22 height=%22260%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%222%22 seed=%224%22 stitchTiles=%22stitch%22/><feColorMatrix values=%220 0 0 0 0.20  0 0 0 0 0.13  0 0 0 0 0.06  0 0 0 0.85 0%22/></filter><rect width=%22260%22 height=%22260%22 filter=%22url(%23n)%22/></svg>');"></div>
+
+  <div id="root"></div>
+
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="watercolor.jsx"></script>
+  <!-- v0 Mock Banner — italic Garamond "v0 模板输出" stamp for
+       shipped-but-mocked payloads (product-transfer / tone-engine /
+       auto-roadmap-sync). Must load before any screen that consumes it
+       so JSX references resolve at babel-transform time. -->
+  <script type="text/babel" src="v0-mock-banner.jsx"></script>
+  <script type="text/babel" src="components.jsx"></script>
+  <!-- v0.4.10 (2026-05-19) — Tooltip + Toast primitives. Replace `title=` and
+       per-screen showToast implementations. Must load before any screen that
+       consumes them so JSX references resolve at babel-transform time. -->
+  <script type="text/babel" src="Tooltip.jsx"></script>
+  <script type="text/babel" src="toast.jsx"></script>
+  <script type="text/babel" src="screen-home.jsx"></script>
+  <script type="text/babel" src="screen-lesson.jsx"></script>
+  <script type="text/babel" src="note-mode-bar.jsx"></script>
+  <script type="text/babel" src="knowledge-point-cards.jsx"></script>
+  <script type="text/babel" src="screen-library.jsx"></script>
+  <script type="text/babel" src="screen-book-reader.jsx"></script>
+  <script type="text/babel" src="screen-distillation-progress.jsx"></script>
+  <script type="text/babel" src="screen-book-spark-pack.jsx"></script>
+  <!-- v0.3 Creation System surface (2026-05-14) — DecisionLedgerCard renders
+       per-curriculum decision + assumption logs below the post-session audit
+       in the lesson screen. Must load before screen-lesson-chat.jsx so the
+       JSX reference resolves at babel-transform time. -->
+  <script type="text/babel" src="decision-ledger-card.jsx"></script>
+  <!-- α11 Living Note Reactivation surface (2026-05-15) — NoteReactivationCard
+       listens for note:reactivation-found broadcast and renders 1-3 prior
+       notes whose transfer_point is re-activated by this lesson. Must load
+       before screen-lesson-chat.jsx so JSX reference resolves at babel time. -->
+  <script type="text/babel" src="note-reactivation-card.jsx"></script>
+  <!-- γ11 Web Note Engine surface (2026-05-15) — NoteEdgeCard reads typed
+       neighbors (cites / contradicts / extends / triggered-by / related) for
+       the current note via window.ptor.notes.getNeighbors. Must load before
+       screen-lesson-chat.jsx so JSX reference resolves at babel time. -->
+  <script type="text/babel" src="note-edge-card.jsx"></script>
+  <!-- γ10 Persona Wisdom surface (2026-05-15) — PersonaWisdomStatus shows a
+       9px dot in the lesson header band telling the user whether this
+       persona is backed by distilled corpus, human draft, or waiting. Must
+       load before screen-lesson-chat.jsx so JSX reference resolves. -->
+  <script type="text/babel" src="persona-wisdom-status.jsx"></script>
+  <!-- v0.3 Creation System surface (2026-05-14) — ProductSparkCard renders
+       per-curriculum spark log below DecisionLedgerCard in the lesson screen.
+       Must load before screen-lesson-chat.jsx so the JSX reference resolves
+       at babel-transform time. -->
+  <script type="text/babel" src="product-spark-card.jsx"></script>
+  <!-- v0.3 Creation System surface (2026-05-14) — RoadmapCard renders the
+       weekly roadmap markdown (本周优先 / 暂缓 / 建议砍掉) emitted by
+       Machino-α4 roadmap-sync. Must load before screen-lesson-chat.jsx so
+       the JSX reference resolves at babel-transform time. -->
+  <script type="text/babel" src="roadmap-card.jsx"></script>
+  <!-- α19 Privacy Memory Card (Infrastructure §16 子组件 v0, 2026-05-16).
+       决定不让出去的话 — user 在 pattern × label × category 上画一道线,
+       scrub 会在任何外发 text 之前把命中处用 <redacted:label> 替掉。
+       Privacy 是全局 surface (! per-slug); 本波 ship card + window 挂载
+       即可, ! mount 在 lesson-chat。Reads window.ptor.privacyMemory.{add,
+       remove,list,scrub,log}; falls through to a "未连接" gray state when
+       the bridge is absent. Loads before screen-lesson-chat.jsx so the
+       JSX reference resolves at babel-transform time. -->
+  <script type="text/babel" src="privacy-memory-card.jsx"></script>
+  <!-- γ14 Cross-Spark Card (2026-05-15) — CrossSparkCard renders 3 lateral
+       resonances anchored to the current lesson thesis. Reads
+       window.ptor.crossSpark.{list,generate} via the β14 backend contract
+       (parallel ship); falls through to a "未连接" gray state when the
+       bridge is absent. Must load before screen-lesson-chat.jsx so the JSX
+       reference resolves at babel-transform time. -->
+  <script type="text/babel" src="cross-spark-card.jsx"></script>
+  <!-- α16 Project Spine Card (2026-05-16) — ProjectSpineCard renders the
+       cross-lesson 项目骨架 event stream (5 kind: decision / hypothesis /
+       open-question / building-on / revisit-later). Reads
+       window.ptor.projectSpine.{list,add} per the α16 backend contract;
+       falls through to a "未连接" gray state when the bridge is absent.
+       Must load before screen-lesson-chat.jsx so the JSX reference resolves
+       at babel-transform time. -->
+  <script type="text/babel" src="project-spine-card.jsx"></script>
+  <!-- β17 Judgment Gym (Growth System §28 子组件 v0, 2026-05-16). 判断练习场:
+       学习中遇到的 contestable claim 沉淀, 一段时间后让 user 在更冷的时间点
+       重新判断一次。Anti-LLM-hypnosis 训练场。Loads before screen-lesson-chat
+       so the JSX reference resolves at babel-transform time. -->
+  <script type="text/babel" src="judgment-gym-card.jsx"></script>
+  <!-- β18 Entropy Reduction Card (Note System §3 v0, 2026-05-16). 把散落
+       在多 lesson 里的 `## 用户灵感` 碎片选择 + 合并到 canonical-notes/.
+       Manual merge, v0 无 LLM. Loads before screen-lesson-chat so the JSX
+       reference resolves at babel-transform time. -->
+  <script type="text/babel" src="entropy-reduction-card.jsx"></script>
+  <!-- β19 Artifact Creation Card (Growth System §28 v0, 2026-05-16). 每节
+       课结束后 user 登记一件具体可被人用的 artifact (essay / code-repo /
+       tweet-thread / substack / xhs / video-script / slide-deck), 系统
+       追踪 planned → in-progress → drafted → published → committed | iterate
+       状态流。Track A 路径 — 学习的真正信号 = 造出可被人用的产物。Loads
+       before screen-lesson-chat so the JSX reference resolves at babel-
+       transform time. -->
+  <script type="text/babel" src="artifact-creation-card.jsx"></script>
+  <!-- α22 Cost Budget Card (Infrastructure §16 v0 UI, 2026-05-16). Per-curriculum
+       月 budget 跟踪 + soft 警告 (90% warn / 100% over / 110% over-110). 接 α21
+       backend at app/lib/infrastructure/cost-budget.js, bridge via
+       window.ptor.costBudget. Loads before screen-lesson-chat so the JSX
+       reference resolves at babel-transform time. -->
+  <script type="text/babel" src="cost-budget-card.jsx"></script>
+  <!-- β22 Mastery Card (Lesson System §2 v0 UI, 2026-05-16). Per-concept
+       mastery EWMA score (0-1) surface — 三档显化 (高>0.7 / 中 / 低<0.4) +
+       click-row 展开 signal history + 底部添加 signal 闭环。接 β21 backend
+       at app/lib/lesson-system/mastery-tracker.js, bridge via
+       window.ptor.mastery.{record,score,list,low,signalHistory}. Loads before
+       screen-lesson-chat so the JSX reference resolves at babel-transform time. -->
+  <script type="text/babel" src="mastery-card.jsx"></script>
+  <script type="text/babel" src="screen-lesson-chat.jsx"></script>
+  <script type="text/babel" src="screen-atlas-notebook.jsx"></script>
+  <script type="text/babel" src="screen-notebook.jsx"></script>
+  <!-- W5.3 Living Note Reactivation — death-audit surface. Loaded before
+       app.jsx so the route switch's typeof guard sees DeadNotesScreen on
+       first paint. archive ≠ delete. -->
+  <script type="text/babel" src="screen-dead-notes.jsx"></script>
+  <!-- W3.2 — Product Blueprint editor (10-section). Loaded before app.jsx so
+       the route switch's typeof guard sees ProductBlueprintScreen on first paint. -->
+  <script type="text/babel" src="screen-product-blueprint.jsx"></script>
+  <!-- 2026-05-13 — Product Pool list (BLUEPRINT §11.1 vault-level standalone).
+       工具 → 产品蓝图 现走 list-first 入口; 选/建 产品后才进 editor. -->
+  <script type="text/babel" src="screen-product-list.jsx"></script>
+  <!-- W3.4 — Spark Pool (list + detail + state-machine transitions). Loaded
+       before app.jsx so the route switch's typeof guard sees SparkPoolScreen
+       on first paint. -->
+  <script type="text/babel" src="screen-spark-pool.jsx"></script>
+  <!-- W4.1 — 7-Day Growth Path scenario dashboard (AI Builder ladder). Loaded
+       before app.jsx so the route switch's typeof guard sees
+       ScenarioDashboardScreen on first paint. -->
+  <script type="text/babel" src="screen-scenario-dashboard.jsx"></script>
+  <!-- W4.2 — KPI Dashboard (5 closed-beta KPI per BLUEPRINT §20). Loaded
+       before app.jsx so the route switch's typeof guard sees
+       KPIDashboardScreen on first paint. -->
+  <script type="text/babel" src="screen-kpi-dashboard.jsx"></script>
+  <!-- W7.1 — Pack Learning Mode (BLUEPRINT §12.4 + §12.5). 6 operations +
+       9-state machine + Pack Study Note + Parking Queue. Loaded before
+       app.jsx so the route switch's typeof guard sees PackLearningScreen
+       on first paint. -->
+  <script type="text/babel" src="screen-pack-learning.jsx"></script>
+  <script type="text/babel" src="screen-library-workshop.jsx"></script>
+  <script type="text/babel" src="screen-onboarding.jsx"></script>
+  <!-- W6.1 Book Grounding — must load before app.jsx so the route switch's
+       typeof guard sees GroundingReviewScreen on first paint. -->
+  <script type="text/babel" src="screen-grounding-review.jsx"></script>
+  <!-- W1.5 Capture Mode + Finish Ritual — must load before app.jsx so the
+       route switch's typeof guard sees CaptureScreen / FinishRitualScreen
+       on first paint. -->
+  <script type="text/babel" src="screen-capture.jsx"></script>
+  <script type="text/babel" src="finish-ritual.jsx"></script>
+  <!-- W8.4 Feedback Channel + Donate + Cost Budget — BLUEPRINT §19 + §17.3.
+       Loaded before app.jsx so the route switch's typeof guard sees
+       FeedbackScreen / DonateScreen / CostBudgetScreen on first paint. -->
+  <script type="text/babel" src="screen-feedback.jsx"></script>
+  <script type="text/babel" src="screen-donate.jsx"></script>
+  <script type="text/babel" src="screen-cost-budget.jsx"></script>
+  <!-- γ13 Commons Browse — System 6 (BLUEPRINT §12). Export / import / list
+       .hypha-pack from vault/.commons/packs. Must load before app.jsx so
+       the route switch's typeof guard sees CommonsScreen on first paint. -->
+  <script type="text/babel" src="screen-commons.jsx"></script>
+  <!-- Patch 2026-05-13: 9 missing screen scripts — each Wave agent reported
+       adding their tag here but several writes never landed. All must load
+       before app.jsx so the route switch's typeof guard catches them. -->
+  <script type="text/babel" src="screen-cross-spark.jsx"></script>
+  <script type="text/babel" src="screen-judgment-gym.jsx"></script>
+  <script type="text/babel" src="screen-ux-settings.jsx"></script>
+  <script type="text/babel" src="screen-launch-readiness.jsx"></script>
+  <script type="text/babel" src="screen-flywheel-dashboard.jsx"></script>
+  <script type="text/babel" src="screen-exam-dashboard.jsx"></script>
+  <script type="text/babel" src="screen-radar-dashboard.jsx"></script>
+  <script type="text/babel" src="screen-curriculum-graph.jsx"></script>
+  <!-- 2026-05-14 (Machino-C7) — Kill Toast. Listens for
+       creation:kill-watch-done broadcasts emitted by main.js after each
+       kill-watcher sweep. Must load before app.jsx so App's typeof guard
+       sees KillToast on first paint. -->
+  <script type="text/babel" src="kill-toast.jsx"></script>
+  <!-- β23 North Star Panel (Goal System 阶 3 surface, 2026-05-17). Replaces
+       lessons.length X/Y with mastery state (ratified / draft / artifacts) +
+       last-7-day concept lifecycle + bandit-frontier next-pick. Loaded before
+       app.jsx so the route switch's typeof guard sees NorthStarScreen on
+       first paint. Bridges: window.ptor.northStar.{get} /
+       conceptLifecycle.{list} / banditFrontier.{pick}. -->
+  <script type="text/babel" src="north-star-panel.jsx"></script>
+  <!-- 2026-05-17 — BuildLogScreen replaces the single-line spinner during
+       curriculum:create with an append-only event log + per-stage payload
+       expanders. Loaded BEFORE app.jsx so window.BuildLogScreen is defined
+       when app.jsx's onboarding-create branch reads it. -->
+  <script type="text/babel" src="build-log.jsx"></script>
+  <!-- 2026-05-17 Gap 1 (Machino) — ChainPlanScreen for ambitious goals routed
+       to chain plan. Renders after chain:create resolves; mounts via app.jsx
+       route case 'chain-plan'. Must load before app.jsx so the typeof guard
+       sees window.ChainPlanScreen on first paint. -->
+  <script type="text/babel" src="screen-chain-plan.jsx"></script>
+  <!-- Phase C · 5b (Machino Agent B) — LifetimeLedgerScreen: per-chain weekly
+       self-report ledger w/ axis progress + variance + history. Mounts via
+       app.jsx route 'lifetime'. Must load before app.jsx so the typeof guard
+       sees window.LifetimeLedgerScreen on first paint. -->
+  <script type="text/babel" src="screen-lifetime-ledger.jsx"></script>
+  <!-- Phase E.0/E.1 (2026-05-18) — Library Coverage Gate. Mounts between
+       onboarding submit and chain:create / curriculumCreate when Library
+       has insufficient books for the goal. User can upload recommended
+       canonical sources or skip. Loads before app.jsx for typeof guard. -->
+  <script type="text/babel" src="screen-library-gate.jsx"></script>
+  <!-- Phase F.1 (2026-05-18) — Goal Crystallizer wizard. Mounts BETWEEN
+       onboarding submit and route-goal / library-gate. Accordion-progressive
+       multi-choice flow that turns the user's fog draft goal into a specific
+       crystallized goal + tags. Muse-led 千金 register. Loads before app.jsx. -->
+  <script type="text/babel" src="screen-goal-crystallizer.jsx"></script>
+  <script type="text/babel" src="app.jsx"></script>
+</body>
+</html>

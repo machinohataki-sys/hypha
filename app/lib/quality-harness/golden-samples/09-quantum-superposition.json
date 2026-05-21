@@ -1,0 +1,37 @@
+{
+  "id": "golden-09-quantum-superposition",
+  "topic": "量子叠加",
+  "user_profile": "中级",
+  "goal": "理解叠加态不是 '粒子同时在两处', 而是 '观测前没有确定属性' 的数学描述",
+  "ideal_lesson_body": {
+    "thesis": "By the end of this lesson, the learner will articulate why 'superposition = particle in two places at once' is a category error, and will use Mach-Zehnder interference to demonstrate why.",
+    "canonical_example": "Mach-Zehnder interferometer: 单光子分束 → 两条路径 → 重合 → 100% 出口 A. 任一路放探测器 → 50/50 分布. '同时在两处' 假说预测不出这两组实验差.",
+    "common_misconceptions": [
+      "叠加态 = 粒子同时在 |0⟩ 和 |1⟩. 错: 这是 ontology 越权; 数学上叠加 = α|0⟩+β|1⟩, 观测前不存在 '粒子位于 0 还是 1' 这个 well-defined fact.",
+      "薛定谔的猫是悖论. 错: 它是 thought experiment 用来反驳 Copenhagen 解释推到宏观会得到荒谬结论 — Schrödinger 是反讽不是断言."
+    ],
+    "exit_proof": "给学习者 Mach-Zehnder 三组实验结果 (无探测 / 一路探 / 两路都探), 让 ta 用叠加态 + 测量塌缩解释每组, 然后说为什么 '同时在两处' 解释失败.",
+    "mechanism_explanation": "想象问 '硬币正面朝上还是反面朝上' — 但硬币没掉地之前问. 不是 '同时正反', 也不是 '一定有一面但你不知道'. 是 '问错了' — 在掉地之前 '哪一面' 这个属性根本不存在.",
+    "jargon_list": [
+      "state vector — Hilbert space 里的单位向量, 描述系统状态",
+      "Born rule — |α|² 是测到 |0⟩ 的概率",
+      "Mach-Zehnder interferometer — 用两次分束 + 重合验证 path-coherence 的实验"
+    ],
+    "note_connection": "(first lesson — no prior note to bind to)",
+    "learn_goal": "理解叠加态不是 '粒子同时在两处', 而是 '观测前没有确定属性' 的数学描述",
+    "user_profile": "中级",
+    "intro_hook_scene": "1989 年 Kwiat 在 Innsbruck 单光子实验: 一个光子, 两条路径, 一个出口接受 100%, 另一出口接受 0% — 拿走分束器, 立即变 50/50. 没有任何 '同时在两处' 故事能解释这个开关."
+  },
+  "nine_dim_target_scores": {
+    "goalCoherence": 90,
+    "jargonControl": 75,
+    "levelMatch": 80,
+    "misconceptionDefense": 95,
+    "evidenceOfLearning": 90,
+    "actionConversion": 65,
+    "productTransferQuality": 60,
+    "notGenericCourse": 90,
+    "hyphaSoul": 90
+  },
+  "notes": "Golden because: thesis 把 '同时在两处' 标为 category error 而非简化误读; Mach-Zehnder 真实验 + 1989 实物 datapoint; misconception 第二条修正 Schrödinger 反讽 = 高发顶级误读."
+}

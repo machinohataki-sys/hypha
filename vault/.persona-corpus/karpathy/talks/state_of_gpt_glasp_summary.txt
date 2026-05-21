@@ -1,0 +1,26 @@
+{"@context":"https://schema.org","@type":"Article","headline":"State of GPT | Microsoft Build | Andrej Karpathy | OpenAI","image":[],"datePublished":"2023-05-24T12:08:30.000Z","dateModified":"2023-05-24T12:08:30.000Z","author":[{"@type":"Organization","name":"Glasp","url":"https://glasp.co"}]}{"@context":"https://schema.org","@type":"VideoObject","name":"State of GPT | Microsoft Build | Andrej Karpathy | OpenAI","description":"- The training process for GPT assistants involves several stages, including pre-training, supervised fine-tuning, reward modeling, and reinforcement learning.\n- Pre-training involves gathering a large amount of data and translating it into sequences of integers. The data is then used to train the n","thumbnailUrl":"https://i.ytimg.com/vi/s6zNXZaIiiI/hqdefault.jpg","contentUrl":"https://www.youtube.com/watch?v=s6zNXZaIiiI","embedUrl":"https://www.youtube.com/embed/s6zNXZaIiiI","uploadDate":"2023-05-24T12:08:30.000Z","interactionStatistic":{"@type":"InteractionCounter","interactionType":"https://schema.org/WatchAction","userInteractionCount":4870},"author":{"@type":"Person","name":"Rishiraj Acharya","url":"https://www.youtube.com/@RishirajAcharya"}}State of GPT | Microsoft Build | Andrej Karpathy | OpenAI4.9K views•May 24, 2023byRishiraj AcharyaState of GPT | Microsoft Build | Andrej Karpathy | OpenAITL;DR
+The content discusses the training process for GPT assistants, including stages like pre-training, supervised fine-tuning, and reinforcement learning. It also provides insights on how to effectively apply GPT assistants for various applications.Transcript
+05232023 Build Andrej Karpathy Session Build 2023
+Andrej Karpathy Tuesday, May 23, 2023 ANDREJ KARPATHY: Hi, everyone. I'm happy to be here to tell you about the
+state of GPT. And more generally, about the rapidly growing
+ecosystem of large language models. So I would like to partition the talk into
+two parts. In the first part, I would like to tel...
+Read MoreKey Insights
+
+😑 GPT assistants are trained using a multi-stage process, including pre-training, supervised fine-tuning, and reinforcement learning.
+🌥️ Pre-training requires a large amount of data and significant computational resources.
+❓ Prompt engineering and context retrieval are effective techniques for improving the performance of GPT assistants.
+❓ Finetuning the models and using retrieval-augmented generation can optimize the performance for specific tasks.
+👊 LLMs have limitations, including biases, data cutoffs, and vulnerability to attacks, so human oversight is recommended.
+Install to Summarize YouTube Videos and Get TranscriptsExplore YouTube Video Summarizer or Get YouTube Transcript ExtractorSummary & Key Takeaways
+
+
+The training process for GPT assistants involves several stages, including pre-training, supervised fine-tuning, reward modeling, and reinforcement learning.
+
+
+Pre-training involves gathering a large amount of data and translating it into sequences of integers. The data is then used to train the neural network model.
+
+
+Supervised fine-tuning is done by collecting high-quality datasets and training the model to mimic desired responses. Reward modeling and reinforcement learning further enhance the model's performance.
+
+Read in Other Languages (beta)EnglishShare This Summary 📚Summarize YouTube Videos and Get Video Transcripts with 1-ClickDownload browser extensions on:Try YouTube Summary with ChatGPT & Claude or YouTube Transcript GeneratorSummarize YouTube Videos and Get Video Transcripts with 1-ClickDownload browser extensions on:Try YouTube Summary with ChatGPT & Claude or YouTube Transcript Generator

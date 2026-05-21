@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-020",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Hegel Phenomenology of Spirit §178-§196 (Lordship and Bondage); SEP \"Hegel's Dialectics\" §3",
+  "instance": "In the master-slave dialectic, recognition between two self-consciousnesses passes through asymmetric struggle and reverses through labor on the world. Reconstruct the reversal in three steps and identify the structural reason the master's position is unstable.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "asymmetric recognition: master demands recognition from a being he refuses to recognize as equal",
+      "alt_phrasings": [
+        "unequal recognition demanded",
+        "recognized only by an unrecognized other",
+        "asymmetric mutual recognition",
+        "one-sided recognition",
+        "master needs recognition from a non-equal",
+        "demands what he refuses to grant",
+        "asymmetry of acknowledgment"
+      ],
+      "phrasing_hashes": [
+        "5a7b32bc5a8c96778ecd57ac48fd3f6a9db39b4058f6654cfaeacea57c4d9322",
+        "8c5b134147db509f4745756a25a560eea88ef459b509b8a1d8354f066621a119",
+        "27cc837648158008b8ca2699682262bb39536d527db82fecfba6181f819af2dd",
+        "7664e21165f017e63d6ee423a0da60a874c521f89a1a7cc1cde21df2677d9d5b",
+        "c0002640961625a70887788ef4829797f13c94bd0576b5ebd974d6f0d71ae69e",
+        "9af96fd69d6936fc7962ff7ffb9bde7a46a7a8c40124ef90617938d0a9bc20e1",
+        "04a358df888ed88ff3e2177e6ad6c2a7bacf50eb980ef4d2d1dfca1be687fd8f",
+        "c883c82e5f55914b651656e1a97232c4296f00ac4f2c22c6cafde7e6b9749988"
+      ],
+      "claim_hash": "5a7b32bc5a8c96778ecd57ac48fd3f6a9db39b4058f6654cfaeacea57c4d9322"
+    },
+    {
+      "id": "f2",
+      "claim": "labor on the world: the bondsman shapes the object and finds himself in his work",
+      "alt_phrasings": [
+        "bondsman shapes the world through labor",
+        "work objectifies the self",
+        "forms the object and is formed by it",
+        "finds himself in his product",
+        "labor as self-formation",
+        "bondsman recognized in his shaped world",
+        "productive labor as self-recognition"
+      ],
+      "phrasing_hashes": [
+        "6fb199d9d1b3fa37efb6deadda26b02565f08b40206bd0349c7d1d355c1260f6",
+        "d232514af41627956dc2fbd5019079d01131a993416e45acd69b81395235c8dd",
+        "b417923f11e3b11988d56f20f6b602e6dabd37ca2ac547653a6067a06f5e5fa8",
+        "d64ed55fea6ad0e4b08c3533216456dbd8ba02bfe9ab918c597c241f4c5cbbae",
+        "cdc02aa1ccd7ef6fac4659112b973358b826a635c2c90477fc3651b9450f1456",
+        "c6f4c67247d1e05ea86f223f90e57c21bb2e93b44b8a242c011dd5fb004c3cfc",
+        "8d903ce4250e88787ed98ad1462f373e3433f0d19758adbfe048ca8c8a075fbf",
+        "3396fa2f025180b31157f1cc09c2ddf0a5d205b26f221d97ba35a1cf73321e5d"
+      ],
+      "claim_hash": "6fb199d9d1b3fa37efb6deadda26b02565f08b40206bd0349c7d1d355c1260f6"
+    },
+    {
+      "id": "f3",
+      "claim": "master's instability: recognition he receives is from one whose recognition he has dismissed as worthless",
+      "alt_phrasings": [
+        "master's recognition is hollow",
+        "recognition from a deemed-inferior is empty",
+        "self-undermining recognition demand",
+        "master's position cannot satisfy itself",
+        "cannot get the recognition he sought",
+        "recognition collapses into nothing",
+        "demands valuable recognition from a discounted source"
+      ],
+      "phrasing_hashes": [
+        "8f16fc9e776f74b2723ee9450dda434b033e187b1af415f9ebb2b9c3cff1142b",
+        "09fdab7f29232700894475358e05d9d877fda4a6a632e10886839fcf3d91fcd5",
+        "5c3cb258f56c9f23ce938ed9b5950fee9cf52c6171053f77d6fa2cc22732a13e",
+        "174b213f282edeed1afd444198da4a91f34582ee64767be2f3084acd031d9b2e",
+        "33533eaec3cae054ca23c4fa1a41c2ef4fdc2aed66f5da62857f801e67242804",
+        "42a4c4dcf98e9f2747810c130ff37474252745471284be0c215a45b353bdd674",
+        "c4d8560fd10dcaef13acdcf12fa153861246b2630862de96b56687ec38b24f9c",
+        "7902c629834b3081b9073e15a9abedffca5599247d4a5b8b060a752ff78ffe3a"
+      ],
+      "claim_hash": "8f16fc9e776f74b2723ee9450dda434b033e187b1af415f9ebb2b9c3cff1142b"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Step 1: master demands recognition from a self-consciousness he denies as equal — asymmetric. Step 2: the bondsman labors on the object, shapes it, and recognizes himself in his work. Step 3: the master's recognition is hollow because it comes from one whose recognition he has already dismissed as worthless. The position is structurally self-undermining.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "It is about class struggle and Marx took it from Hegel.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "The recognition asked for is asymmetric. The bondsman finds himself in his shaped world while the master cannot find himself in worthless recognition.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:18:15.145Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

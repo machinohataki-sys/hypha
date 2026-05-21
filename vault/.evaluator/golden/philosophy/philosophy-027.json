@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-027",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Heidegger Sein und Zeit §§15-18 (Zeug, Zuhandenheit) + §§51-53 (Sein-zum-Tode, 1927); SEP \"Martin Heidegger\" §2.2",
+  "instance": "Heidegger's analysis of Dasein contrasts the ready-to-hand (zuhanden) mode of dealing with equipment from the present-at-hand (vorhanden) mode of theoretical inspection, and culminates in being-toward-death as the structure that individuates Dasein. State the structural difference between the two modes and explain why being-toward-death cannot be replaced by averaged talk about mortality.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "ready-to-hand: equipment is transparent and absorbed in a pragmatic context until it breaks",
+      "alt_phrasings": [
+        "transparent in use",
+        "absorbed coping",
+        "equipment recedes in skilled use",
+        "zuhanden as transparent absorption",
+        "visible only when breaks",
+        "in-order-to context",
+        "tool is invisible until it fails"
+      ],
+      "phrasing_hashes": [
+        "88d62da2089a4d4f708df8164e3da16091b06d33c888ef5870fb2c58bf3d43ce",
+        "ae890fc090f5af6bcc9964f03fce478f7bd98b5aac77145a5f9609270feb59b8",
+        "0a14d94d24ea4f7c38355e5b88d1f21e617ddf2f6d380559fe3c4dfbcb2a2767",
+        "535836e210b6dc31bc01b7b3eb8b1cf0c6a15b08d54fd378c872e4ed9e09dedc",
+        "443fb576a3f70471a4c332069ae485339445a6a0201b2898e03e0a02dbdf1d57",
+        "cc4591e5ea89444d18bcded265153d1588b95fc3482b7dd0fa95522933903b23",
+        "8ceb2f1bf7c949139a285b60259b75fd8235df9b3b574258ba707b989a571dce",
+        "054ddc3ddd7760fc0459a1d4df3c0718e06daaf960222b44ff52c0f085fa4936"
+      ],
+      "claim_hash": "88d62da2089a4d4f708df8164e3da16091b06d33c888ef5870fb2c58bf3d43ce"
+    },
+    {
+      "id": "f2",
+      "claim": "present-at-hand: object becomes a mere thing with properties when the pragmatic flow breaks",
+      "alt_phrasings": [
+        "vorhanden mode after breakdown",
+        "object as standalone with properties",
+        "theoretical inspection mode",
+        "thing-with-properties stance",
+        "detached observer view",
+        "object-property mode",
+        "thing held at theoretical distance"
+      ],
+      "phrasing_hashes": [
+        "345933a630bd24bb2a5e4d213ab2ced10b9e39b5d554138638281c61d978aa06",
+        "794aa15ad39aed2832b56b7e8e072a1645c64ef0f717d8b84e8832cb2f9dc99f",
+        "cfe0b0135de31aa39b78c650631125c2baf59c1dd68d6b1cd96233eedc8cd4ce",
+        "1c3dad1d944ddafe547fe3aa987865b5c01a18739fa67a78da4a3cb66eb07e06",
+        "3fc14d33d5778185b040e8f3b1497f2d20519f2610be9c07428eeca4a4e7eb3c",
+        "4cca50135dba730b0f5b55efeac6dfa4669a8dd19d426b93aedf50b395c3547f",
+        "c7f1c65d5aa2c61377929a88fe3e8876eb19a12ac0d16038c37f2ed6c5542b73",
+        "4b7e9ee086383cab26c47b22a7eb273dd8f337284d6017abe5c1cec161bddcc6"
+      ],
+      "claim_hash": "345933a630bd24bb2a5e4d213ab2ced10b9e39b5d554138638281c61d978aa06"
+    },
+    {
+      "id": "f3",
+      "claim": "being-toward-death individuates because death is non-relational, ownmost, and cannot be delegated",
+      "alt_phrasings": [
+        "cannot be deputized",
+        "non-relational possibility",
+        "ownmost possibility",
+        "cannot be substituted",
+        "das Man cannot die for me",
+        "individuates Dasein",
+        "eigenste Moeglichkeit"
+      ],
+      "phrasing_hashes": [
+        "55bf87606332e597345349b068bc6ca3ffeaee11c7159f1f1b619afff2e46b93",
+        "93db0b06bbd41a67974a2f5a0c6104f7a1c2c260fd85e7c3fd6e3949b4941e9d",
+        "cfcc898632a4bb61e26e24f67cd499a613c5f425ad96f176b8dc9573aaf0fa69",
+        "b2c28030382eaaad9341178259c50f2dbc86f445d3f9e4c3aa67ff384e2c49a6",
+        "0b1132d59ba98acf621cd72f00b581246c3c04b3d251d6bd32c4e39ac536fbaa",
+        "179d8cda12a2d8a7d8cc063fe035d810827f3bc082ac533e79fe6a607f83ab0b",
+        "16efc3ad82f1676ea367414504d3dd7aa2ff1e04700a051d9c7c654229d0e786",
+        "8ffa68fd1b515495c85bb075e2e7d1babb895b3a9fb8d606ebfcbcb7efd4d251"
+      ],
+      "claim_hash": "55bf87606332e597345349b068bc6ca3ffeaee11c7159f1f1b619afff2e46b93"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Ready-to-hand: the hammer is transparent in skilled hammering, absorbed into an in-order-to context, only visible when it breaks. Present-at-hand: once it breaks, the hammer becomes a thing with properties (weight, length) for theoretical inspection. Being-toward-death cannot collapse into averaged \"people die\" talk because death is non-relational and ownmost — no one can die my death for me, which is exactly what individuates Dasein.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Heidegger thinks we should be authentic and confront death.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "In skilled use, equipment is transparent. When the flow breaks, it shows up as object-with-properties. Death individuates because it is ownmost and cannot be delegated.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-11T00:37:29.530Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

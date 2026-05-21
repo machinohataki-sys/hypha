@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-013",
+  "source_hash": "4d71f85ef9acdae56b0add3b23b08cd64ac96d509703e7930777b07dbbd2cae4",
+  "translated_at": "2026-05-11T02:06:55.300Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const max_abs=2.5; const s=max_abs/127.0; const v=[0.5,-1.2,2.5,-2.5,0.0]; console.log(JSON.stringify(v.map(x=>Math.round(x/s))));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log([0,-1,2,-2,0]);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"[25,-61,127,-127,0]\");"
+    }
+  ],
+  "prompt_text_zh": "对称逐张量 (per-tensor) int8 量化：缩放因子 (scale) = max_abs / 127.0；q = round(x / scale) 截断至 [-127, 127]。给定 max_abs=2.5 且值 [0.5, -1.2, 2.5, -2.5, 0.0]，将量化整数以 JSON 数组形式打印。"
+}

@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-022",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Nietzsche On the Genealogy of Morals essay I §§7-10 + essay II §§16-18; Beyond Good and Evil §§259-260; SEP \"Friedrich Nietzsche\" §6-7",
+  "instance": "Nietzsche's genealogical method explains \"good\" and \"evil\" as values that arose under specific historical conditions, with master-morality and slave-morality as opposing valuation patterns. State the structural inversion the slave-revolt performs, and identify one common misreading that conflates \"genealogy of X\" with \"refutation of X.\"",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "master-morality starts from self-affirmation: noble = good, low = bad (descriptive contrast)",
+      "alt_phrasings": [
+        "noble first calls itself good",
+        "good starts as self-affirmation",
+        "noble vs base contrast",
+        "master starts from yes-saying",
+        "good originates in the noble",
+        "self-valuing nobility",
+        "good as self-affirmation of the strong"
+      ],
+      "phrasing_hashes": [
+        "441dbb3a7c74b14ee392538474daf2e0e90233a8e6232e2bf6e80066aefaafe6",
+        "8f6994cad6a81d3378d0bd7889703ac143f9ce0c7b1f66a9f323006f8b2fcdfc",
+        "e084f1f2c80b5d08f54e2769e76520b0e7a2be042741b724ddb45821792249ec",
+        "e6393b4c19cd16ab3ebc11861cd52eb86bf417012e8b37b40bf677580e4013a7",
+        "c9e4c09c12e9bb06fcc66aa3218805566922d3327b6c47bdc20532d5f304d4bf",
+        "fdbd42ba78194f5fd9b0772c6e9bfefe2ceafe441b5848d1b0dd4e9e3e949e4b",
+        "6ff65505bdefe1b3d3db7e0fec8703ded75da55e532b937b79efc8ca3d40021f",
+        "c87416577267f4cfbbb74d324649a6b5d1f2d29b3be5d303de51e0caa4b84337"
+      ],
+      "claim_hash": "441dbb3a7c74b14ee392538474daf2e0e90233a8e6232e2bf6e80066aefaafe6"
+    },
+    {
+      "id": "f2",
+      "claim": "slave-revolt inverts the order: starts from negation of the noble, calls it evil, then derives good as its negation",
+      "alt_phrasings": [
+        "inverted valuation",
+        "starts with negation of master",
+        "evil is primary good is derivative",
+        "reactive valuation",
+        "ressentiment-driven inversion",
+        "slave morality is reactive",
+        "no first then yes"
+      ],
+      "phrasing_hashes": [
+        "6bf982496ab1a9cab09c53eb0a13ecd51a2273b510dcc1a11fa006ef8991ba56",
+        "d7fcf7167c5d3010acd8c0a414e52cdb53d765d4260a47d5426249454c6056a3",
+        "0af81de2b3c4f49c4681f953745ccfbc6b959b2f983fb9b1581d1fb0897356f4",
+        "4f567dc54d90081b5e15de7555e9c95deb9594a6d8fc1f450b45620b23778fe4",
+        "57a6f0a10afeb3ed80ecb323e320beca46f6d542b2fd06241d8fd8fbca0e6cc2",
+        "9ee04e354ede9e44b5352820842e2b4b745c33b601adf691ed343d976c1dfdd0",
+        "376b3dfc28b9efde397973a47ea3f391326cd88a92ac293551f8aa20b458910c",
+        "c54f4d336f768c774c65178e3c11f6b5bb17d306b5e919cb427e7e385f038f5f"
+      ],
+      "claim_hash": "6bf982496ab1a9cab09c53eb0a13ecd51a2273b510dcc1a11fa006ef8991ba56"
+    },
+    {
+      "id": "f3",
+      "claim": "genetic fallacy misreading: tracing the origin of X is not refutation of X",
+      "alt_phrasings": [
+        "genetic fallacy",
+        "origin is not refutation",
+        "genealogy explains not refutes",
+        "where it came from is not whether it is true",
+        "historical origin distinct from validity",
+        "genealogy ≠ argument against",
+        "tracing origin of X is not refuting X"
+      ],
+      "phrasing_hashes": [
+        "d4693f7d5f94d9c0b3a96c36db0c01073da9c3d9e336584d09df01daf665f04e",
+        "5e39876bb254e6989d2871ac124f102de8b9bbc14648444452f770892ee59f27",
+        "17381ac2cdd58cb098b76c1110d6c79d7cb37c6bb0287be2bfc9c596d24ab924",
+        "3e05ffd8e3b5b95300849f54fad391512707f7c5caf95ef5e96dd5b2fe3386df",
+        "c88e5c7f11321d5245eff622e1f7c59c7cb2ed56b5291ffbc190eca73da825fe",
+        "55a563095982bcd7db4ffde77421b7c69c466e3c15680a472a91b8e9c7191f49",
+        "296f3f19d14dabe10fe26d0e6eaf735f56f1b2de6e9ba54c1247736729bc6575",
+        "c0f38b2afe74ca03e0fd3173a998cdf5f3c3d684b54ad6543fa55e73239fc58d"
+      ],
+      "claim_hash": "d4693f7d5f94d9c0b3a96c36db0c01073da9c3d9e336584d09df01daf665f04e"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Master-morality starts from self-affirmation: noble = good, low = bad. The slave-revolt inverts this — it starts by negating the noble (calling it evil) and only derivatively defines its own good as the negation of evil. A common misreading treats genealogy as refutation, but tracing how a value arose is not a proof against it (genetic fallacy).",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Nietzsche says God is dead and morality is for the weak.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Master starts from yes; slave starts from no. To say a value has a genealogy is not to refute it.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:18:15.199Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

@@ -1,0 +1,112 @@
+{
+  "id": "philosophy-014",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Plato Republic VI 507b-509c + VII 514a-517a (Stephanus); SEP \"Plato's Middle Period Metaphysics and Epistemology\" §3",
+  "instance": "In the divided line and cave allegory, Plato distinguishes images, sensible things, mathematical objects, and Forms, with the Form of the Good as the source of intelligibility. State what changes between the cave-bound prisoner and the philosopher returning to the cave, and identify one cognitive operation modern epistemology still treats as analogous to \"ascent\" out of mere appearance.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "ascent reorders the subject's relation to evidence (from appearances to structural causes)",
+      "alt_phrasings": [
+        "from shadow to source",
+        "from appearance to structure",
+        "reorientation toward causes",
+        "turn of the soul toward the real",
+        "periagoge",
+        "climb from appearance to principle",
+        "shift from image to ground"
+      ],
+      "phrasing_hashes": [
+        "79366bd4d9d4a0f1d23d5d722b4f4dfd703b37a4a02843c000fd6a6259855fb3",
+        "eb1addc4be5d5a7b80e284e2659de18fb99c8a789d0c5858470054291b981dfd",
+        "d7e9926936aa8629da846efaa4f922824154da324b4478c304b55d97464ab0e0",
+        "f28867a4734356b03bae520bef91d1c7a1a0eda917b5dbfbfbf75d624e22b644",
+        "980af255bcda197f5cdd4e1dc415e5e80d02f2d4904ef8aa534200637859bea8",
+        "f0e5ccbcc86e47c4eaed6b31b23f33e071143541c93afc6b71f555723fdb6a00",
+        "d77f6865b5ff94b58a9e841093d3c5e64b4369c6c682b45aa861c04c36a9ba81",
+        "8e4b330fc01bc498cafb0a936a7750d901656db54c3cf38120b1cc08fdc11cef"
+      ],
+      "claim_hash": "79366bd4d9d4a0f1d23d5d722b4f4dfd703b37a4a02843c000fd6a6259855fb3"
+    },
+    {
+      "id": "f2",
+      "claim": "returning philosopher loses fluency in shadow-talk yet sees its causes",
+      "alt_phrasings": [
+        "returner is mocked in cave",
+        "sees shadows for what they are",
+        "fluent above blind below",
+        "cave-blindness on return",
+        "pays the cost of clearer sight",
+        "returning sees the shadows as shadows",
+        "momentary loss of cave-fluency"
+      ],
+      "phrasing_hashes": [
+        "5da727779e59bf07017dd1f6caf5bf59dd627857333911f793a92cd3ad0bc737",
+        "ff9f012a66b07cca9bbcbf4f6f35099371045f4f6f7581ee8b640c34d5f54463",
+        "0c4bca58913f90927e98ba6a05ce13e7771618a6f53133ea7b1fae0c5e160bcf",
+        "7d612d4fadaa9ce5938a00fcd0cf0057495b34dcad17a5f4826bd0d6839f77dc",
+        "f0f5634f7462328fb3a06a21770134aa8440e8485831d766e7080cfecdef9569",
+        "ffd7025d29d44d76369c65f902031148a6f7d33c1c1a71fbbe71b42bf50df2b0",
+        "8b4c6a3f8c5660f4e93451d0645b58067b676859cbf1d3741a9fcd87632b4adb",
+        "28ad4697e2389785147fc88aa119145307e6ca42498fdfcae9b29a615fb14e05"
+      ],
+      "claim_hash": "5da727779e59bf07017dd1f6caf5bf59dd627857333911f793a92cd3ad0bc737"
+    },
+    {
+      "id": "f3",
+      "claim": "modern analog: model-building or theoretical inference replacing pattern-matching on raw data",
+      "alt_phrasings": [
+        "theory replaces pure data fitting",
+        "causal model behind correlations",
+        "mechanistic interpretability over surface accuracy",
+        "first-principles model",
+        "inference to underlying structure",
+        "building a model not just matching patterns",
+        "going beyond surface statistics"
+      ],
+      "phrasing_hashes": [
+        "dfc33e808e22ac4f74ce167385c2ddb84868ac278dd78a3aec55c8b02c15a14e",
+        "26ea65a30a8fc960443f81128e29566205858327c3df52ca0924e216c77ffd2e",
+        "173d3b15697ae5b494689219a620b9ba39fa7847d7717c8b2e6e58cebcf4b0c5",
+        "84ed3a5d7a6ef9b5762ea8d9f85ca1082c9347573e0e947e92fa538598a65410",
+        "88f1b8200e77451dafe228031c902dc55b2f9276cceacafb4f87f02272a1472b",
+        "18c730b234c3fdfec30d765b5dbff0c3f57af762c9209acf316c9b9b429132c6",
+        "5d0a3367eccf1864ab8f42a2178f6fb74b6be24a41c30105ac19aeb3bd618dd2",
+        "a68052293f9073a91a501923a8ae75ff5efb1e1b006b3649a46df2316c84fc38"
+      ],
+      "claim_hash": "dfc33e808e22ac4f74ce167385c2ddb84868ac278dd78a3aec55c8b02c15a14e"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "The prisoner is reoriented away from shadows toward their causes — periagoge. On return the philosopher sees shadows as shadows, but loses fluency in shadow-talk and is mocked. The modern analog is moving from surface pattern-matching to a causal model of underlying structure.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "The cave is an allegory for ignorance, the sun is the truth.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "It is a turn of the soul from appearance to structure. The returner momentarily loses the cave-fluency of those still bound.",
+      "features_hit_truth": [
+        "f1",
+        "f2"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:18:14.988Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

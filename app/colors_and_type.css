@@ -505,7 +505,7 @@
   --ease-exit:        cubic-bezier(0.22, 1, 0.36, 1);      /* exit */
   --ease-quiet:       cubic-bezier(0.4, 0, 0.2, 1);        /* tonal/color */
   /* Lacquer Loop motion-as-signal (W7 v1.0). Plan: flickering-tickling-koala.md */
-  --ease-cure:        cubic-bezier(0.65, 0.05, 0.36, 1);   /* A1 cure-clock fill — asymmetric like real lacquer hardening */
+  --ease-cure:        linear(0, 0.42 12%, 0.78 30%, 0.92 55%, 1);  /* A1 cure-clock fill — front-loaded then slow cure (linear() multi-control-point per SCOUT 2026-05-02) */
   --ease-graphite:    cubic-bezier(0.5, 0, 0.5, 1);        /* A2 prediction-error stylus-skip */
   --dur-1:            120ms;   /* hover tone */
   --dur-2:            220ms;   /* small entrance */
@@ -549,10 +549,13 @@
   ::view-transition-old(root),
   ::view-transition-new(root) { animation-duration: 1ms; }
 }
-/* Independent of view-transition: the data-theme bg-color tween for users
-   who toggle in environments where view-transition is unavailable. Matches
-   the 320ms duration so theme + content shift in lockstep. */
-html { transition: background-color 320ms var(--ease-cure); }
+/* v0.8.3 — removed `html { transition: background-color 320ms }` per LUNG H7.
+   That CSS transition runs IN ADDITION TO the view-transition cross-fade,
+   producing a perceived double-fade / color flicker on theme swap. Hypha is
+   Electron 35 only — view-transition is always available — so the fallback
+   path was unused weight competing with the snapshot machinery. The
+   view-transition snapshot now captures the bg-color cleanly without a
+   parallel CSS transition fighting it. */
 
 /* Lacquer Loop — Ink Reservoir nib-breath (W7 v1.2-REDUX, MUSE × LUNG council
    2026-05-01). Sine-eased opacity oscillation 0.22 ↔ 0.42 with micro-blur for
@@ -580,6 +583,14 @@ html { transition: background-color 320ms var(--ease-cure); }
 .hypha-quote-mark:hover {
   text-decoration-color: var(--brass-bright, #c9a86a);
   color: var(--brass-bright, #c9a86a);
+}
+
+/* Send-button meniscus breath — once the well is full (input ≥80 chars),
+   the brass surface convex bulge breathes via slow scale + opacity cycle.
+   Continuous motion past the static-fill cap. 筆洗 register, no spinner. */
+@keyframes hypha-meniscus-breath {
+  0%, 100% { transform: scale(1.00); opacity: 0.55; }
+  50%      { transform: scale(1.08); opacity: 0.85; }
 }
 
 /* Glow recall — fires on the matching quote card in ConceptAtlas when user
@@ -1137,4 +1148,225 @@ hr {
   margin: 0;
 }
 .hypha-num-input { -moz-appearance: textfield; }
+
+/* === HOU-GUANG (waiting light) — v0.8.0 ambient motion grammar ===
+   Substrate tokens + utility classes for the 5 atomic primitives implemented
+   in app/lib/chouguang.js: BREATH (id-hashed sine on opacity), INK-BLEED
+   (halo on state promotion), OPSZ (variable-font reading focus, headings
+   only), HAIRLINE (1px draw L-to-R on first entry), RESERVATION (singleton
+   coordinator). The JS module reads these CSS variables; do not rename them.
+   Reduced-motion + slow-update guards below disable the ambient layer.
+   ============================================================ */
+:root {
+  --breath-amplitude-recent: 0.020;
+  --breath-amplitude-old: 0.005;
+  --breath-period-min-ms: 6400;
+  --breath-period-max-ms: 9200;
+  --ink-bleed-radius-px: 6;
+  --ink-bleed-duration-ms: 1400;
+  --ink-bleed-scale-ambient: 0.5;
+  --ink-bleed-scale-hero: 1.5;
+  --hairline-draw-duration-ms: 520;
+  --opsz-rest: 12;
+  --opsz-focus: 18;
+}
+
+.chouguang-hl {
+  position: relative;
+}
+.chouguang-hl::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--brass-bright);
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path var(--hairline-draw-duration-ms, 520ms) var(--ease-cure, ease);
+  pointer-events: none;
+}
+.chouguang-hl[data-hl-drawn="1"]::after {
+  clip-path: inset(0 0 0 0);
+}
+/* When chouguang-hl is added to a .hypha-quote-mark, the chouguang ::after
+   underline replaces the existing text-decoration underline — otherwise both
+   render and the quote mark gets a double brass line. */
+.chouguang-hl.hypha-quote-mark,
+.chouguang-hl.hypha-quote-mark:hover {
+  text-decoration: none;
+}
+
+.chouguang-bleed {
+  /* v0.8.3 — dropped will-change + color-mix per LUNG H3+H4: ephemeral nodes
+     shouldn't carry layer hints (causes GPU layer churn = flicker), and
+     color-mix recomputes cascade across all sites when --brass-bright changes
+     on theme flip. Solid rgba box-shadow is recompute-stable. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  border-radius: 50%;
+  background: var(--brass-bright, currentColor);
+  box-shadow: 0 0 0 0.5px rgba(184, 153, 104, 0.6);
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 0.42;
+}
+
+[data-chouguang-reserved="1"] .chouguang-breathing {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --breath-amplitude-recent: 0;
+    --breath-amplitude-old: 0;
+  }
+  /* Surgical: only kill HOU-GUANG's own ambient layer. Do NOT use the
+     universal selector here — it would clobber the existing view-transition
+     320ms cross-fade and the html background-color tween. The existing
+     reduced-motion handlers at L548 + L529 already cover those. */
+  .chouguang-breathing,
+  .chouguang-bleed,
+  .chouguang-hl::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ───────── 搁置课程 D · 长按褪去 (MUSE 顶级审美大师 spec 2026-05-09) ─────────
+   Hypha v0.5.x. Surface = screen-home.jsx course-row long-press gesture
+   (千金 visible affordance via .dispose-press-hint hover-cue). Existing
+   HandscrollNav.jsx 长按 0.5s on brass-stroke rail stays unchanged
+   (orthogonal power-user shortcut on a separate surface).
+
+   Aesthetic: 1100ms cubic-bezier exhalation; ink-primary → tabac (aging
+   paper) → aubergine (dusk bruise) → fade. blur + kerning + translateY are
+   the three mist mechanisms. meta dissolves at 825ms (75%) so the title gets
+   its full breath alone. border-bottom hairline drains in sync to avoid
+   ghost-slot. Does NOT route through oxblood: oxblood is the action
+   verb-color and would re-assert "delete!" mid-dissolve, breaking the
+   unhurried register. Aubergine #4a2540 + tabac #8b6f47 are inlined here
+   (not in :root tokens) since they are persona-specific manuscript-register
+   accents, not shared palette tokens.
+
+   Reference demo: vault/.previews/dispose-course-shotgun.html (col-d).
+*/
+.dispose-row { user-select: none; cursor: pointer; }
+.dispose-row.dispose-press {
+  animation: dispose-fade 1100ms cubic-bezier(.45, .05, .35, 1) forwards;
+}
+.dispose-row.dispose-press .dispose-meta {
+  animation: dispose-fade-meta 825ms cubic-bezier(.4, .1, .4, 1) forwards;
+}
+@keyframes dispose-fade {
+  0%   { opacity: 1;    filter: blur(0);     letter-spacing: 0;      transform: translateY(0);      color: var(--ink-primary); border-bottom-color: var(--hairline-warm); }
+  50%  { opacity: 0.78; filter: blur(1.4px); letter-spacing: 0.07em; transform: translateY(-1.2px); color: #8b6f47;            border-bottom-color: var(--hairline-warm); }
+  85%  { opacity: 0.32; filter: blur(3px);   letter-spacing: 0.14em; transform: translateY(-2.4px); color: #4a2540;            border-bottom-color: color-mix(in srgb, var(--brass-mid) 14%, transparent); }
+  100% { opacity: 0;    filter: blur(4px);   letter-spacing: 0.18em; transform: translateY(-3px);   color: #4a2540;            border-bottom-color: transparent; }
+}
+@keyframes dispose-fade-meta {
+  0%   { opacity: 1;   color: var(--ink-muted); }
+  60%  { opacity: 0.4; color: #8b6f47; }
+  100% { opacity: 0;   color: #4a2540; }
+}
+.dispose-row.dispose-aborted {
+  animation: dispose-restore 280ms cubic-bezier(.2, .8, .3, 1) forwards;
+}
+.dispose-row.dispose-aborted .dispose-meta {
+  animation: dispose-restore-meta 280ms cubic-bezier(.2, .8, .3, 1) forwards;
+}
+@keyframes dispose-restore {
+  from { opacity: var(--from-opacity, 0.5); filter: blur(var(--from-blur, 2px)); letter-spacing: var(--from-spacing, 0.09em); transform: translateY(var(--from-y, -1.5px)); color: var(--from-color, #8b6f47); }
+  to   { opacity: 1; filter: blur(0); letter-spacing: 0; transform: translateY(0); color: var(--ink-primary); border-bottom-color: var(--hairline-warm); }
+}
+@keyframes dispose-restore-meta {
+  to { opacity: 1; color: var(--ink-muted); }
+}
+.dispose-row.dispose-committed {
+  animation: dispose-collapse 240ms ease-in forwards;
+  pointer-events: none;
+  overflow: hidden;
+}
+@keyframes dispose-collapse {
+  0%   { opacity: 0; max-height: 100px; padding-top: 16px; padding-bottom: 16px; }
+  100% { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; margin-top: 0; margin-bottom: 0; border-top-width: 0; border-bottom-width: 0; }
+}
+/* 千金可见 hint — italic Garamond, brass-mid faded, hover-revealed only */
+.dispose-press-hint {
+  font-style: italic;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--brass-mid) 70%, transparent);
+  letter-spacing: 0.04em;
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+.dispose-row:hover .dispose-press-hint { opacity: 1; }
+.dispose-row.dispose-press .dispose-press-hint { opacity: 0; }
+
+/* ───────── 已搁置 list (Apple-Mail-style Recently Deleted, Scout top-1) ───────── */
+.set-aside-section {
+  margin-top: 28px;
+  padding-top: 14px;
+  border-top: 1px dotted var(--hairline-warm);
+}
+.set-aside-section .label {
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.set-aside-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dotted var(--hairline-warm);
+}
+.set-aside-row:last-child { border-bottom: none; }
+.set-aside-title {
+  font-style: italic;
+  color: var(--brass-mid);
+  font-size: 14.5px;
+  flex: 0 0 auto;
+}
+.set-aside-when {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-faint);
+  flex: 1 1 auto;
+}
+.set-aside-restore {
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  color: var(--brass-mid);
+  font-style: italic;
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 2px 0;
+  border-bottom: 1px solid transparent;
+  transition: color 160ms ease, border-bottom-color 160ms ease;
+}
+.set-aside-restore:hover {
+  color: var(--brass-bright);
+  border-bottom-color: var(--brass-mid);
+}
+
+/* Reduced-motion fallback for the dispose stack */
+@media (prefers-reduced-motion: reduce) {
+  .dispose-row.dispose-press,
+  .dispose-row.dispose-press .dispose-meta,
+  .dispose-row.dispose-aborted,
+  .dispose-row.dispose-aborted .dispose-meta,
+  .dispose-row.dispose-committed {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
 

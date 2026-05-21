@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-002",
+  "source_hash": "562932a7a7d9fed8ad0b488ac0b34dd763a36a02c0377f5a5a179a88dd9fdcda",
+  "translated_at": "2026-05-11T01:59:36.497Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const seq=2048,heads=32,dim=128,bytes=2,layers=32; const total=2*seq*heads*dim*bytes*layers; console.log(total);"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(seq*heads*dim*bytes*layers);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(1073741824);"
+    }
+  ],
+  "prompt_text_zh": "KV-cache 总字节数：seq_len=2048, n_heads=32, head_dim=128, dtype_bytes=2 (fp16), n_layers=32。计算总字节数 = 2 * seq_len * n_heads * head_dim * dtype_bytes * n_layers（因子 2 = K 和 V）并打印该整数。"
+}

@@ -1,0 +1,47 @@
+{
+  "id": "llm-systems-010",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Holtzman et al. 2020 \"The Curious Case of Neural Text Degeneration\" §2 (temperature & argmax); Karpathy nanoGPT/sample.py",
+  "prompt_text": "Temperature sampling at temp=0 collapses to argmax. Given logits [1.2, 3.4, 0.5, 2.8, 3.1], print the argmax index (0-based).",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const logits=[1.2,3.4,0.5,2.8,3.1]; let mx=-Infinity,arg=-1; for(let i=0;i<logits.length;i++){if(logits[i]>mx){mx=logits[i];arg=i;}} console.log(arg);",
+    "expected_stdout_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: reduce-based argmax tracking the best index seen so far.",
+      "code": "const z=[1.2,3.4,0.5,2.8,3.1]; const idx=z.reduce((best,v,i,arr)=>v>arr[best]?i:best,0); console.log(idx);",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: returns argmin instead of argmax.",
+      "code": "const logits=[1.2,3.4,0.5,2.8,3.1]; console.log(logits.indexOf(Math.min(...logits)));",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: greedy_temp_zero_argmax variable name + descending sort, but returns the index of the SECOND-largest (the second sampling token).",
+      "code": "const logits=[1.2,3.4,0.5,2.8,3.1]; const greedy_temp_zero_argmax = (() => { const sorted=[...logits].sort((a,b)=>b-a); return logits.indexOf(sorted[1]); })(); console.log(greedy_temp_zero_argmax);",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T06:28:56.478Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "424a449e307ae67a17dfa8d398d2724575f29748a30d937ab7d5582174bcd462",
+  "code_hash": "81055f95d882427754a6f26f1d16c30c8167aeb67d9b3c32b25c8619ebdc6408",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
+}

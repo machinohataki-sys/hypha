@@ -1,0 +1,48 @@
+{
+  "item_id": "philosophy-002",
+  "source_hash": "81f06b3cc4c30e1461d423d700453704eafc821017d6680517afb7f5177df84b",
+  "translated_at": "2026-05-11T02:01:33.029Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "instance_zh": "赫拉克利特说人不能两次踏进同一条河流。请用现代术语重述此命题，指出守恒量（若有）与可变量，并给出一个在操作上追踪此区分的工程系统。",
+  "features_zh": [
+    {
+      "id": "f1",
+      "statement_zh": "同一性或模式作为连续轨迹被守恒",
+      "alt_phrasings_zh": [
+        "形式持存",
+        "模式守恒"
+      ]
+    },
+    {
+      "id": "f2",
+      "statement_zh": "质料或内容是可变量",
+      "alt_phrasings_zh": [
+        "内容变化",
+        "质料是可变的"
+      ]
+    },
+    {
+      "id": "f3",
+      "statement_zh": "工程类比在内容编辑中追踪同一性",
+      "alt_phrasings_zh": [
+        "哈希版本化",
+        "仅追加日志"
+      ]
+    }
+  ],
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "同一性持存，内容流动。一个 git 仓库跨编辑追踪同一文件。"
+    },
+    {
+      "id": "c2",
+      "text_zh": "赫拉克利特只是在作诗；一切皆变。"
+    },
+    {
+      "id": "c3",
+      "text_zh": "模式守恒，水是可变量——这正是数据库行使用 id 列的同一技巧。"
+    }
+  ]
+}

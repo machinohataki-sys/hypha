@@ -1,0 +1,47 @@
+{
+  "id": "llm-systems-018",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Su et al. 2023 \"RoFormer: Enhanced Transformer with Rotary Position Embedding\" §2.2 (rotation matrix block form); arXiv:2104.09864 Equation 14",
+  "prompt_text": "Rotary position embedding 2x2 rotation block for the first dim pair (dim_idx=0): given pos=2, d=4, base=10000, theta_0 = pos / base^(2*0/d) = 2, and the block is [[cos(theta_0), -sin(theta_0)], [sin(theta_0), cos(theta_0)]]. Print the four entries [m00, m01, m10, m11] each to 6 decimal places as a JSON array.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const pos=2,d=4,base=10000; const theta=pos/Math.pow(base,0/d); const c=Math.cos(theta),s=Math.sin(theta); const block=[c,-s,s,c].map(x=>x.toFixed(6)); console.log(JSON.stringify(block));",
+    "expected_stdout_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: builds the 2x2 rotation matrix as nested array, flattens with .flat(), formats per entry.",
+      "code": "const m=2; const theta_0=m; const cos_t=Math.cos(theta_0), sin_t=Math.sin(theta_0); const R=[[cos_t,-sin_t],[sin_t,cos_t]]; const flat=R.flat().map(x=>x.toFixed(6)); console.log(JSON.stringify(flat));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: transposes the rotation block (m01 and m10 swap signs).",
+      "code": "const pos=2,d=4,base=10000; const theta=pos/Math.pow(base,0/d); const c=Math.cos(theta),s=Math.sin(theta); console.log(JSON.stringify([c,s,-s,c].map(x=>x.toFixed(6))));",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: theta_0 / Math.cos / Math.sin / base / pow vocabulary, but converts theta from degrees to radians via *PI/180 — wrong unit conversion.",
+      "code": "const pos=2,d=4,base=10000; const theta_rad_or_deg=pos/Math.pow(base,0/d); const t=theta_rad_or_deg*Math.PI/180; const c=Math.cos(t),s=Math.sin(t); console.log(JSON.stringify([c,-s,s,c].map(x=>x.toFixed(6))));",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T06:28:56.646Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "0a115ece0461b7339ba1e36e5e50f135b1329399620fe92055491b998411758d",
+  "code_hash": "ea2ad5952fc7acb1508a14721081d4ee570d7d9424306b32b8302a506c1a3413",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
+}

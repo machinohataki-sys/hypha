@@ -1,0 +1,35 @@
+{
+  "rater_id": "b",
+  "name": "wolf",
+  "ts": "2026-05-10T12:54:26.723Z",
+  "ratings": {
+    "c1": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "All features are substantively present: step 1 states the definition, step 2 poses the dilemma, and step 3 shows both horns lead to contradiction.",
+      "ts": "2026-05-10T12:54:12.889Z"
+    },
+    "c2": {
+      "features_hit": [],
+      "verdict": "fail",
+      "justification": "Candidate response does not address any of the required features.",
+      "ts": "2026-05-10T12:54:17.507Z"
+    },
+    "c3": {
+      "features_hit": [
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "Candidate mentions two horns and their failures but doesn't state the original definition.",
+      "ts": "2026-05-10T12:54:26.723Z"
+    }
+  },
+  "wolf_baseline": true,
+  "model": "glm-direct:glm-4.5-air",
+  "cost_estimate_yuan": 0.015
+}

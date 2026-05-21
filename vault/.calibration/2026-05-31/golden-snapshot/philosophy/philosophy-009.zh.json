@@ -1,0 +1,48 @@
+{
+  "item_id": "philosophy-009",
+  "source_hash": "40456810f9994cd7daafb201ced385269ce334cf466455ee0447905d1480747e",
+  "translated_at": "2026-05-11T01:28:27.140Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "instance_zh": "笛卡尔的《沉思集》第一篇在方法论的怀疑 (methodical doubt) 之后产生了我思 (cogito)。将该怀疑重构为一种形式化程序：输入、转换步骤、输出。陈述典型读者在何处错误地中止以及原因。",
+  "features_zh": [
+    {
+      "id": "f1",
+      "statement_zh": "程序形式化：输入为任意信念，步骤测试可怀疑性并悬置",
+      "alt_phrasings_zh": [
+        "输入信念",
+        "迭代怀疑测试"
+      ]
+    },
+    {
+      "id": "f2",
+      "statement_zh": "我思 (cogito) 作为不可怀疑的信念残余而涌现",
+      "alt_phrasings_zh": [
+        "确定性的残余",
+        "输出为不可怀疑者"
+      ]
+    },
+    {
+      "id": "f3",
+      "statement_zh": "典型读者在穷尽更困难的怀疑（例如，梦论证或邪恶的欺骗者）之前中止",
+      "alt_phrasings_zh": [
+        "在梦论证处中止",
+        "在感官欺骗处中止"
+      ]
+    }
+  ],
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "输入：任意信念。步骤：询问是否可怀疑，若可怀疑则悬置，重复。输出：不可怀疑的残余。典型读者在梦论证处中止，而未达至我思 (cogito) 实际涌现的欺骗者假说。"
+    },
+    {
+      "id": "c2",
+      "text_zh": "笛卡尔思故他在。"
+    },
+    {
+      "id": "c3",
+      "text_zh": "怀疑每一信念，残余即我思 (cogito)。读者在梦论证处停止，而他们本应推进至邪恶的欺骗者。"
+    }
+  ]
+}

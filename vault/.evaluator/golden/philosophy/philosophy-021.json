@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-021",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "J.S. Mill Utilitarianism ch. II + ch. IV; On Liberty ch. I (harm principle); SEP \"John Stuart Mill\" §3-4",
+  "instance": "Mill's utilitarianism (greatest happiness principle) and harm principle (only self-regarding actions are immune from coercion) can pull in different directions. Construct one realistic case where they diverge in verdict, and identify which Mill ranks above the other in his own architecture.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "utility framing: maximization of aggregate happiness or pleasure",
+      "alt_phrasings": [
+        "greatest happiness principle",
+        "aggregate utility",
+        "maximize pleasure minimize pain",
+        "sum of welfare",
+        "aggregate happiness criterion",
+        "utilitarian calculus",
+        "overall happiness goal"
+      ],
+      "phrasing_hashes": [
+        "26bffb2fbdfaac47a70f1bb7789d3e3e428f8bda3f5279bcbf23f91c0163efcf",
+        "b0a76f823d413fd041f49e11d0358a8dada9d78d8906b2128a6aa3151e68ffe0",
+        "e4391fb606eddee026934c3167cc844858c2c75bd2929703bd1bda7a90662ce0",
+        "9f0fd280c13fc44863ff177bf3442aaba597ef79d3796bd8e948f4887c951af9",
+        "a0302a1c57bef703325a6e0960c977db2aad5523a8f2dbdb5dd7bcb447c9e21c",
+        "866600df7b6dc1a169a8aef090101dd10f003c746050afdecc24b557fa3f19ce",
+        "58620fb9b09e47d79da58eae4c0b24db4d75228b1e29496e7c84dd414d035f9c",
+        "e26d3df84c402e89aca2c8022013282e39d3ac5d99eee378b25ca3c98cff1b2b"
+      ],
+      "claim_hash": "26bffb2fbdfaac47a70f1bb7789d3e3e428f8bda3f5279bcbf23f91c0163efcf"
+    },
+    {
+      "id": "f2",
+      "claim": "harm-principle framing: coercion only justified to prevent harm to others",
+      "alt_phrasings": [
+        "only prevent harm to others",
+        "self-regarding actions immune from coercion",
+        "liberty constraint",
+        "no paternalism over self-regarding choices",
+        "harm to others as sole ground of intervention",
+        "self-regarding sphere protected",
+        "liberty principle"
+      ],
+      "phrasing_hashes": [
+        "6dc811b3f13087401f6d8fa8caff0678287c71504cb903d66bd071e4fade4a8a",
+        "481905e64292329c6828a3b160999f0abb69bd14e72f4d9fccd75a20c3651962",
+        "5796616e575d174d471f7a78d68f70b4f39a7c0dd41173a3e6391adb40af05bb",
+        "0696276ca73ff472945cbf126222df9b9bc548be6d52a9f7cc26b735049ffc63",
+        "454d97b4d810ec5e4f0f6a212c06b71b92696f3676b5dff2dac6961ce7b21113",
+        "e920b49b1d90265501938db4a0e046624d1dcd287631abbea5dd91b566e13320",
+        "4a5cc8c804a98942ebb9f08a060b290e66608574b0d3cc8ea47c7ab210b902d9",
+        "18b135b24b074f1de88a9dd1d35219cdabe131c27be6364db97ca9a67ddf14f9"
+      ],
+      "claim_hash": "6dc811b3f13087401f6d8fa8caff0678287c71504cb903d66bd071e4fade4a8a"
+    },
+    {
+      "id": "f3",
+      "claim": "in Mill's architecture liberty is treated as a high-order utility, so harm principle is a precommitment that protects long-run utility",
+      "alt_phrasings": [
+        "liberty as long-run utility",
+        "harm principle is precommitment",
+        "rule-utility shape",
+        "long-run aggregate served by liberty rule",
+        "rule-level safeguard for utility",
+        "liberty rule serves higher-order utility",
+        "precommitment to liberty for long-run welfare"
+      ],
+      "phrasing_hashes": [
+        "237d0f373aa715ae0c2c2760dc79a14790e799f03e11968a5156feaa71770bc3",
+        "21a8ec49223e0cfc44249e5a41e19ecbe9cefb97e6d66f316f0cfd8ebc4d618c",
+        "7ef55d4034e6d37d53ad8bc38241c8a57d0d537f3617591c67ed924d4b4b7650",
+        "56d86e0704aaab8d074891ead6171768c5a8fc48cbed01f0ee2d0943ba6d09cc",
+        "ee157ba575e5f165b56d4a89c3f5ee346d6fd4121efb5ee100ebe5ac072bc933",
+        "88cf2a369e476d88b1255ac14d448c3285d1d68071a1996b032347495283207a",
+        "6aa103ce2eb72aa92539ef9fe140e1fac4e0e548b7d7b7e0a44d6299d8e52930",
+        "08144ca97be8151ef9dc9e56fee14af91bff8bbe64c4c0d72527ba9eab444390"
+      ],
+      "claim_hash": "237d0f373aa715ae0c2c2760dc79a14790e799f03e11968a5156feaa71770bc3"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Diverging case: a society could increase aggregate happiness by paternalistically restricting a self-regarding choice (say, recreational risk-taking). Pure utility says permit the restriction; harm principle says forbid the restriction. Mill resolves this by treating liberty itself as a high-order utility — the harm principle is a rule-level precommitment that maximizes long-run aggregate happiness.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Mill is a hedonist.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Aggregate utility could justify paternalism; the harm principle blocks it. Mill subordinates the apparent utility verdict to a liberty rule that itself serves long-run utility.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:18:15.173Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

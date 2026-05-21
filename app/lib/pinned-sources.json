@@ -1,0 +1,110 @@
+{
+  "_meta": {
+    "version": "v0.4.0",
+    "compiled_at": "2026-05-08",
+    "purpose": "L4 Engineering Reality substrate — curated high-trust lab blogs + framework documentation domains. Read by app/agent.js:_harvestPinnedDomains and passed to Tavily as include_domains[] for archetype-routed engineering signal.",
+    "refresh_policy": "Manual annual review. last_verified field tracks each domain. If a lab rebrands or folds, remove rather than redirect — pinning a dead domain is worse than dropping it.",
+    "schema_version": 1
+  },
+  "domains": [
+    {
+      "domain": "openai.com",
+      "subpath": "/index/",
+      "name": "OpenAI Research / Blog",
+      "source_type": "lab_blog",
+      "authority": 90,
+      "engineering_value": 85,
+      "topical_focus": ["llm", "rl", "alignment", "agents", "evals"],
+      "archetype_routing": ["TECH-CONCEPT", "TECH-PROC", "MINDSET"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "domain": "anthropic.com",
+      "subpath": "/research",
+      "name": "Anthropic Research",
+      "source_type": "lab_blog",
+      "authority": 90,
+      "engineering_value": 85,
+      "topical_focus": ["llm", "interpretability", "alignment", "constitutional-ai", "agents"],
+      "archetype_routing": ["TECH-CONCEPT", "TECH-PROC", "MINDSET"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "domain": "deepmind.google",
+      "subpath": "/discover/blog",
+      "name": "Google DeepMind Blog",
+      "source_type": "lab_blog",
+      "authority": 90,
+      "engineering_value": 85,
+      "topical_focus": ["llm", "rl", "biology", "math", "robotics"],
+      "archetype_routing": ["TECH-CONCEPT", "TECH-PROC"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "domain": "ai.meta.com",
+      "subpath": "/research/publications",
+      "name": "Meta AI Research",
+      "source_type": "lab_blog",
+      "authority": 85,
+      "engineering_value": 85,
+      "topical_focus": ["llm", "vision", "open-source-models", "rl"],
+      "archetype_routing": ["TECH-CONCEPT", "TECH-PROC"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "domain": "huggingface.co",
+      "subpath": "/blog",
+      "name": "Hugging Face Blog",
+      "source_type": "lab_blog",
+      "authority": 80,
+      "engineering_value": 90,
+      "topical_focus": ["open-source-models", "datasets", "transformers", "llm-deployment"],
+      "archetype_routing": ["TECH-CONCEPT", "TECH-PROC"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "domain": "vercel.com",
+      "subpath": "/blog",
+      "name": "Vercel Blog",
+      "source_type": "framework_docs",
+      "authority": 80,
+      "engineering_value": 80,
+      "topical_focus": ["nextjs", "edge-functions", "frontend-deploy", "ai-sdk"],
+      "archetype_routing": ["TECH-PROC"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "domain": "supabase.com",
+      "subpath": "/blog",
+      "name": "Supabase Blog",
+      "source_type": "framework_docs",
+      "authority": 80,
+      "engineering_value": 80,
+      "topical_focus": ["postgres", "auth", "storage", "edge-functions", "vector-db"],
+      "archetype_routing": ["TECH-PROC"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "domain": "langchain.com",
+      "subpath": "/blog",
+      "name": "LangChain Blog",
+      "source_type": "framework_docs",
+      "authority": 75,
+      "engineering_value": 80,
+      "topical_focus": ["agents", "rag", "tool-use", "llm-orchestration"],
+      "archetype_routing": ["TECH-CONCEPT", "TECH-PROC"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "domain": "modal.com",
+      "subpath": "/blog",
+      "name": "Modal Blog",
+      "source_type": "framework_docs",
+      "authority": 70,
+      "engineering_value": 80,
+      "topical_focus": ["gpu-serverless", "fine-tuning", "inference-deploy", "batch-jobs"],
+      "archetype_routing": ["TECH-PROC"],
+      "last_verified": "2026-05-08"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+# CODEOWNERS — review routing for Hypha.
+# Format: <pattern> <space-separated owners>
+#
+# EDIT: replace PLACEHOLDER_USERNAME with real owner before publishing v1.0
+# release. Repo URL in package.json points to machinohataki-sys/hypha; the
+# default below assumes that owner. Change to a team handle (e.g. @org/team)
+# if Hypha moves under an organization.
+
+# Default owner for every file in the tree.
+*                       @machinohataki-sys
+
+# CI/CD changes need a second pair of eyes — same owner today, leave the
+# duplicated line in place so future review teams can be added cheaply.
+/.github/               @machinohataki-sys
+/build/                 @machinohataki-sys
+/specs/                 @machinohataki-sys

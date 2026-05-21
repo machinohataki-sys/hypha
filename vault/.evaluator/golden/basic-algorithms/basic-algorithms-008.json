@@ -1,0 +1,47 @@
+{
+  "id": "basic-algorithms-008",
+  "topic": "basic-algorithms",
+  "lifecycle": "draft",
+  "source_anchor": "LeetCode #1 Two Sum (canonical formulation); CLRS §11.2 hashmap O(n) lookup pattern",
+  "prompt_text": "Two-sum: find the pair of indices (i, j) with i<j such that nums[i] + nums[j] = target. For nums=[2, 7, 11, 15], target=9, print the index pair as JSON. Expected output: \"[0,1]\".",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "function ts(n,t){const m=new Map(); for(let i=0;i<n.length;i++){const c=t-n[i]; if(m.has(c))return [m.get(c),i]; m.set(n[i],i);} return null;} console.log(JSON.stringify(ts([2,7,11,15],9)));",
+    "expected_stdout_hash": "d028af93fee64c47d944eb3c6d46db80354f8ea89ad46e9c9d2c0f6d7964e76f",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: brute-force double loop returning [i,j] with i<j — slower but equivalent on this input.",
+      "code": "function twoSum(nums,target){for(let i=0;i<nums.length;i++){for(let j=i+1;j<nums.length;j++){if(nums[i]+nums[j]===target)return [i,j];}} return null;} console.log(JSON.stringify(twoSum([2,7,11,15],9)));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: hashmap pattern correct but returns [i, m.get(c)] — swaps the order so the earlier index appears second.",
+      "code": "function ts(n,t){const m=new Map(); for(let i=0;i<n.length;i++){const c=t-n[i]; if(m.has(c))return [i,m.get(c)]; m.set(n[i],i);} return null;} console.log(JSON.stringify(ts([2,7,11,15],9)));",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: target / complement / includes vocabulary, but returns the matching VALUES [nums[i], complement] instead of the index pair.",
+      "code": "function twoSumPair(nums,target){for(let i=0;i<nums.length;i++){const complement=target-nums[i]; if(nums.includes(complement))return [nums[i],complement];} return null;} console.log(JSON.stringify(twoSumPair([2,7,11,15],9)));",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T07:50:44.340Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "eab2951594f580065142f1601d7500d511a4b80df2a01e4df1bbd788b92f5563",
+  "code_hash": "0fd7dfd129a8cf1fe514cc57e4bec5bff90268d3618d3a239a4c9c11a2307a31",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Second exec-cell domain seeded for V0.5 E1 mutation-test cross-domain validation."
+}

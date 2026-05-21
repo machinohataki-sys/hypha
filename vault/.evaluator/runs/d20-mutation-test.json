@@ -1,0 +1,3947 @@
+{
+  "type": "mutation_test",
+  "topic": "llm-systems",
+  "timestamp": "2026-05-11T06:57:45.406Z",
+  "n_c1": 20,
+  "n_perturbations": 99,
+  "n_mutations": 96,
+  "tp": 99,
+  "fp": 7,
+  "fn": 0,
+  "tn": 89,
+  "precision": 0.9339622641509434,
+  "recall": 1,
+  "f1": 0.9658536585365853,
+  "f1_target": 0.75,
+  "f1_pass": true,
+  "per_transformation": {
+    "rename_dims_to_dims_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-001"
+      ]
+    },
+    "noop_inject_void0": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 20,
+      "matched": 20,
+      "items": [
+        "llm-systems-001",
+        "llm-systems-002",
+        "llm-systems-003",
+        "llm-systems-004",
+        "llm-systems-005",
+        "llm-systems-006",
+        "llm-systems-007",
+        "llm-systems-008",
+        "llm-systems-009",
+        "llm-systems-010",
+        "llm-systems-011",
+        "llm-systems-012",
+        "llm-systems-013",
+        "llm-systems-014",
+        "llm-systems-015",
+        "llm-systems-016",
+        "llm-systems-017",
+        "llm-systems-018",
+        "llm-systems-019",
+        "llm-systems-020"
+      ]
+    },
+    "inline_comment_trace": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 20,
+      "matched": 20,
+      "items": [
+        "llm-systems-001",
+        "llm-systems-002",
+        "llm-systems-003",
+        "llm-systems-004",
+        "llm-systems-005",
+        "llm-systems-006",
+        "llm-systems-007",
+        "llm-systems-008",
+        "llm-systems-009",
+        "llm-systems-010",
+        "llm-systems-011",
+        "llm-systems-012",
+        "llm-systems-013",
+        "llm-systems-014",
+        "llm-systems-015",
+        "llm-systems-016",
+        "llm-systems-017",
+        "llm-systems-018",
+        "llm-systems-019",
+        "llm-systems-020"
+      ]
+    },
+    "paren_wrap_2": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 3,
+      "matched": 3,
+      "items": [
+        "llm-systems-001",
+        "llm-systems-004",
+        "llm-systems-018"
+      ]
+    },
+    "whitespace_extra_newline": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 20,
+      "matched": 20,
+      "items": [
+        "llm-systems-001",
+        "llm-systems-002",
+        "llm-systems-003",
+        "llm-systems-004",
+        "llm-systems-005",
+        "llm-systems-006",
+        "llm-systems-007",
+        "llm-systems-008",
+        "llm-systems-009",
+        "llm-systems-010",
+        "llm-systems-011",
+        "llm-systems-012",
+        "llm-systems-013",
+        "llm-systems-014",
+        "llm-systems-015",
+        "llm-systems-016",
+        "llm-systems-017",
+        "llm-systems-018",
+        "llm-systems-019",
+        "llm-systems-020"
+      ]
+    },
+    "off_by_one_2_to_3": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 4,
+      "matched": 4,
+      "items": [
+        "llm-systems-001",
+        "llm-systems-004",
+        "llm-systems-016",
+        "llm-systems-018"
+      ]
+    },
+    "const_zero_2_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 3,
+      "matched": 3,
+      "items": [
+        "llm-systems-001",
+        "llm-systems-004",
+        "llm-systems-018"
+      ]
+    },
+    "sign_flip_2": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 3,
+      "matched": 3,
+      "items": [
+        "llm-systems-001",
+        "llm-systems-004",
+        "llm-systems-018"
+      ]
+    },
+    "drop_console_log": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 20,
+      "matched": 20,
+      "items": [
+        "llm-systems-001",
+        "llm-systems-002",
+        "llm-systems-003",
+        "llm-systems-004",
+        "llm-systems-005",
+        "llm-systems-006",
+        "llm-systems-007",
+        "llm-systems-008",
+        "llm-systems-009",
+        "llm-systems-010",
+        "llm-systems-011",
+        "llm-systems-012",
+        "llm-systems-013",
+        "llm-systems-014",
+        "llm-systems-015",
+        "llm-systems-016",
+        "llm-systems-017",
+        "llm-systems-018",
+        "llm-systems-019",
+        "llm-systems-020"
+      ]
+    },
+    "rename_cfg_to_cfg_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-002"
+      ]
+    },
+    "paren_wrap_2048": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-002"
+      ]
+    },
+    "off_by_one_2048_to_2049": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-002"
+      ]
+    },
+    "const_zero_2048_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-002"
+      ]
+    },
+    "sign_flip_2048": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-002"
+      ]
+    },
+    "rename_position_to_position_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-003"
+      ]
+    },
+    "paren_wrap_10": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-003"
+      ]
+    },
+    "off_by_one_10_to_11": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-003"
+      ]
+    },
+    "op_flip_*_to_/": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 2,
+      "matched": 2,
+      "items": [
+        "llm-systems-003",
+        "llm-systems-014"
+      ]
+    },
+    "const_zero_10_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-003"
+      ]
+    },
+    "sign_flip_10": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-003"
+      ]
+    },
+    "rename_features_to_features_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-004"
+      ]
+    },
+    "op_flip_+_to_-": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 6,
+      "matched": 6,
+      "items": [
+        "llm-systems-004",
+        "llm-systems-006",
+        "llm-systems-009",
+        "llm-systems-011",
+        "llm-systems-015",
+        "llm-systems-019"
+      ]
+    },
+    "rename_state_to_state_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-005"
+      ]
+    },
+    "paren_wrap_12345": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-005"
+      ]
+    },
+    "off_by_one_12345_to_12346": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-005"
+      ]
+    },
+    "op_flip_>=_to_<=": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-005"
+      ]
+    },
+    "const_zero_12345_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-005"
+      ]
+    },
+    "sign_flip_12345": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-005"
+      ]
+    },
+    "rename_ce_loss_to_ce_loss_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-006"
+      ]
+    },
+    "paren_wrap_2.1": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-006"
+      ]
+    },
+    "off_by_one_4_to_5": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 2,
+      "matched": 2,
+      "items": [
+        "llm-systems-006",
+        "llm-systems-007"
+      ]
+    },
+    "const_zero_2.1_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-006"
+      ]
+    },
+    "sign_flip_2.1": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-006"
+      ]
+    },
+    "rename_sentence_to_sentence_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-007"
+      ]
+    },
+    "paren_wrap_4": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-007"
+      ]
+    },
+    "op_flip_/_to_*": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 3,
+      "matched": 3,
+      "items": [
+        "llm-systems-007",
+        "llm-systems-013",
+        "llm-systems-020"
+      ]
+    },
+    "const_zero_4_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-007"
+      ]
+    },
+    "sign_flip_4": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-007"
+      ]
+    },
+    "rename_s_to_s_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-008"
+      ]
+    },
+    "paren_wrap_2000": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-008"
+      ]
+    },
+    "off_by_one_2000_to_2001": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 0,
+      "items": [
+        "llm-systems-008"
+      ]
+    },
+    "op_flip_<_to_>": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 2,
+      "matched": 2,
+      "items": [
+        "llm-systems-008",
+        "llm-systems-017"
+      ]
+    },
+    "const_zero_2000_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-008"
+      ]
+    },
+    "sign_flip_2000": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-008"
+      ]
+    },
+    "rename_L_to_L_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-009"
+      ]
+    },
+    "paren_wrap_32": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-009"
+      ]
+    },
+    "off_by_one_32_to_33": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-009"
+      ]
+    },
+    "const_zero_32_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-009"
+      ]
+    },
+    "sign_flip_32": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-009"
+      ]
+    },
+    "rename_z_to_z_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-010"
+      ]
+    },
+    "paren_wrap_1.2": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 3,
+      "matched": 3,
+      "items": [
+        "llm-systems-010",
+        "llm-systems-015",
+        "llm-systems-016"
+      ]
+    },
+    "op_flip_>_to_<": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-010"
+      ]
+    },
+    "const_zero_1.2_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 3,
+      "matched": 2,
+      "items": [
+        "llm-systems-010",
+        "llm-systems-015",
+        "llm-systems-016"
+      ]
+    },
+    "sign_flip_1.2": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 2,
+      "matched": 1,
+      "items": [
+        "llm-systems-010",
+        "llm-systems-016"
+      ]
+    },
+    "rename_m_to_m_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 2,
+      "matched": 2,
+      "items": [
+        "llm-systems-011",
+        "llm-systems-018"
+      ]
+    },
+    "paren_wrap_2.0": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-011"
+      ]
+    },
+    "off_by_one_64_to_65": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-011"
+      ]
+    },
+    "const_zero_2.0_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-011"
+      ]
+    },
+    "sign_flip_2.0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-011"
+      ]
+    },
+    "cmp_invert_Math.max_to_Math.min": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 2,
+      "matched": 1,
+      "items": [
+        "llm-systems-011",
+        "llm-systems-013"
+      ]
+    },
+    "paren_wrap_8": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-012"
+      ]
+    },
+    "off_by_one_8_to_9": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-012"
+      ]
+    },
+    "op_flip_-_to_+": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 2,
+      "matched": 2,
+      "items": [
+        "llm-systems-012",
+        "llm-systems-016"
+      ]
+    },
+    "const_zero_8_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-012"
+      ]
+    },
+    "sign_flip_8": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 0,
+      "items": [
+        "llm-systems-012"
+      ]
+    },
+    "rename_absmax_to_absmax_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-013"
+      ]
+    },
+    "paren_wrap_2.5": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-013"
+      ]
+    },
+    "off_by_one_127_to_128": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-013"
+      ]
+    },
+    "const_zero_2.5_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-013"
+      ]
+    },
+    "sign_flip_2.5": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-013"
+      ]
+    },
+    "rename_d_to_d_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-014"
+      ]
+    },
+    "paren_wrap_512": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-014"
+      ]
+    },
+    "off_by_one_512_to_513": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-014"
+      ]
+    },
+    "const_zero_512_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-014"
+      ]
+    },
+    "sign_flip_512": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-014"
+      ]
+    },
+    "rename_lp_chosen_to_lp_chosen_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-015"
+      ]
+    },
+    "off_by_one_6_to_7": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 2,
+      "matched": 2,
+      "items": [
+        "llm-systems-015",
+        "llm-systems-020"
+      ]
+    },
+    "rename_gate_to_gate_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-016"
+      ]
+    },
+    "rename_draft_logp_to_draft_logp_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-017"
+      ]
+    },
+    "paren_wrap_1.5": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-017"
+      ]
+    },
+    "const_zero_1.5_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 0,
+      "items": [
+        "llm-systems-017"
+      ]
+    },
+    "cmp_invert_Math.min_to_Math.max": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 0,
+      "items": [
+        "llm-systems-017"
+      ]
+    },
+    "rename_N_to_N_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-019"
+      ]
+    },
+    "paren_wrap_1024": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-019"
+      ]
+    },
+    "off_by_one_1024_to_1025": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-019"
+      ]
+    },
+    "const_zero_1024_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-019"
+      ]
+    },
+    "sign_flip_1024": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-019"
+      ]
+    },
+    "rename_compute_to_compute_x": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-020"
+      ]
+    },
+    "paren_wrap_6e21": {
+      "kind": "perturbation",
+      "expected_pass": true,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-020"
+      ]
+    },
+    "const_zero_6e21_to_0": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-020"
+      ]
+    },
+    "sign_flip_6e21": {
+      "kind": "mutation",
+      "expected_pass": false,
+      "total": 1,
+      "matched": 1,
+      "items": [
+        "llm-systems-020"
+      ]
+    }
+  },
+  "per_transformation_by_kind": {
+    "perturbation": [
+      {
+        "name": "inline_comment_trace",
+        "total": 20,
+        "matched": 20
+      },
+      {
+        "name": "noop_inject_void0",
+        "total": 20,
+        "matched": 20
+      },
+      {
+        "name": "paren_wrap_1.2",
+        "total": 3,
+        "matched": 3
+      },
+      {
+        "name": "paren_wrap_1.5",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "paren_wrap_10",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "paren_wrap_1024",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "paren_wrap_12345",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "paren_wrap_2",
+        "total": 3,
+        "matched": 3
+      },
+      {
+        "name": "paren_wrap_2.0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "paren_wrap_2.1",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "paren_wrap_2.5",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "paren_wrap_2000",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "paren_wrap_2048",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "paren_wrap_32",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "paren_wrap_4",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "paren_wrap_512",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "paren_wrap_6e21",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "paren_wrap_8",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_absmax_to_absmax_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_ce_loss_to_ce_loss_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_cfg_to_cfg_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_compute_to_compute_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_d_to_d_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_dims_to_dims_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_draft_logp_to_draft_logp_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_features_to_features_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_gate_to_gate_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_L_to_L_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_lp_chosen_to_lp_chosen_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_m_to_m_x",
+        "total": 2,
+        "matched": 2
+      },
+      {
+        "name": "rename_N_to_N_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_position_to_position_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_s_to_s_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_sentence_to_sentence_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_state_to_state_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "rename_z_to_z_x",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "whitespace_extra_newline",
+        "total": 20,
+        "matched": 20
+      }
+    ],
+    "mutation": [
+      {
+        "name": "cmp_invert_Math.max_to_Math.min",
+        "total": 2,
+        "matched": 1
+      },
+      {
+        "name": "cmp_invert_Math.min_to_Math.max",
+        "total": 1,
+        "matched": 0
+      },
+      {
+        "name": "const_zero_1.2_to_0",
+        "total": 3,
+        "matched": 2
+      },
+      {
+        "name": "const_zero_1.5_to_0",
+        "total": 1,
+        "matched": 0
+      },
+      {
+        "name": "const_zero_10_to_0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "const_zero_1024_to_0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "const_zero_12345_to_0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "const_zero_2_to_0",
+        "total": 3,
+        "matched": 3
+      },
+      {
+        "name": "const_zero_2.0_to_0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "const_zero_2.1_to_0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "const_zero_2.5_to_0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "const_zero_2000_to_0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "const_zero_2048_to_0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "const_zero_32_to_0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "const_zero_4_to_0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "const_zero_512_to_0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "const_zero_6e21_to_0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "const_zero_8_to_0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "drop_console_log",
+        "total": 20,
+        "matched": 20
+      },
+      {
+        "name": "off_by_one_10_to_11",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "off_by_one_1024_to_1025",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "off_by_one_12345_to_12346",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "off_by_one_127_to_128",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "off_by_one_2_to_3",
+        "total": 4,
+        "matched": 4
+      },
+      {
+        "name": "off_by_one_2000_to_2001",
+        "total": 1,
+        "matched": 0
+      },
+      {
+        "name": "off_by_one_2048_to_2049",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "off_by_one_32_to_33",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "off_by_one_4_to_5",
+        "total": 2,
+        "matched": 2
+      },
+      {
+        "name": "off_by_one_512_to_513",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "off_by_one_6_to_7",
+        "total": 2,
+        "matched": 2
+      },
+      {
+        "name": "off_by_one_64_to_65",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "off_by_one_8_to_9",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "op_flip_-_to_+",
+        "total": 2,
+        "matched": 2
+      },
+      {
+        "name": "op_flip_*_to_/",
+        "total": 2,
+        "matched": 2
+      },
+      {
+        "name": "op_flip_/_to_*",
+        "total": 3,
+        "matched": 3
+      },
+      {
+        "name": "op_flip_+_to_-",
+        "total": 6,
+        "matched": 6
+      },
+      {
+        "name": "op_flip_<_to_>",
+        "total": 2,
+        "matched": 2
+      },
+      {
+        "name": "op_flip_>_to_<",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "op_flip_>=_to_<=",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_1.2",
+        "total": 2,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_10",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_1024",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_12345",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_2",
+        "total": 3,
+        "matched": 3
+      },
+      {
+        "name": "sign_flip_2.0",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_2.1",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_2.5",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_2000",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_2048",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_32",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_4",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_512",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_6e21",
+        "total": 1,
+        "matched": 1
+      },
+      {
+        "name": "sign_flip_8",
+        "total": 1,
+        "matched": 0
+      }
+    ]
+  },
+  "skipped": [],
+  "per_test": [
+    {
+      "item_id": "llm-systems-001",
+      "kind": "perturbation",
+      "name": "rename_dims_to_dims_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 74,
+      "actual_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "expected_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-001",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 72,
+      "actual_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "expected_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-001",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 72,
+      "actual_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "expected_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-001",
+      "kind": "perturbation",
+      "name": "paren_wrap_2",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "expected_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-001",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 74,
+      "actual_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "expected_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-001",
+      "kind": "mutation",
+      "name": "off_by_one_2_to_3",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 71,
+      "actual_hash": "1ae65a431c5c9de398431ebc0697d8c97dbc2dc4a1887070db6232380bba879f",
+      "expected_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-001",
+      "kind": "mutation",
+      "name": "const_zero_2_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 78,
+      "actual_hash": "0ac78667d6b4fff847c9c5d85e65be8fc4796c3b2cf9df3ad1b119ccfa220f86",
+      "expected_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-001",
+      "kind": "mutation",
+      "name": "sign_flip_2",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "d039a8655e1126eec1f49b6e9adfcedba96129062f64ca6ea3abb6f3eea05494",
+      "expected_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-001",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 73,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "68438c68f27d218c1c7485113fa055637204bced5ed417d0188a00dbf392b2e6",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-002",
+      "kind": "perturbation",
+      "name": "rename_cfg_to_cfg_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "expected_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-002",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 77,
+      "actual_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "expected_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-002",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 70,
+      "actual_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "expected_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-002",
+      "kind": "perturbation",
+      "name": "paren_wrap_2048",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 77,
+      "actual_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "expected_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-002",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 71,
+      "actual_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "expected_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-002",
+      "kind": "mutation",
+      "name": "off_by_one_2048_to_2049",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 88,
+      "actual_hash": "076c1e6fc75fa4cdd4f6d2e54dd1a1c8d1cae076839c705bcdd24e87b369be20",
+      "expected_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-002",
+      "kind": "mutation",
+      "name": "const_zero_2048_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "expected_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-002",
+      "kind": "mutation",
+      "name": "sign_flip_2048",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 73,
+      "actual_hash": "341406e208bf5dca588d03ca788925fce95746176f8320975a6062742fd098ea",
+      "expected_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-002",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 69,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "6ca8d2dfdb2484b3436a085985b597b617554bd1051e8677dc140f778ea66592",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-003",
+      "kind": "perturbation",
+      "name": "rename_position_to_position_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 70,
+      "actual_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "expected_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-003",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 72,
+      "actual_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "expected_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-003",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 71,
+      "actual_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "expected_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-003",
+      "kind": "perturbation",
+      "name": "paren_wrap_10",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 73,
+      "actual_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "expected_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-003",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 70,
+      "actual_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "expected_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-003",
+      "kind": "mutation",
+      "name": "off_by_one_10_to_11",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 77,
+      "actual_hash": "967bcc9eeb5a104e5e03ffa7e064fec81e4375023ffba5db8f3e257cb263b172",
+      "expected_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-003",
+      "kind": "mutation",
+      "name": "op_flip_*_to_/",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 69,
+      "actual_hash": "194a6bfae1e265a3d08db3e00d1e50617fd63c4d2771e5f0cde366fcad82da76",
+      "expected_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-003",
+      "kind": "mutation",
+      "name": "const_zero_10_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 67,
+      "actual_hash": "65e8fe344f770e52ea7f3f8fc8633959361bb78e6ad3a178b7d3b1f16b6e2e9f",
+      "expected_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-003",
+      "kind": "mutation",
+      "name": "sign_flip_10",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "bb8619e948a687eecbc2360728b6db024cd6b2f497f541e61d05132a8d7963e6",
+      "expected_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-003",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 66,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "10d3504e6765c424e1e6014c89c785f0d829c36ecaa4ec2be5659bd2f94342a1",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-004",
+      "kind": "perturbation",
+      "name": "rename_features_to_features_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 72,
+      "actual_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "expected_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-004",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 73,
+      "actual_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "expected_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-004",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 73,
+      "actual_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "expected_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-004",
+      "kind": "perturbation",
+      "name": "paren_wrap_2",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 68,
+      "actual_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "expected_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-004",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 67,
+      "actual_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "expected_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-004",
+      "kind": "mutation",
+      "name": "off_by_one_2_to_3",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 69,
+      "actual_hash": "d40045d00e107980d47cfa1b73fa67ab20a61b552abfac61ea4ec0018176d8ed",
+      "expected_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-004",
+      "kind": "mutation",
+      "name": "op_flip_+_to_-",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 77,
+      "actual_hash": "f081fe1a2f4629ed5d2d8221af22475396fefad5624a428491621c5cb408f79e",
+      "expected_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-004",
+      "kind": "mutation",
+      "name": "const_zero_2_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 69,
+      "actual_hash": "cded312eca7cc2102d86f05f535718748221828273f3fe1d98476bda1e313555",
+      "expected_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-004",
+      "kind": "mutation",
+      "name": "sign_flip_2",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 107,
+      "actual_hash": "929a5887b28ea33293344df29910ce26a9b3ff59912fc0cbd8c39117d3ffe28a",
+      "expected_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-004",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 78,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "dd237a74b1aeff0c25536deb4b876a716fe6647c4794061f217a368feef99810",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-005",
+      "kind": "perturbation",
+      "name": "rename_state_to_state_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 71,
+      "actual_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "expected_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-005",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 72,
+      "actual_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "expected_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-005",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 77,
+      "actual_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "expected_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-005",
+      "kind": "perturbation",
+      "name": "paren_wrap_12345",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "expected_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-005",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 82,
+      "actual_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "expected_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-005",
+      "kind": "mutation",
+      "name": "off_by_one_12345_to_12346",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 77,
+      "actual_hash": "1a252402972f6057fa53cc172b52b9ffca698e18311facd0f3b06ecaaef79e17",
+      "expected_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-005",
+      "kind": "mutation",
+      "name": "op_flip_>=_to_<=",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "7de1555df0c2700329e815b93b32c571c3ea54dc967b89e81ab73b9972b72d1d",
+      "expected_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-005",
+      "kind": "mutation",
+      "name": "const_zero_12345_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 74,
+      "actual_hash": "238903180cc104ec2c5d8b3f20c5bc61b389ec0a967df8cc208cdc7cd454174f",
+      "expected_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-005",
+      "kind": "mutation",
+      "name": "sign_flip_12345",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 81,
+      "actual_hash": "9a92adbc0cee38ef658c71ce1b1bf8c65668f166bfb213644c895ccb1ad07a25",
+      "expected_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-005",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 83,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-006",
+      "kind": "perturbation",
+      "name": "rename_ce_loss_to_ce_loss_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 82,
+      "actual_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "expected_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-006",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 78,
+      "actual_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "expected_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-006",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 77,
+      "actual_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "expected_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-006",
+      "kind": "perturbation",
+      "name": "paren_wrap_2.1",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "expected_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-006",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "expected_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-006",
+      "kind": "mutation",
+      "name": "off_by_one_4_to_5",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 83,
+      "actual_hash": "b0a6eb0b562b8c0ae2bf7cd6834fdef694d9399012892d2d4f228df0613bd283",
+      "expected_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-006",
+      "kind": "mutation",
+      "name": "op_flip_+_to_-",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 84,
+      "actual_hash": "9e9fa7f231f82852c4fe5d9edaa2ace1500890ce2726e27088fd74a1540f2396",
+      "expected_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-006",
+      "kind": "mutation",
+      "name": "const_zero_2.1_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 79,
+      "actual_hash": "9b397475b15afab915333f97f1da40dbcaf05f0522322e80162ea3d58f372a38",
+      "expected_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-006",
+      "kind": "mutation",
+      "name": "sign_flip_2.1",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 69,
+      "actual_hash": "ad4132a08189ff54b8020aa91c414a9eee93de08d8b36d367b8b120bb710f7b8",
+      "expected_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-006",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 84,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "d8a871ebf33b52a40fdf6eb2a5309378a11e6af7a0bf2aa4ceba3b93bc1e1c0b",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-007",
+      "kind": "perturbation",
+      "name": "rename_sentence_to_sentence_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 73,
+      "actual_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "expected_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-007",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 94,
+      "actual_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "expected_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-007",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 83,
+      "actual_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "expected_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-007",
+      "kind": "perturbation",
+      "name": "paren_wrap_4",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 85,
+      "actual_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "expected_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-007",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 81,
+      "actual_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "expected_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-007",
+      "kind": "mutation",
+      "name": "off_by_one_4_to_5",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 87,
+      "actual_hash": "c8a1e4a9d32165a6add010ae89edea021e372c20b8b825ecb8d0eb80b249b3e7",
+      "expected_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-007",
+      "kind": "mutation",
+      "name": "op_flip_/_to_*",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 84,
+      "actual_hash": "d41b6fa9ba9abde5d07bead8539fc0d2366d7da9d9185d649a06ac825c8e9a4d",
+      "expected_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-007",
+      "kind": "mutation",
+      "name": "const_zero_4_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 82,
+      "actual_hash": "f0b5c2c2211c8d67ed15e75e656c7862d086e9245420892a7de62cd9ec582a06",
+      "expected_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-007",
+      "kind": "mutation",
+      "name": "sign_flip_4",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 81,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "exit_code": 1,
+      "stderr_excerpt": "[eval]:1\r\nconst sentence='the quick brown fox jumps over the lazy dog'; const tok_count=sentence.split(' ').length; const utf8_bytes=Buffer.byteLength(sentence,'utf8'); const bpt=utf8_bytes/tok_count;"
+    },
+    {
+      "item_id": "llm-systems-007",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 69,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-008",
+      "kind": "perturbation",
+      "name": "rename_s_to_s_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 68,
+      "actual_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "expected_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-008",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 81,
+      "actual_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "expected_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-008",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 79,
+      "actual_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "expected_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-008",
+      "kind": "perturbation",
+      "name": "paren_wrap_2000",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 81,
+      "actual_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "expected_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-008",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 92,
+      "actual_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "expected_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-008",
+      "kind": "mutation",
+      "name": "off_by_one_2000_to_2001",
+      "expected_pass": false,
+      "predicted_pass": true,
+      "match": false,
+      "runtime_ms": 95,
+      "actual_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "expected_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-008",
+      "kind": "mutation",
+      "name": "op_flip_<_to_>",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 86,
+      "actual_hash": "a90d91204d2cd1d2c463ff405700c0a40d84113adb414a2e123cdb9e8f99e967",
+      "expected_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-008",
+      "kind": "mutation",
+      "name": "const_zero_2000_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 79,
+      "actual_hash": "65e8fe344f770e52ea7f3f8fc8633959361bb78e6ad3a178b7d3b1f16b6e2e9f",
+      "expected_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-008",
+      "kind": "mutation",
+      "name": "sign_flip_2000",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 79,
+      "actual_hash": "261ed5574ac0e4a305a92f61cd4bc7ce47e97b67612f735114d3f63b39724822",
+      "expected_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-008",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 74,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "777520ae0a7834615e2a3d3a39e684cfa33e262c053d5d0b3f909eb33c1d4f9f",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-009",
+      "kind": "perturbation",
+      "name": "rename_L_to_L_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 78,
+      "actual_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "expected_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-009",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 82,
+      "actual_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "expected_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-009",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 83,
+      "actual_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "expected_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-009",
+      "kind": "perturbation",
+      "name": "paren_wrap_32",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "expected_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-009",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "expected_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-009",
+      "kind": "mutation",
+      "name": "off_by_one_32_to_33",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 84,
+      "actual_hash": "64cfb9c9c06a2906e791958d3c0821f18095c8d3152b0263df4ba65e57cc55f1",
+      "expected_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-009",
+      "kind": "mutation",
+      "name": "op_flip_+_to_-",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 83,
+      "actual_hash": "c37072ab92b69741476fbd082a35758ca705a6576bc4225e7e5d553fda7305e5",
+      "expected_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-009",
+      "kind": "mutation",
+      "name": "const_zero_32_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 84,
+      "actual_hash": "fdad2f29068ebb0c933499d47bc072d31bcae62158b7956b6f51a3f7d5ca5a37",
+      "expected_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-009",
+      "kind": "mutation",
+      "name": "sign_flip_32",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 81,
+      "actual_hash": "c37072ab92b69741476fbd082a35758ca705a6576bc4225e7e5d553fda7305e5",
+      "expected_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-009",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 78,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "306a6a534582ac20db8fbb77bb601c871d4630aaed5e5beaaa592e5d86358427",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-010",
+      "kind": "perturbation",
+      "name": "rename_z_to_z_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 89,
+      "actual_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "expected_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-010",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 79,
+      "actual_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "expected_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-010",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "expected_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-010",
+      "kind": "perturbation",
+      "name": "paren_wrap_1.2",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 68,
+      "actual_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "expected_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-010",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "expected_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-010",
+      "kind": "mutation",
+      "name": "op_flip_>_to_<",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "expected_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-010",
+      "kind": "mutation",
+      "name": "const_zero_1.2_to_0",
+      "expected_pass": false,
+      "predicted_pass": true,
+      "match": false,
+      "runtime_ms": 80,
+      "actual_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "expected_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-010",
+      "kind": "mutation",
+      "name": "sign_flip_1.2",
+      "expected_pass": false,
+      "predicted_pass": true,
+      "match": false,
+      "runtime_ms": 75,
+      "actual_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "expected_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-010",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 79,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-011",
+      "kind": "perturbation",
+      "name": "rename_m_to_m_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 94,
+      "actual_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "expected_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-011",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 82,
+      "actual_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "expected_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-011",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "expected_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-011",
+      "kind": "perturbation",
+      "name": "paren_wrap_2.0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 74,
+      "actual_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "expected_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-011",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 78,
+      "actual_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "expected_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-011",
+      "kind": "mutation",
+      "name": "off_by_one_64_to_65",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "caf71984d4168be545fd9988dabdafc2bf807246bcc7dfaeaef11a231caddf6e",
+      "expected_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-011",
+      "kind": "mutation",
+      "name": "op_flip_+_to_-",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 69,
+      "actual_hash": "61047dbf5a6f194611b17812f474cfbebe2aafa014332b4803d07675b26474a2",
+      "expected_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-011",
+      "kind": "mutation",
+      "name": "const_zero_2.0_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 82,
+      "actual_hash": "3d07b04d7974c8f2d6704a2863b92b8a43b2defcfa253f9d0650a47b7cfc7b82",
+      "expected_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-011",
+      "kind": "mutation",
+      "name": "sign_flip_2.0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "a867c8c8e73e91d478afc1e50c1e72e770de04a71a154abafb1f1ce4b42172ee",
+      "expected_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-011",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 79,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-011",
+      "kind": "mutation",
+      "name": "cmp_invert_Math.max_to_Math.min",
+      "expected_pass": false,
+      "predicted_pass": true,
+      "match": false,
+      "runtime_ms": 73,
+      "actual_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "expected_hash": "052851cd6cc55a8e28ef9b7c1b9c8c173b33bca5540c31e63a8bbd4d380f9c37",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-012",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 81,
+      "actual_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "expected_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-012",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 95,
+      "actual_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "expected_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-012",
+      "kind": "perturbation",
+      "name": "paren_wrap_8",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 83,
+      "actual_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "expected_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-012",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 73,
+      "actual_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "expected_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-012",
+      "kind": "mutation",
+      "name": "off_by_one_8_to_9",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 81,
+      "actual_hash": "7de1555df0c2700329e815b93b32c571c3ea54dc967b89e81ab73b9972b72d1d",
+      "expected_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-012",
+      "kind": "mutation",
+      "name": "op_flip_-_to_+",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 72,
+      "actual_hash": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "expected_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-012",
+      "kind": "mutation",
+      "name": "const_zero_8_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 88,
+      "actual_hash": "3f3ea8a1afc0f5a6ce7ace3152abfdaa52ea3726c4f66e728790f42cbc005901",
+      "expected_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-012",
+      "kind": "mutation",
+      "name": "sign_flip_8",
+      "expected_pass": false,
+      "predicted_pass": true,
+      "match": false,
+      "runtime_ms": 81,
+      "actual_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "expected_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-012",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-013",
+      "kind": "perturbation",
+      "name": "rename_absmax_to_absmax_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 79,
+      "actual_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "expected_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-013",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 84,
+      "actual_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "expected_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-013",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 77,
+      "actual_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "expected_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-013",
+      "kind": "perturbation",
+      "name": "paren_wrap_2.5",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 86,
+      "actual_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "expected_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-013",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 83,
+      "actual_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "expected_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-013",
+      "kind": "mutation",
+      "name": "off_by_one_127_to_128",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "c299c57cabe3590a4fe2b31f95e3e20ec99914469e6d75f822bcbfa666776650",
+      "expected_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-013",
+      "kind": "mutation",
+      "name": "op_flip_/_to_*",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 82,
+      "actual_hash": "b59237dad313f8854483887cbfd2c046cd3626132ceb2901076ce990159d615c",
+      "expected_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-013",
+      "kind": "mutation",
+      "name": "const_zero_2.5_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 78,
+      "actual_hash": "46cb8974cee162e2a85467bd5202f44448e39741f1fff58410ec2ea276401a6b",
+      "expected_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-013",
+      "kind": "mutation",
+      "name": "sign_flip_2.5",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 74,
+      "actual_hash": "709e4d2be3506cc0b8a9a9689370b39746d6f025256f88041d70c70c4418ab2c",
+      "expected_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-013",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-013",
+      "kind": "mutation",
+      "name": "cmp_invert_Math.max_to_Math.min",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 82,
+      "actual_hash": "d495feb9d01a1ba71595b87bd2320cac0d75c8e9d3426af27389dd798c040d87",
+      "expected_hash": "8c3be2796e2003d4d2201aced8dc0aa0fe08e95251a41ebb631467b78dac3e09",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-014",
+      "kind": "perturbation",
+      "name": "rename_d_to_d_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "expected_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-014",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 86,
+      "actual_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "expected_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-014",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 89,
+      "actual_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "expected_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-014",
+      "kind": "perturbation",
+      "name": "paren_wrap_512",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 77,
+      "actual_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "expected_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-014",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 93,
+      "actual_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "expected_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-014",
+      "kind": "mutation",
+      "name": "off_by_one_512_to_513",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "02053436b3db5540f9901284ab7d69de964371d554c389940d537e5e0171e50f",
+      "expected_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-014",
+      "kind": "mutation",
+      "name": "op_flip_*_to_/",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 96,
+      "actual_hash": "65e8fe344f770e52ea7f3f8fc8633959361bb78e6ad3a178b7d3b1f16b6e2e9f",
+      "expected_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-014",
+      "kind": "mutation",
+      "name": "const_zero_512_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 92,
+      "actual_hash": "3f3ea8a1afc0f5a6ce7ace3152abfdaa52ea3726c4f66e728790f42cbc005901",
+      "expected_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-014",
+      "kind": "mutation",
+      "name": "sign_flip_512",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 85,
+      "actual_hash": "92f8fee65ea666862d4cb407e9994c317d9b987f6187cefe39f3616165e8a0d6",
+      "expected_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-014",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 72,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "c39dcd513ced7ef7e803029ad17fd8bb49bebd0f58a9754716859b08a02f51f3",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-015",
+      "kind": "perturbation",
+      "name": "rename_lp_chosen_to_lp_chosen_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "expected_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-015",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 77,
+      "actual_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "expected_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-015",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 78,
+      "actual_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "expected_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-015",
+      "kind": "perturbation",
+      "name": "paren_wrap_1.2",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 77,
+      "actual_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "expected_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-015",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 75,
+      "actual_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "expected_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-015",
+      "kind": "mutation",
+      "name": "off_by_one_6_to_7",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "7586cdc3db532754f4c95a54f95dc7c16e78cf832ae26122559793264378cccf",
+      "expected_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-015",
+      "kind": "mutation",
+      "name": "op_flip_+_to_-",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 75,
+      "actual_hash": "1175a265c6d5fbba1731424e207d041453adb1c6fc5c130173a8aae4c139221c",
+      "expected_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-015",
+      "kind": "mutation",
+      "name": "const_zero_1.2_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 81,
+      "actual_hash": "d9b247ec7bf19cc61d2e6cdce6121a6d164663c69db9fcd13e62822a391535b4",
+      "expected_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-015",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 85,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "9daf35229fa4dd9f0cf77699ad782c3a2df349644d89c08f827a3ae4379af0b2",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-016",
+      "kind": "perturbation",
+      "name": "rename_gate_to_gate_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 89,
+      "actual_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "expected_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-016",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 82,
+      "actual_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "expected_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-016",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 79,
+      "actual_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "expected_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-016",
+      "kind": "perturbation",
+      "name": "paren_wrap_1.2",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 87,
+      "actual_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "expected_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-016",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 71,
+      "actual_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "expected_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-016",
+      "kind": "mutation",
+      "name": "off_by_one_2_to_3",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 82,
+      "actual_hash": "47baa00fd5c1c8e5d0591d7b973600d057f7b9f6abffce0f30eada9ce54911dd",
+      "expected_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-016",
+      "kind": "mutation",
+      "name": "op_flip_-_to_+",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "d028af93fee64c47d944eb3c6d46db80354f8ea89ad46e9c9d2c0f6d7964e76f",
+      "expected_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-016",
+      "kind": "mutation",
+      "name": "const_zero_1.2_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "696b69fccc5a1607b3d089b6127b29c298260614794f9a9757523d9e4d070293",
+      "expected_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-016",
+      "kind": "mutation",
+      "name": "sign_flip_1.2",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 84,
+      "actual_hash": "696b69fccc5a1607b3d089b6127b29c298260614794f9a9757523d9e4d070293",
+      "expected_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-016",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 81,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-017",
+      "kind": "perturbation",
+      "name": "rename_draft_logp_to_draft_logp_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "expected_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-017",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 78,
+      "actual_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "expected_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-017",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 88,
+      "actual_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "expected_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-017",
+      "kind": "perturbation",
+      "name": "paren_wrap_1.5",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 93,
+      "actual_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "expected_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-017",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "expected_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-017",
+      "kind": "mutation",
+      "name": "op_flip_<_to_>",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "2ed27c1421e6928dbe13dbfdb5c59e1045b30341fe7ebe05700006bc5ac572c0",
+      "expected_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-017",
+      "kind": "mutation",
+      "name": "const_zero_1.5_to_0",
+      "expected_pass": false,
+      "predicted_pass": true,
+      "match": false,
+      "runtime_ms": 76,
+      "actual_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "expected_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-017",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 79,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-017",
+      "kind": "mutation",
+      "name": "cmp_invert_Math.min_to_Math.max",
+      "expected_pass": false,
+      "predicted_pass": true,
+      "match": false,
+      "runtime_ms": 83,
+      "actual_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "expected_hash": "a17fcf0a2f50e2d495e4f90ce263410edc183add6c62699a2facbccf60410f74",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-018",
+      "kind": "perturbation",
+      "name": "rename_m_to_m_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 88,
+      "actual_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "expected_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-018",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 82,
+      "actual_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "expected_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-018",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 84,
+      "actual_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "expected_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-018",
+      "kind": "perturbation",
+      "name": "paren_wrap_2",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 85,
+      "actual_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "expected_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-018",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 82,
+      "actual_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "expected_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-018",
+      "kind": "mutation",
+      "name": "off_by_one_2_to_3",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 92,
+      "actual_hash": "13c0e85811255e17d954393dbb92342a8ab6a9bd9a2f8609e0babf3aeb382558",
+      "expected_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-018",
+      "kind": "mutation",
+      "name": "const_zero_2_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 99,
+      "actual_hash": "739a00f0082278d0e776fe2befd5c35695c67d6afd5bcf215f530db5ef8f2ec1",
+      "expected_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-018",
+      "kind": "mutation",
+      "name": "sign_flip_2",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 86,
+      "actual_hash": "02f806300d76138023c9aad2d1136d8d37eeeaa9debace421b70a77aee68fa52",
+      "expected_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-018",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 79,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "2c5af2a65ad84bdf0d995c84f18807417618831b3f63ef8e642f8e9ec99f02b7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-019",
+      "kind": "perturbation",
+      "name": "rename_N_to_N_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 87,
+      "actual_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "expected_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-019",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 76,
+      "actual_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "expected_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-019",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 74,
+      "actual_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "expected_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-019",
+      "kind": "perturbation",
+      "name": "paren_wrap_1024",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 81,
+      "actual_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "expected_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-019",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 92,
+      "actual_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "expected_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-019",
+      "kind": "mutation",
+      "name": "off_by_one_1024_to_1025",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 86,
+      "actual_hash": "b59cb1f100ffcc23ed9a8ce48660112e299a93bea8ca87613eb8de39994e4eec",
+      "expected_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-019",
+      "kind": "mutation",
+      "name": "op_flip_+_to_-",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 90,
+      "actual_hash": "e4f92f27e8150f2787e4060b2e266094f056ade3221e19851b8b24f63a911a2a",
+      "expected_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-019",
+      "kind": "mutation",
+      "name": "const_zero_1024_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 90,
+      "actual_hash": "3f3ea8a1afc0f5a6ce7ace3152abfdaa52ea3726c4f66e728790f42cbc005901",
+      "expected_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-019",
+      "kind": "mutation",
+      "name": "sign_flip_1024",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 92,
+      "actual_hash": "e4f92f27e8150f2787e4060b2e266094f056ade3221e19851b8b24f63a911a2a",
+      "expected_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-019",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 94,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-020",
+      "kind": "perturbation",
+      "name": "rename_compute_to_compute_x",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 88,
+      "actual_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "expected_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-020",
+      "kind": "perturbation",
+      "name": "noop_inject_void0",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 85,
+      "actual_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "expected_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-020",
+      "kind": "perturbation",
+      "name": "inline_comment_trace",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 87,
+      "actual_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "expected_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-020",
+      "kind": "perturbation",
+      "name": "paren_wrap_6e21",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 98,
+      "actual_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "expected_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-020",
+      "kind": "perturbation",
+      "name": "whitespace_extra_newline",
+      "expected_pass": true,
+      "predicted_pass": true,
+      "match": true,
+      "runtime_ms": 95,
+      "actual_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "expected_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-020",
+      "kind": "mutation",
+      "name": "off_by_one_6_to_7",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 85,
+      "actual_hash": "91cca07fa6cf23e5ffaae923272bfecde493bebb60eb65ebfae910a2ee417e9b",
+      "expected_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-020",
+      "kind": "mutation",
+      "name": "op_flip_/_to_*",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 90,
+      "actual_hash": "6a2a29c367e7f24dcf1cc9cf90656f6f186ef3c76ba4927e23aa4d44d69baffe",
+      "expected_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-020",
+      "kind": "mutation",
+      "name": "const_zero_6e21_to_0",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 87,
+      "actual_hash": "8c5838957489e88dc3fcc4679620fc4d7c93e4d9178bd884516921748d7aaa33",
+      "expected_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-020",
+      "kind": "mutation",
+      "name": "sign_flip_6e21",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 81,
+      "actual_hash": "3f3ea8a1afc0f5a6ce7ace3152abfdaa52ea3726c4f66e728790f42cbc005901",
+      "expected_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    },
+    {
+      "item_id": "llm-systems-020",
+      "kind": "mutation",
+      "name": "drop_console_log",
+      "expected_pass": false,
+      "predicted_pass": false,
+      "match": true,
+      "runtime_ms": 80,
+      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+      "exit_code": 0,
+      "stderr_excerpt": ""
+    }
+  ],
+  "interpretation": {
+    "fp_means": "verifier missed a real bug -- substrate too lenient",
+    "fn_means": "verifier rejected a semantic equivalent -- substrate too strict (hash-fragile)",
+    "f1_low_signal": "substrate not ready; tighten or loosen verifier per FP/FN pattern",
+    "f1_high_signal": "substrate is robust and strict -- E0 substrate thesis validated"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-003",
+  "source_hash": "a19909b63149ff74bd14923b51e27f7f2947a0d2247000dff36570e7d488c6ca",
+  "translated_at": "2026-05-11T02:00:08.112Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const pos=10,dim_idx=4,D=64,base=10000; console.log((pos/Math.pow(base,(2*dim_idx)/D)).toFixed(6));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(10/10000);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"3.162278\");"
+    }
+  ],
+  "prompt_text_zh": "旋转位置嵌入 (Rotary position embedding) 角度 θ = pos / base^(2*dim_idx/D)，其中 pos=10, dim_idx=4, D=64, base=10000。将 θ 打印到 6 位小数。"
+}

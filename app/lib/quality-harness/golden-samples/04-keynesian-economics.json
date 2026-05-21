@@ -1,0 +1,37 @@
+{
+  "id": "golden-04-keynesian-economics",
+  "topic": "凯恩斯主义",
+  "user_profile": "中级",
+  "goal": "理解 Keynes 为何主张衰退期政府举债扩支出而非紧缩",
+  "ideal_lesson_body": {
+    "thesis": "By the end of this lesson, the learner will see that Keynes's case rests on aggregate demand falling below productive capacity — not on government being more efficient than markets.",
+    "canonical_example": "1936 General Theory Ch.10 'multiplier' — 1 单位政府支出在边际消费倾向 c=0.8 时撬动 1/(1-c)=5 单位国民收入.",
+    "common_misconceptions": [
+      "凯恩斯主张大政府. 错: Keynes 主张反周期 — 衰退扩支出 / 繁荣紧支出, 这是周期姿态不是 size 偏好.",
+      "财政刺激必然通胀. 错: 在 output gap > 0 (产能未满) 时, 新支出补充需求不推价格."
+    ],
+    "exit_proof": "给学习者 2009 年美国 ARRA 7870 亿刺激案 + 2012 年欧元区紧缩对比, 让 ta 不查论文用 multiplier 推测哪边 GDP 反应更强, 并指出可能反驳因素.",
+    "mechanism_explanation": "想象一家工厂只开三分之一线 — 工人在家. 政府发钱让工人吃饭, 工人吃饭让餐馆有客, 餐馆有客让工厂开第二条线. 第一笔钱在每个环节再启动一次, 这就是乘数.",
+    "jargon_list": [
+      "marginal propensity to consume (c) — 多挣 1 元会去花的比例",
+      "multiplier — 1/(1-c), 一笔支出在经济中的总放大倍数",
+      "output gap — 实际 GDP 与潜在产能的差"
+    ],
+    "note_connection": "(first lesson — no prior note to bind to)",
+    "learn_goal": "理解 Keynes 为何主张衰退期政府举债扩支出而非紧缩",
+    "user_profile": "中级",
+    "intro_hook_scene": "1933 年初, Keynes 致罗斯福公开信: '总统先生, 您像一个船长面对漏水的船 — 抽水比辩论船板更新换代次序重要.'"
+  },
+  "nine_dim_target_scores": {
+    "goalCoherence": 95,
+    "jargonControl": 80,
+    "levelMatch": 85,
+    "misconceptionDefense": 95,
+    "evidenceOfLearning": 90,
+    "actionConversion": 75,
+    "productTransferQuality": 70,
+    "notGenericCourse": 90,
+    "hyphaSoul": 85
+  },
+  "notes": "Golden because: thesis 锁住 'demand-shortfall framing' 反 'big government' 误读; misconception 一条修正 big-government 误读, 一条修正 inflation 反射; exit_proof 真历史 case 双对比 force 应用 multiplier."
+}

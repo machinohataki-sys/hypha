@@ -1,0 +1,113 @@
+{
+  "id": "philosophy-023",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Wittgenstein Philosophical Investigations §§43, 65-71 (language-games, family resemblance), §§243-271 (private language); SEP \"Ludwig Wittgenstein\" §3.5",
+  "instance": "Wittgenstein's private-language argument denies that a strictly private rule for naming a sensation can be coherent. Reconstruct the argument as a constraint on what counts as following a rule, and identify the precise step at which the would-be private linguist loses the right to call any later use a correct application.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "rule-following requires a normative criterion for correct vs incorrect application",
+      "alt_phrasings": [
+        "need a criterion of correctness",
+        "normative standard for correctness",
+        "distinguishes seems-right from is-right",
+        "rule needs a check separate from impression",
+        "correctness condition",
+        "must have right vs wrong distinction",
+        "normativity of rule-following"
+      ],
+      "phrasing_hashes": [
+        "f81c221e3bbce13b5f503cb329e41080ac2afe7b1c684e3efff30a04001384d7",
+        "9a984a261ce5c49ae640dd4952904f17d452cba3de3f4da2501ff8dabbd3bea1",
+        "c0d7c1e1fa1bf9cd2e8ecb41c88844955f5a89fc833dd9a5f8002576f7ce762e",
+        "4b4aaa0adc4471d7987968286b47d834ca8137304403a3ec304cd50f0f9d5eba",
+        "bc205124d7c1ceae67dca8e04f303c6d2f38feae5bfcb4a418693b78e4c6fcf7",
+        "71542282c64c7c4a496f7d284b4afc8431bac8085cd8593167765f4f675148cf",
+        "23114e9b299d2c9b7c8089c5ce4519f46a06983253f625ad1bbdc7c623864649",
+        "01ea3b2bf3f8264d5d546e273e412ce3b9d732e632abc7ddc94c6149b884c3a0"
+      ],
+      "claim_hash": "f81c221e3bbce13b5f503cb329e41080ac2afe7b1c684e3efff30a04001384d7"
+    },
+    {
+      "id": "f2",
+      "claim": "in pure privacy \"seems right\" and \"is right\" collapse, no independent check exists",
+      "alt_phrasings": [
+        "seems right collapses into is right",
+        "no independent check available",
+        "memory as sole criterion is circular",
+        "private check is no check",
+        "cannot distinguish appearance from reality of correct use",
+        "criterion collapses to impression",
+        "no external corrective"
+      ],
+      "phrasing_hashes": [
+        "42db8e014dd62b74844d6165412c52c7584b9cf48cf7227e6eb982b8fe930d2d",
+        "93c67abcc26de0ae8321f1e4631b9688f7e5a894a742dcd7ccf21a815b68290e",
+        "5ce0688377d3ca76131907575e9290c399aa4f65cf71839e700134fcf6b3b4bc",
+        "db3b7f67f94a4478d163dbdbe2eba599e30622990281f09f573e0fad1e36570d",
+        "5027b35b9f4760eaeb4e12b742f191242ad8ef16569e4c8574bb965d1f4764d7",
+        "b9818f1b77c9bd873d3412eb901be760cf18ebf11cc836c68a64c76dd3b99430",
+        "aa8af289393709859dab780a9c6956d4d5b0c5a8046d2b99212421f99af127c5",
+        "364c31a566b77b2c2cc891b9a45a99f1bc8ae7c978ef4be0fd8ac70dfc5f802b"
+      ],
+      "claim_hash": "42db8e014dd62b74844d6165412c52c7584b9cf48cf7227e6eb982b8fe930d2d"
+    },
+    {
+      "id": "f3",
+      "claim": "so the would-be private linguist loses the right to claim any later use is correct",
+      "alt_phrasings": [
+        "cannot claim later application is correct",
+        "loses the right to call later use right",
+        "claim of correctness is empty",
+        "no fact of the matter about later applications",
+        "no warrant for later identification",
+        "subsequent use cannot be ratified",
+        "correctness claim becomes vacuous"
+      ],
+      "phrasing_hashes": [
+        "ba0b5cfe6a08b1adfd54800e512347b723693734d1dd24cbd3f6d1f17a04dc7f",
+        "270134bb06d87172f3b1730245299ba91a0f4860ce44486641c3da46348140d2",
+        "b62f423bd6cbc8761bd40736ebbff10f964c211556298d9e8ddeac41cde6aa2f",
+        "b6cf557ecb6ee8eb1c1fc6ac62c4792a95672db491ea446eb4efff8f993d6272",
+        "c25eae8552a68d5fbebe7deb50ada9b7b25f2e2cdebdc15bef94246ad82225b5",
+        "ad9baad2b9cbbf1239738f0a5ac8b9c05f18b012e2a92cc058f309774ebacb06",
+        "88370e34fc72a9009bc68ea88aa37c3df9773504e5edbf8cfb1ec0b62c867f84",
+        "3327d11a1540cb9aa66a03b299a0003c2db569519071c93309af7e1f63462be2"
+      ],
+      "claim_hash": "ba0b5cfe6a08b1adfd54800e512347b723693734d1dd24cbd3f6d1f17a04dc7f"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Rule-following needs a criterion of correctness independent of the user's current impression. In a strictly private setting, \"seems right to me now\" and \"is right\" collapse — there is no independent check. So at the first re-application of the supposed private name, the user has no warrant for calling that use correct rather than merely consistent-with-impression.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Wittgenstein says language is just a game.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "The criterion of correctness collapses without a public check. So later uses cannot be ratified as correct.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:18:15.225Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

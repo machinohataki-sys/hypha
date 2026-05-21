@@ -1,0 +1,48 @@
+{
+  "item_id": "philosophy-012",
+  "source_hash": "a602165c99271ff008fbfc3346c6b609e4dbd07fd0a99ab831c974303d09a012",
+  "translated_at": "2026-05-11T01:31:41.314Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "instance_zh": "康德的定言命令 (categorical imperative) 通过将准则 (maxim) 普遍化来检验它。将此检验应用于“我将向我的评估者隐瞒我的工作真相以获取学分”。逐步推演普遍化，识别矛盾（概念中的矛盾 (contradiction in conception) 或意志中的矛盾 (contradiction in will)），并根据康德的标准解释为何该准则不成立。",
+  "features_zh": [
+    {
+      "id": "f1",
+      "statement_zh": "执行普遍化步骤：设想所有学习者欺骗所有评估者",
+      "alt_phrasings_zh": [
+        "设想普遍采纳",
+        "每个学习者都这样做"
+      ]
+    },
+    {
+      "id": "f2",
+      "statement_zh": "概念中的矛盾 (contradiction in conception)：在普遍欺骗下，评估制度瓦解",
+      "alt_phrasings_zh": [
+        "制度崩溃",
+        "甚至无法被设想"
+      ]
+    },
+    {
+      "id": "f3",
+      "statement_zh": "失效模式：准则寄生性地依赖于大多数人保持诚实",
+      "alt_phrasings_zh": [
+        "寄生他人的诚实",
+        "搭便车 (free-rider)"
+      ]
+    }
+  ],
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "普遍化：每个学习者欺骗每个评估者。概念中的矛盾 (contradiction in conception)：评估制度以如实报告为前提；如果所有人都欺骗，该制度便瓦解。该准则寄生性地依赖于大多数人保持诚实，因此它无法被普遍采纳。"
+    },
+    {
+      "id": "c2",
+      "text_zh": "康德说不可说谎。"
+    },
+    {
+      "id": "c3",
+      "text_zh": "若被普遍化，评估作为一种制度将变得不可能。该准则依赖于他人不采纳它。"
+    }
+  ]
+}

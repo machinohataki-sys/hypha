@@ -1,0 +1,51 @@
+{
+  "persona_id": "tao",
+  "display_name": "Terence Tao",
+  "compiled_date": "2026-05-09",
+  "purpose": "HYPHA tutor persona corpus distillation, v0.5.1 lane, 4th persona (Machino-G batch)",
+  "sources": {
+    "twitter": {
+      "file": null,
+      "note": "Tao posts on Mathstodon (mathstodon.xyz/@tao) but the verbatim research-blog corpus is far denser and was prioritized. Twitter / Mathstodon scrape deferred."
+    },
+    "blog": {
+      "dir": "blog/",
+      "essays": [
+        {"slug": "career-advice",                "title": "Career advice — index page",                                                            "source": "terrytao.wordpress.com/career-advice/",                            "chars": 5045,  "words": 863,  "weight": "high — meta-frame for all career-advice posts, contains his disclaimer about advice being generic"},
+        {"slug": "about",                        "title": "About page",                                                                            "source": "terrytao.wordpress.com/about/",                                    "chars": 5913,  "words": 1013, "weight": "medium — peer-register self-description and blog policy"},
+        {"slug": "work-hard",                    "title": "Work hard",                                                                             "source": "terrytao.wordpress.com/career-advice/work-hard/",                  "chars": 4496,  "words": 791,  "weight": "very high — productivity-honesty register, hours-vs-quality distinction"},
+        {"slug": "dont-prematurely-obsess",      "title": "Don't prematurely obsess on a single 'big problem' or 'big theory'",                  "source": "terrytao.wordpress.com/career-advice/dont-prematurely-obsess-on-a-single-big-problem-or-big-theory/", "chars": 8485, "words": 1433, "weight": "very high — contains the famous how-to-read-your-own-paper checklist for famous-problem proofs"},
+        {"slug": "post-rigorous",                "title": "There's more to mathematics than rigour and proofs",                                   "source": "terrytao.wordpress.com/career-advice/theres-more-to-mathematics-than-rigour-and-proofs/", "chars": 7191, "words": 1160, "weight": "very high — three-stage taxonomy (pre-rigorous / rigorous / post-rigorous), the persona's defining frame"},
+        {"slug": "use-the-wastebasket",          "title": "Use the wastebasket",                                                                   "source": "terrytao.wordpress.com/career-advice/use-the-wastebasket/",        "chars": 1941,  "words": 351,  "weight": "high — failure-honesty register"},
+        {"slug": "be-flexible",                  "title": "Be flexible",                                                                           "source": "terrytao.wordpress.com/career-advice/be-flexible/",                "chars": 1851,  "words": 333,  "weight": "high — adjustment register"},
+        {"slug": "ask-yourself-dumb-questions",  "title": "Ask yourself dumb questions and answer them",                                          "source": "terrytao.wordpress.com/career-advice/ask-yourself-dumb-questions-and-answer-them/", "chars": 2642,  "words": 459,  "weight": "high — pedagogical method"},
+        {"slug": "learn-and-relearn",            "title": "Learn and relearn your field",                                                          "source": "terrytao.wordpress.com/career-advice/learn-and-relearn-your-field/", "chars": 2816,  "words": 483,  "weight": "high — meta-learning register"},
+        {"slug": "think-ahead",                  "title": "Think ahead",                                                                           "source": "terrytao.wordpress.com/career-advice/think-ahead/",                "chars": 1446,  "words": 270,  "weight": "medium — strategic register"},
+        {"slug": "writing",                      "title": "Advice on writing papers",                                                              "source": "terrytao.wordpress.com/advice-on-writing-papers/",                 "chars": 3643,  "words": 622,  "weight": "high — exposition-discipline register"},
+        {"slug": "general-advice-on-research",   "title": "General advice on mathematical research",                                              "source": "terrytao.wordpress.com/career-advice/general-advice-on-mathematical-research/", "chars": 810, "words": 137, "weight": "low — short index"},
+        {"slug": "solving-mathematical-problems","title": "On solving mathematical problems",                                                     "source": "terrytao.wordpress.com/career-advice/on-solving-mathematical-problems/", "chars": 810, "words": 137, "weight": "low — short index"}
+      ],
+      "total_chars": 47089,
+      "total_words": 8052
+    },
+    "talks": {
+      "dir": null,
+      "note": "Tao's primary recorded talks (Lex Fridman 2022 / Numberphile / various IAS / Polymath videos) are video-first; transcripts not extracted in v0.1. Blog corpus alone provides sufficient signature voice for distillation."
+    }
+  },
+  "total_corpus_chars": 47089,
+  "total_word_equivalent_estimate": 8052,
+  "primary_language": "en",
+  "distillation_target": {
+    "schema": "Character Contract per app/lib/agent-character/contracts/karpathy.json (18 fields, schema-locked)",
+    "output_path": "app/lib/agent-character/contracts/tao.json",
+    "wisdom_md": "vault/.persona-wisdom/tao.md"
+  },
+  "deferred": [
+    "MathOverflow answer corpus — high-density rigorous-stage register, useful for hint-not-answer scaffolding feedback.",
+    "Polymath Project posts and replies — collaborative-research register, useful for multi-agent coordination tone.",
+    "Selected expository papers (e.g. Compressed sensing survey, Higher order Fourier analysis lecture notes) — technical-prose voice for advanced sessions.",
+    "Numberphile + Lex Fridman + IAS lecture transcripts — spoken voice cadence (currently v0.1 captures written voice only).",
+    "Mathstodon (mathstodon.xyz/@tao) posts — short-form contemporary register."
+  ]
+}

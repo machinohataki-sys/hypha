@@ -1,0 +1,48 @@
+{
+  "item_id": "philosophy-022",
+  "source_hash": "26ace4ed69c265ef0ba9e28eaa6449a26638b7e722b73df23e677622f53ca221",
+  "translated_at": "2026-05-11T01:41:21.901Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "instance_zh": "尼采的谱系学方法 (genealogical method) 将“善”与“恶”解释为在特定历史条件下产生的价值，并以主人道德 (master-morality) 与奴隶道德 (slave-morality) 作为对立的评价模式。陈述奴隶造反 (slave-revolt) 所执行的结构性颠倒 (structural inversion)，并指出一种将“X的谱系 (genealogy of X)”与“对X的驳斥 (refutation of X)”相混淆的常见误读。",
+  "features_zh": [
+    {
+      "id": "f1",
+      "statement_zh": "主人道德 (master-morality) 始于自我肯定：高贵 = 善，低劣 = 坏（描述性对比）",
+      "alt_phrasings_zh": [
+        "高贵者首先称自身为善",
+        "善始于自我肯定"
+      ]
+    },
+    {
+      "id": "f2",
+      "statement_zh": "奴隶造反 (slave-revolt) 颠倒了这一秩序：始于对高贵者的否定，称其为恶，然后推导出善作为对该否定的否定",
+      "alt_phrasings_zh": [
+        "颠倒的评价 (inverted valuation)",
+        "始于对主人的否定"
+      ]
+    },
+    {
+      "id": "f3",
+      "statement_zh": "发生学谬误 (genetic fallacy) 误读：追溯X的起源并非对X的驳斥",
+      "alt_phrasings_zh": [
+        "发生学谬误 (genetic fallacy)",
+        "起源并非驳斥"
+      ]
+    }
+  ],
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "主人道德 (master-morality) 始于自我肯定：高贵 = 善，低劣 = 坏。奴隶造反 (slave-revolt) 颠倒了这一点——它始于否定高贵者（称其为恶），并仅以派生的方式将其自身的善定义为对恶的否定。一种常见的误读将谱系学 (genealogy) 视为驳斥，但追溯一种价值如何产生并非反对它的证明（发生学谬误 / genetic fallacy）。"
+    },
+    {
+      "id": "c2",
+      "text_zh": "尼采说上帝已死，道德是给弱者准备的。"
+    },
+    {
+      "id": "c3",
+      "text_zh": "主人始于肯定；奴隶始于否定。说一种价值有其谱系 (genealogy) 并非驳斥它。"
+    }
+  ]
+}

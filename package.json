@@ -1,6 +1,6 @@
 {
   "name": "hypha",
-  "version": "0.7.2",
+  "version": "1.0.0-rc.1",
   "description": "Hypha — the NOTE AGENT. Internal codename: ptor2. For self-directed researchers and bachelor-foundation learners.",
   "main": "app/main.js",
   "repository": {
@@ -22,7 +22,89 @@
     "pack": "node scripts/pack.js",
     "pack:win": "node scripts/pack.js --platform=win32",
     "pack:mac": "node scripts/pack.js --platform=darwin",
-    "pack:linux": "node scripts/pack.js --platform=linux"
+    "pack:linux": "node scripts/pack.js --platform=linux",
+    "lesson-harness": "node scripts/lesson-harness.js",
+    "smoke:all": "node app/scripts/_dev_run_all_smokes.js",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder -mwl",
+    "dist": "electron-builder",
+    "pack:eb": "electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.victor.hypha",
+    "productName": "HYPHA",
+    "copyright": "© 2026 Victor",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "app/**/*",
+      "package.json",
+      "!app/scripts/_dev_verify_*",
+      "!app/__tests__/**",
+      "!**/*.map"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "app/lib/companion/native/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "publisherName": "Victor"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64", "x64"]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.education",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Education"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "perMachine": false,
+      "shortcutName": "HYPHA"
+    },
+    "dmg": {
+      "title": "HYPHA ${version}",
+      "icon": "build/icon.icns"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "machinohataki-sys",
+        "repo": "hypha"
+      }
+    ],
+    "electronUpdaterCompatibility": ">=2.16"
   },
   "author": "Victor",
   "license": "UNLICENSED",
@@ -30,21 +112,36 @@
   "devDependencies": {
     "@electron/packager": "^20.0.0",
     "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.28.0",
     "sharp": "^0.34.5",
     "to-ico": "^1.1.5"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.92.0",
     "@fontsource-variable/source-serif-4": "^5.2.9",
     "@fontsource/cormorant-garamond": "^5.2.11",
     "@fontsource/eb-garamond": "^5.2.7",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/noto-serif-sc": "^5.2.8",
+    "@mozilla/readability": "^0.6.0",
+    "@napi-rs/canvas": "^1.0.0",
+    "better-sqlite3": "^12.9.0",
+    "electron-updater": "^6.3.9",
     "cheerio": "^1.2.0",
+    "graphology": "^0.26.0",
+    "graphology-communities-louvain": "^2.0.2",
+    "js-sha256": "^0.11.1",
+    "jsdom": "^29.1.1",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.12.0",
     "marked": "^12.0.2",
     "mathjax": "^3.2.2",
     "node-fetch": "^2.7.0",
     "openai": "^4.65.0",
     "pdf-parse": "^1.1.4",
+    "pdfjs-dist": "^4.10.38",
+    "tesseract.js": "^6.0.1",
     "turndown": "^7.2.4",
     "youtube-search-api": "^2.0.1",
     "youtube-transcript": "^1.3.1"

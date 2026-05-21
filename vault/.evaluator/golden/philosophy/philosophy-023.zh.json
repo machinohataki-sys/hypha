@@ -1,0 +1,48 @@
+{
+  "item_id": "philosophy-023",
+  "source_hash": "bcad6a6721f6ebd1f2f27c09c19d355d56e98aa2302f3e63328639fa058f0f7f",
+  "translated_at": "2026-05-11T01:42:31.718Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "instance_zh": "维特根斯坦的私人语言论证否认，为感觉命名而设的严格私人规则能够自洽。将该论证重构为对什么才算遵循规则的一种约束，并指出那个将要成为私人语言使用者的人在哪个确切步骤上丧失了将任何后来使用称为正确应用的权利。",
+  "features_zh": [
+    {
+      "id": "f1",
+      "statement_zh": "遵循规则需要一个区分正确与不正确应用的规范性标准 (normative criterion)。",
+      "alt_phrasings_zh": [
+        "需要一个正确性标准 (criterion of correctness)",
+        "正确性的规范性标准 (normative standard)"
+      ]
+    },
+    {
+      "id": "f2",
+      "statement_zh": "在纯粹私人性中，“看似正确”与“实际正确”坍塌，不存在独立的检验。",
+      "alt_phrasings_zh": [
+        "“看似正确”坍缩为“实际正确”",
+        "没有可用的独立检验"
+      ]
+    },
+    {
+      "id": "f3",
+      "statement_zh": "因此，那个将要成为私人语言使用者的人丧失了声称任何后来使用是正确的权利。",
+      "alt_phrasings_zh": [
+        "不能声称后来的应用是正确的",
+        "丧失了将后来使用称为正确的权利"
+      ]
+    }
+  ],
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "遵循规则需要一个独立于使用者当前印象的正确性标准 (criterion of correctness)。在严格私人的环境中，“现在在我看来正确”与“实际正确”坍塌——没有独立的检验。因此，在首次重新使用那个假定的私人名称时，使用者没有依据称那次使用是正确的，而不仅仅是与印象一致。"
+    },
+    {
+      "id": "c2",
+      "text_zh": "维特根斯坦说语言只是一场游戏。"
+    },
+    {
+      "id": "c3",
+      "text_zh": "没有公共检验，正确性标准 (criterion of correctness) 就坍塌了。因此，后来的使用无法被认可为正确。"
+    }
+  ]
+}

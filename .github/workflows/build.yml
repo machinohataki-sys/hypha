@@ -1,0 +1,91 @@
+# Hypha — electron-builder dry build for tag pushes + manual dispatch.
+#
+# Builds unsigned artifacts on all three platforms to catch packager
+# regressions BEFORE release.yml flips the publish switch. Signing is
+# scoped to release.yml where secrets live; this workflow stays unsigned
+# so fork PRs and manual dispatches remain green without privileged access.
+#
+# Triggers:
+#   - push tag matching v*.*.*  (pre-release smoke + artifact upload)
+#   - manual workflow_dispatch  (sanity check before tagging)
+
+name: build
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag, or SHA to build'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  target: linux }
+          - { os: windows-latest, target: win }
+          - { os: macos-latest,   target: mac }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Cache electron-builder
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: eb-${{ matrix.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            eb-${{ matrix.os }}-
+
+      - name: Install deps
+        run: npm ci --no-audit --no-fund
+
+      - name: Build (no publish, no sign)
+        env:
+          # Hard-skip signing for unsigned dry build. release.yml owns secrets.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run build:${{ matrix.target }}
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hypha-${{ matrix.target }}-${{ github.ref_name }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.tar.gz
+            dist/*.yml
+            dist/*.blockmap
+          if-no-files-found: warn
+          retention-days: 14

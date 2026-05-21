@@ -1,0 +1,51 @@
+{
+  "persona_id": "limu",
+  "display_name": "李沐 (Mu Li)",
+  "compiled_date": "2026-05-09",
+  "purpose": "HYPHA tutor persona corpus distillation, v0.5.1 lane, 2nd persona (Machino-G batch)",
+  "sources": {
+    "twitter": {
+      "file": null,
+      "note": "X / 知乎 anti-bot blocked; bb-browser daemon not running this session. Deferred to v0.2 distillation."
+    },
+    "blog": {
+      "dir": "blog/",
+      "essays": [
+        {"slug": "d2l-readme",            "title": "动手学深度学习 README",                                          "source": "github.com/d2l-ai/d2l-zh",        "chars": 4666,   "weight": "high — pedagogy register + dual-implementation philosophy"},
+        {"slug": "mli-blog-index",        "title": "Mu's Blog index page",                                       "source": "mli.github.io",                  "chars": 17372,  "weight": "medium — blog-index voice + first-person engineering register"},
+        {"slug": "new-pascal",            "title": "FP16 Performance on GTX 1080 (Pascal hardware analysis)",     "source": "mli.github.io/2016/06/14/",      "chars": 1945,   "weight": "low — short hardware note, useful for engineering tone"},
+        {"slug": "build-gpu-clusters",    "title": "Build GPU Clusters",                                          "source": "mli.github.io/gpu/2016/01/17/",  "chars": 3755,   "weight": "medium — engineering-spec register"},
+        {"slug": "mxnet-overview",        "title": "MXNet Overview",                                              "source": "mli.github.io/2015/12/03/",      "chars": 8364,   "weight": "high — design-decision register, his framework's manifesto"},
+        {"slug": "feature-engineering",   "title": "The End of Feature Engineering and Linear Model",             "source": "mli.github.io/2013/03/24/",      "chars": 3978,   "weight": "low — early voice"},
+        {"slug": "sjtu-huxiu",            "title": "上海交大演讲全文 — 从 LLM 聊到个人生涯 (2024-08-23)",         "source": "huxiu.com/article/3400392 mirrored from 机器之心 (B站考拉klkl录制)", "chars": 13704, "weight": "very high — most recent voice, technical + autobiographical register both present"},
+        {"slug": "phd-tencent",           "title": "博士这五年 (2017)",                                            "source": "cloud.tencent.com mirror of zhihu/p/25099638", "chars": 9298, "weight": "very high — autobiographical reflection register, signature personal essay"},
+        {"slug": "phd-baai",              "title": "博士这五年 — 智源社区 mirror",                                  "source": "hub.baai.ac.cn/view/31335",      "chars": 8917,   "weight": "high — duplicate of Tencent for cross-check"},
+        {"slug": "work-5-years-reflect",  "title": "工作五年反思 (2022)",                                          "source": "cloud.tencent.com/developer/article/1984655", "chars": 7037, "weight": "high — managerial + value-formula register"},
+        {"slug": "work-5-years",          "title": "工作这五年 (2021)",                                            "source": "cloud.tencent.com/developer/article/1832039", "chars": 6757, "weight": "very high — value formula manifesto + 三件套 framework"}
+      ],
+      "total_chars": 81127,
+      "total_words_eng": 2967,
+      "total_chars_cjk": 59380,
+      "word_equivalent_estimate": 32657
+    },
+    "talks": {
+      "dir": "blog/",
+      "transcripts": [
+        {"slug": "sjtu-huxiu", "title": "上海交大演讲 — 从 LLM 聊到个人生涯 (2024-08-23)", "verbatim": true, "via": "B 站考拉klkl 视频整理 / 机器之心 / 虎嗅 mirror", "note": "co-located in blog/ for path simplicity; counted in blog total above"}
+      ]
+    }
+  },
+  "total_corpus_chars": 81127,
+  "total_word_equivalent_estimate": 32657,
+  "primary_language": "zh-CN with English code-switch",
+  "distillation_target": {
+    "schema": "Character Contract per app/lib/agent-character/contracts/karpathy.json (18 fields, schema-locked)",
+    "output_path": "app/lib/agent-character/contracts/limu.json",
+    "wisdom_md": "vault/.persona-wisdom/limu.md"
+  },
+  "deferred": [
+    "Twitter / 知乎 corpus — blocked by anti-bot (CSDN 2KB / Zhihu 650 bytes / X anonymous-throttled). Needs logged-in scrape route.",
+    "B 站 paper-reading series transcripts — Transformer / GPT-3 / AlphaFold 精读. Highest-density 中英 code-switch source. Defer to v0.2.",
+    "Boson AI 2025+ updates — most recent vintage. Defer pending public availability."
+  ]
+}

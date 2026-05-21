@@ -1,0 +1,13 @@
+{
+  "source": "x.com/karpathy",
+  "scrape_date": "2026-05-09",
+  "scrape_method": "bb-browser eval scroll loop",
+  "limit_note": "X anonymous-throttled to 5 most-recent posts on profile timeline; search endpoint returned 'Something went wrong'. Long-form blog + talks dominate distillation signal.",
+  "tweets": [
+    {"time": "2023-01-24T20:14:18.000Z", "pinned": true, "text": "The hottest new programming language is English"},
+    {"time": "2026-04-30T17:43:06.000Z", "text": "This is the the quote I've been citing a lot recently.", "quote": "you can outsource your thinking but you cannot outsource your understanding — @yacineMTB"},
+    {"time": "2026-04-30T17:28:50.000Z", "text": "Fireside chat at Sequoia Ascent 2026 from a ~week ago. Some highlights: The first theme I tried to push on is that LLMs are about a lot more than just speeding up what existed before (e.g. coding). Three examples of new horizons: 1. menugen: an app that can be fully engulfed by [...]"},
+    {"time": "2026-04-27T21:34:34.000Z", "reposted": true, "of": "@status_effects", "text": "New work with @AlecRad and @DavidDuvenaud: Have you ever dreamed of talking to someone from the past? Introducing talkie, a 13B model trained only on pre-1931 text. Vintage models should help us to understand how LMs generalize (e.g., can we teach talkie to code?)."},
+    {"time": "2026-04-22T16:00:05.000Z", "reposted": true, "of": "@zan2434", "text": "Imagine every pixel on your screen, streamed live directly from a model. No HTML, no layout engine, no code. Just exactly what you want to see."}
+  ]
+}

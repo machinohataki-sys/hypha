@@ -1,0 +1,112 @@
+{
+  "id": "philosophy-018",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Hume Treatise of Human Nature III.1.1 (is-ought passage); Enquiry §IV-V (induction); SEP \"David Hume\" §4-5",
+  "instance": "Hume isolates two distinct gaps: from \"is\" to \"ought\" (Treatise III.1.1) and from \"past constant conjunction\" to \"future continuation\" (Enquiry IV). Show why these are STRUCTURALLY different gaps, and give one machine-learning practice that respects each gap.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "is-ought is a normative gap: descriptive premises do not entail prescriptive conclusions",
+      "alt_phrasings": [
+        "descriptive does not imply normative",
+        "no ought from is alone",
+        "normative gap",
+        "cannot derive value from fact alone",
+        "evaluative conclusion needs evaluative premise",
+        "fact-value gap",
+        "ought never lies in is alone"
+      ],
+      "phrasing_hashes": [
+        "6b9552ac78ff6e98bf2c277e73aeebe263b888693214933f3890afbe89450669",
+        "255d0d6fbd5ba13b93a293c1c89e346bb17f222d8de6c2bf436ed75786769993",
+        "a9d7b76361ed08cd8697352b24035b07da274bc18852747194f7e8d582f9bcc5",
+        "9c0ec35a79a626ac893b9a88920c06e9b2678201e014465f0dab4ac20d8ae495",
+        "d2f8136a0e83e1da5b702cd462d6ec7273a066922209ee621e9e69752aab6ad3",
+        "8d023246ac1a3dd1c100dc657ad81d7c34f5d4d607e0d29015bb1ed10a0f0d76",
+        "ac1730e193de1737720ccbcafbf6ba4accdea31d1df91b81d75167ab5b5e1984",
+        "52608063a56f1965d666a944a0fb7fee35ce9327111f1ddb4b671d23418aec08"
+      ],
+      "claim_hash": "6b9552ac78ff6e98bf2c277e73aeebe263b888693214933f3890afbe89450669"
+    },
+    {
+      "id": "f2",
+      "claim": "induction is an epistemic gap: past regularity does not deductively entail future continuation",
+      "alt_phrasings": [
+        "no deductive bridge from past to future",
+        "uniformity of nature is assumed",
+        "past regularity does not entail future",
+        "inductive justification is not deductive",
+        "epistemic gap",
+        "observed past does not prove unobserved future",
+        "gap between observed and projected"
+      ],
+      "phrasing_hashes": [
+        "a7925a62f307fa9f0e8ac8b5cbb1ecba2dd0eb13b3f7e2665b7cd0a4eb23d128",
+        "e6aaaae6220745abb52867b01254de1d2099afd21647382c709ba380f766b64a",
+        "6b4b6d6d995cbb3c903b8c7bed212dd5d97cfebd1ba162565711edd60901ab0e",
+        "6631bbdfd83c67e11be66268cb5e51f3b9d7b71de188bc3e3296fa47963edca7",
+        "48422df19f45105cde6d98c494342c8a0d6974721a621a3b7f7e3e95ea860a84",
+        "e7d251f681069b3fd79936fcce9954e8b6fd046d2483d774bb388cfdb39d9ccf",
+        "cd0288f709eb53f728bd68f74ab2deafe376245d24971d3e5c32e6a90f963948",
+        "888480607ed8e89faeab369a3795c5524c5d11e0ce9c40ad5d063aaf652dad9e"
+      ],
+      "claim_hash": "a7925a62f307fa9f0e8ac8b5cbb1ecba2dd0eb13b3f7e2665b7cd0a4eb23d128"
+    },
+    {
+      "id": "f3",
+      "claim": "ml practices: explicit value alignment / loss specification (is-ought); held-out test or distribution-shift monitoring (induction)",
+      "alt_phrasings": [
+        "explicit reward function for ought",
+        "loss function makes ought-choice explicit",
+        "held-out evaluation respects induction gap",
+        "distribution shift detection",
+        "covariate shift monitoring",
+        "value specification for normative side",
+        "ood evaluation for inductive side"
+      ],
+      "phrasing_hashes": [
+        "7df6111cbe68446be75b1b491445bb7990ca5f8dc0a38f80a0b9e432df359249",
+        "0570ce9cd2b7c42719fdb587d6607df85271f1e7c3c51b374a4c6c98ca0fb544",
+        "303a704d783329ddc918f8b14b1b524ffb924385e815bb9b9d5cb498d4bc3f02",
+        "1d10bde348eeab51e19309e9e4c52dfc22b729c034df9ba435beef6b7de35496",
+        "771076bcc6baeb204a63b59ca81d6e6151d1b731475c863dd57e988411d81c0b",
+        "fa1031193b474715df9bba5af0b8248712e627dbf63cde48fe06a7b8d8b6e36c",
+        "f3f85397f3cbcd87d17d6094c7f3d0ba083e1cc91ab49b63b6620ffec48a9cee",
+        "e3c97c1caa1b6f30b4bb6d90ee93ea24c708ffc239194abd10cef35cb8b4114c"
+      ],
+      "claim_hash": "7df6111cbe68446be75b1b491445bb7990ca5f8dc0a38f80a0b9e432df359249"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Is-ought is normative: descriptive premises alone cannot entail a prescription. Induction is epistemic: past constant conjunction does not deductively entail future continuation. In ML, we respect the first by stating the loss / value alignment explicitly, and the second by held-out test sets and distribution-shift monitoring.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Hume was a skeptic about everything.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Is-ought is a normative gap; induction is an epistemic gap. They are addressed differently.",
+      "features_hit_truth": [
+        "f1",
+        "f2"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T14:18:15.092Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

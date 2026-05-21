@@ -1,0 +1,115 @@
+{
+  "id": "philosophy-002",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Diels-Kranz Fragment 22B12 + 22B49a; SEP \"Heraclitus\" §2",
+  "instance": "Heraclitus says you cannot step into the same river twice. Restate this in modern terms by naming the conserved quantity (if any) and the variant quantity, and give one engineered system where this distinction is operationally tracked.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "identity or pattern is conserved as continuous trajectory",
+      "alt_phrasings": [
+        "form persists",
+        "pattern conserved",
+        "identity is continuous",
+        "continuity of pattern",
+        "structural identity preserved",
+        "shape persists across change",
+        "invariant under flux"
+      ],
+      "phrasing_hashes": [
+        "341424d32d94362297acbfb860e49df9320f400f98f799e5264549530b5cb7a4",
+        "dea588dc927159d21dbabc1d2a2ea297f27184791161138996f07d21bdb338c1",
+        "36afdb0c151fa20b7df55a4eff17c0004f2ac326b0532205af3fe9f42d17b8fb",
+        "b04f243479425359f07abfcb706bed6de2cd93e9ca0f37e7ace3c699c1cebe23",
+        "d0b097fae5c01dae8a8334c792b1a6dfe95ddc5bc7ac2c8eed44092fabd2b455",
+        "d8fd472851f1516565a63fbe0722cc21f7f2a50a2517dd81879efbc6916c8146",
+        "77beba569c49de11175f9ca3e9b3e745f5cbfa899b31cbe36c3d5b9411bc91ad",
+        "d27bb9e3a7e4489ae721309699da9e457d498539537f4bebb92fd8d98956702a"
+      ],
+      "claim_hash": "341424d32d94362297acbfb860e49df9320f400f98f799e5264549530b5cb7a4"
+    },
+    {
+      "id": "f2",
+      "claim": "matter or content is the variant quantity",
+      "alt_phrasings": [
+        "content changes",
+        "matter is variant",
+        "substance flows",
+        "material is variable",
+        "content is replaced",
+        "tokens swap underneath",
+        "water molecules differ"
+      ],
+      "phrasing_hashes": [
+        "476a65c1c01b6bf06c88d66ceaa8443de61cc03e47d38dc9597ae48242f87969",
+        "bedd9e6275f8940a1c69c6b153bde943a23196c2d5fee51649a40b01ae3ed231",
+        "a33077499c5b4d6a314cb02160b9df4706b504e3a26d5e9ceea74d89a64fdd7b",
+        "69ea577835574f1683bc0e2f066cdfa8c71d1a24a2c39aa8b0e5351523da496d",
+        "d03ee973ff36e0f293ae7cdeb8e8278864b5f84827a41c8121546c3f5be6ad2b",
+        "5bab23ced05a65a1573c8f5372d56f3ab98d1923329de80b715ec8c49660be26",
+        "89ab48721ea823528cd03e6da01cb2f92c3f811675cd3918f63617ff20694e86",
+        "209f1fd0a5a39badb160d15857fbccd8efc873500da2f5c3a9699e64d20e28cd"
+      ],
+      "claim_hash": "476a65c1c01b6bf06c88d66ceaa8443de61cc03e47d38dc9597ae48242f87969"
+    },
+    {
+      "id": "f3",
+      "claim": "engineered analog tracks identity across content edits",
+      "alt_phrasings": [
+        "hash-versioned",
+        "append-only log",
+        "event sourcing",
+        "git",
+        "database row identity",
+        "version control",
+        "commit history",
+        "primary-key persistence"
+      ],
+      "phrasing_hashes": [
+        "87cec1f6797bbcc5ec5f608bd295bf025c8fcc05045db3a411d0e6379cb38ed4",
+        "d1404aebc3ccc432338a5e6c13089191a3767989167cd50769f29dfb155b868c",
+        "f520696cce29a7f1909160b9c4cf59bf8035ebf6f626492aa4ad4828b2bfa418",
+        "9983f0dfa8798ee8893324f76f33ba3889e7def74ecbb8def04ba46eae93d3b5",
+        "9a881b9b9f23849475296a8cd768ea1965bc3152df7118e60c145975af6aa58a",
+        "6217a3c990907496a6e4b324838484bf6614d7d537d88e2741523b149b5f3424",
+        "c87a5566f56352fcf557a44b8a6cd442c73b6173a2c98fc8a61b41298af735a1",
+        "358ba5f3697bba33c1f2f2d86607cc38744f4f69b77a6269dfe8f66c6bc44d7c",
+        "8eda8504740d0938837d967687ce194dc9e25f5737030606de7af3f5793d5a3a"
+      ],
+      "claim_hash": "87cec1f6797bbcc5ec5f608bd295bf025c8fcc05045db3a411d0e6379cb38ed4"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Identity persists, content flows. A git repository tracks the same file across edits.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Heraclitus is just being poetic; everything just changes.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Pattern is conserved, water is variant — the same trick a database row uses with id columns.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T12:51:53.933Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

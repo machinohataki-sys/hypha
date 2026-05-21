@@ -1,0 +1,112 @@
+{
+  "id": "philosophy-008",
+  "topic": "philosophy",
+  "lifecycle": "draft",
+  "source_anchor": "Epictetus Enchiridion §1; Discourses I.1; SEP \"Epictetus\" §3",
+  "instance": "Epictetus distinguishes what is up to us (prohairesis) from what is not. State the distinction in one line, then apply to a software incident: a service goes down due to upstream provider regional outage. Identify the engineer's prohairetic responsibilities and what falls outside.",
+  "verification_channel": "sealed_rubric",
+  "schema_version": "0.5.D4",
+  "answer_features": [
+    {
+      "id": "f1",
+      "claim": "distinction stated: judgments and intentions are up to us; outcomes that depend on externals are not",
+      "alt_phrasings": [
+        "internal judgments vs external outcomes",
+        "opinions and choices versus events",
+        "what we control versus what we do not",
+        "prohairesis vs externals",
+        "will versus events",
+        "inner choice and outer event split",
+        "control distinction"
+      ],
+      "phrasing_hashes": [
+        "d6484303c689e4b23ac87afed628d5b51c04e53a77d6846525fc6e0565773ffa",
+        "929453576933067ea13f901b6ab5c5de6e8f0fd77ec5f857439d82a0fae74c44",
+        "a156ae847e5420652201fcc303a7be37b3177ea18829cf7ba76e628e9d668d76",
+        "135a4d67be139756d274648d1f2c83a49f9f20ab306b13ea526bbd659ccd17d1",
+        "3fe42cdc88d1a9f844f38ddd3acb9323f5e577105ddebe4518796b27d93c9488",
+        "c5c7bea9ffbe8ae53b000cce9e1661385c3353f1a3ffd4160a7b8cae56e3b63f",
+        "f767d99f8dd9a52f0d1f2779fe598f35822821abe63e452d55fa883c8dfa087c",
+        "32c2ef98129189eab965bd2f96b73039cf44b834f24138951fc804901f5a3be8"
+      ],
+      "claim_hash": "d6484303c689e4b23ac87afed628d5b51c04e53a77d6846525fc6e0565773ffa"
+    },
+    {
+      "id": "f2",
+      "claim": "prohairetic responsibilities applied: communication, prior monitoring, response choice",
+      "alt_phrasings": [
+        "how we communicate",
+        "monitoring set up beforehand",
+        "what we choose to do",
+        "pre-incident preparedness",
+        "communication discipline",
+        "response posture",
+        "observability up-front"
+      ],
+      "phrasing_hashes": [
+        "e4b2ac90df57e9351c9788e8f35ecd83c1f6ab51644dc2b4044a2996ee361951",
+        "91f1b91a42e47b2574e5a779bd1fae675eb6fb4d14398bc2204dc0219dd9a48b",
+        "777ea1c1f4ea5d6e48aaf6e85466dd7899b252802802fb1ecb208a7ac6576771",
+        "34012f5429ea55bbe129a29a311909d34bdf2eaca4a7a830fe5d7d75dc60edd9",
+        "6b0c083e1f04911d7cf4f1ea7d4afc9b3aae043a8b5bd2b28ad74416616459fa",
+        "60a9dbeb6555e5cdd912044804df8f383f0cd670ba94ed7342ae889053b9f51b",
+        "33f5ea8aee2b4b146e69c87d04c4e3698446e9442df88416785a4250a6082233",
+        "1a2a32cd4f595740323709a26fd0a35d3c0193efa898b4214315c6c90f98c0cf"
+      ],
+      "claim_hash": "e4b2ac90df57e9351c9788e8f35ecd83c1f6ab51644dc2b4044a2996ee361951"
+    },
+    {
+      "id": "f3",
+      "claim": "externals identified: upstream outage, customer reaction, timing",
+      "alt_phrasings": [
+        "outage itself",
+        "customer feelings",
+        "timing of incident",
+        "upstream failure",
+        "when outage hits",
+        "customer reception",
+        "externalities of incident"
+      ],
+      "phrasing_hashes": [
+        "7a0a88c2ceaec5af6ab5bc4396680ade2dc692717a96e12dbcae4a18920b00c3",
+        "8ea619b383c02ada188d2587f43adaf23fe9636df8dec575420e276af9a52fd1",
+        "09b5cf696389fade60f66a971c3ebb26cdef7f1d71e14352923a71dcbeb1f89c",
+        "e8a7fc971c53b815e3c89e9ba3e3365f0079b3f0020b543193b71294b82572b0",
+        "67dfe25f400112b24fbdca6b07e46f5ffb5dded0cb735908b0bde9bcbfc08ed7",
+        "4cba2beb6e9225c43e0ac2458f4a8672b4980acea680ad64302cac472943b99e",
+        "944bd553b96e65a8f27a290af37f75c2337314f65adf9199a61b3520cb16dd8a",
+        "35ea8dd723e00dd3bc91f20a91bda319a4452b469bb2f705db1dd2a06e1831d7"
+      ],
+      "claim_hash": "7a0a88c2ceaec5af6ab5bc4396680ade2dc692717a96e12dbcae4a18920b00c3"
+    }
+  ],
+  "k_threshold": 2,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "text": "Up to us are our judgments and intentions; not up to us are outcomes from external causes. Engineer controls: communication, prior monitoring, response. Outside: the outage, customer reaction, timing.",
+      "features_hit_truth": [
+        "f1",
+        "f2",
+        "f3"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Stoicism means accepting outages calmly.",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "text": "Engineer can choose communication and prior monitoring. The outage and customer feelings are outside their control.",
+      "features_hit_truth": [
+        "f2",
+        "f3"
+      ]
+    }
+  ],
+  "sealed_at": "2026-05-10T12:51:54.533Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "trim+collapse-whitespace+lowercase",
+  "notes": "D4 schema (post-MEOW R2). Main JSON is immutable post-seal: features + candidates + truth. Rater work moves to sidecar files philosophy-NNN.rater-a.json + philosophy-NNN.rater-b.json (eliminates race condition R1 from MEOW R2 audit). golden-loader merges sidecars at read time; agreement computed dynamically."
+}

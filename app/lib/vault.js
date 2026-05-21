@@ -29,7 +29,14 @@ function resolveRoot() {
 function ensureRoot() {
   const root = resolveRoot();
   if (!fs.existsSync(root)) {
-    try { fs.mkdirSync(root, { recursive: true }); } catch (_) {}
+    try { fs.mkdirSync(root, { recursive: true }); }
+    catch (err) {
+      // ensureRoot failure is critical — every subsequent vault op will fail.
+      // EEXIST is benign (race), anything else is a hard env problem.
+      if (err && err.code !== 'EEXIST') {
+        console.error('[CRITICAL][vault.ensureRoot] mkdir failed:', err && err.message, 'root=', root);
+      }
+    }
   }
   return root;
 }
@@ -69,7 +76,7 @@ function timeSince(when) {
 }
 
 function safeReadText(abs) {
-  try { return fs.readFileSync(abs, 'utf-8'); } catch (_) { return ''; }
+  try { return fs.readFileSync(abs, 'utf-8'); } catch (_) { return ''; } // intentional: caller wants empty-on-miss for best-effort text reads
 }
 
 // List top-level folders in vault. Each folder yields { folder, count, items }.
@@ -91,8 +98,13 @@ function list() {
     let entries = [];
     try {
       entries = fs.readdirSync(sub, { withFileTypes: true })
-        .filter(e => e.isFile() && e.name.toLowerCase().endsWith('.md'));
-    } catch (_) { entries = []; }
+        .filter(e => e.isFile() && e.name.toLowerCase().endsWith('.md'))
+        // v1.0 boot-7 — atomic-write tmp orphans look like `lesson-N.md.tmp-1234-...`.
+        // Those would tail .md.tmp-... but lowercase().endsWith('.md') already
+        // rejects them. Defense-in-depth: explicitly drop any name containing
+        // `.tmp-` so a half-renamed tmp can never surface as a curriculum row.
+        .filter(e => !e.name.includes('.tmp-'));
+    } catch (_) { entries = []; } // intentional: unreadable subdir → render as empty (UI degrades gracefully)
     // v0.6.7 — hide chain meta-folders. A folder containing chain.json + zero
     // .md files is the meta directory holding chain.json/covenant.json/links-
     // state.json — not a curriculum. Showing it as an empty 0-node folder
@@ -107,13 +119,13 @@ function list() {
             continue;  // skip rendering this chain-meta folder
           }
         }
-      } catch (_) {}
+      } catch (_) {} // intentional: malformed chain.json → treat as non-meta folder + continue
     }
 
     const items = entries.map(e => {
       const full = path.join(sub, e.name);
       let stat = null;
-      try { stat = fs.statSync(full); } catch (_) {}
+      try { stat = fs.statSync(full); } catch (_) {} // intentional: ENOENT race → stat stays null + caller handles
       const text = safeReadText(full);
       const fm = parseFrontmatter(text);
       const phase = clampPhase(fm.phase);
@@ -137,6 +149,13 @@ function list() {
       const ghost = String(fm.ghost || '').toLowerCase() === 'true';
       const phaseLabel = String(fm.phase_label || '').replace(/^"|"$/g, '');
       const phaseId = String(fm.phase_id || '');
+      // v0.10.1 — capture date_created so chain folders can be sorted by
+      // creation order (chronological) instead of alphabetic by chainSlug.
+      // User reported newer chains rendering above older ones because pinyin
+      // slug compare put "yi-..." before "yong-...".
+      const dateCreated = (fm.date_created && String(fm.date_created).trim() && fm.date_created !== 'null')
+        ? String(fm.date_created).trim().replace(/^"|"$/g, '')
+        : null;
       return {
         id: `${d.name}/${e.name}`,
         rel: `${d.name}/${e.name}`,
@@ -152,6 +171,7 @@ function list() {
         ghost,
         phaseLabel,
         phaseId,
+        dateCreated,
       };
     });
 
@@ -193,7 +213,21 @@ function list() {
           chainPlaceholder = state.chainPlaceholder === true;
         }
       }
-    } catch (_) {}
+    } catch (_) {} // intentional: corrupt state.json → fall through with default chain fields
+
+    // v0.10.1 — folder's earliest date_created across its items (used for
+    // chain-vs-chain chronological sort below). Falls through to null if no
+    // item has the field; sort then degrades to alphabetic chainSlug.
+    const itemDates = items.map(it => it.dateCreated).filter(Boolean).sort();
+    const folderDateCreated = itemDates[0] || null;
+
+    // v0.11.x — earliest item mtime as full-ISO ms-precision creation signal.
+    // frontmatter date_created is YYYY-MM-DD only; two chains created on the
+    // same day collide and force the comparator to fall back to alphabetic
+    // chainSlug (wrong order, e.g. "yi-..." sorts above "yong-..." even
+    // though the "yong-..." chain was generated first).
+    const itemMtimes = items.map(it => it.mtime).filter(Boolean).sort();
+    const folderEarliestMtime = itemMtimes[0] || null;
 
     folders.push({
       folder: d.name,
@@ -204,7 +238,23 @@ function list() {
       chainUltimateGoal,
       chainTotalLinks,
       chainPlaceholder,
+      dateCreated: folderDateCreated,
+      earliestMtime: folderEarliestMtime,
     });
+  }
+
+  // v0.11.x — pre-pass: per-chain earliest "creation signal" across ALL its
+  // folders. Prefer earliestMtime (full ISO with ms) over dateCreated
+  // (YYYY-MM-DD) so same-day chain creation orders deterministically by
+  // generation time. Falls back to dateCreated only when mtime is missing
+  // (legacy data).
+  const chainEarliestSignal = new Map();
+  for (const f of folders) {
+    if (!f.chainSlug) continue;
+    const sig = f.earliestMtime || f.dateCreated;
+    if (!sig) continue;
+    const cur = chainEarliestSignal.get(f.chainSlug);
+    if (!cur || sig < cur) chainEarliestSignal.set(f.chainSlug, sig);
   }
 
   // v0.6.8 — chain-aware folder ordering. Chain links sort by chainLinkIdx
@@ -216,7 +266,14 @@ function list() {
     const aChain = a.chainSlug || '';
     const bChain = b.chainSlug || '';
     if (aChain && bChain) {
-      if (aChain !== bChain) return aChain.localeCompare(bChain);
+      if (aChain !== bChain) {
+        // chain-vs-chain: compare by earliest mtime/dateCreated signal;
+        // tie-break alphabetic for determinism.
+        const aSig = chainEarliestSignal.get(aChain) || '';
+        const bSig = chainEarliestSignal.get(bChain) || '';
+        if (aSig && bSig && aSig !== bSig) return aSig.localeCompare(bSig);
+        return aChain.localeCompare(bChain);
+      }
       return (a.chainLinkIdx ?? 9999) - (b.chainLinkIdx ?? 9999);
     }
     if (aChain && !bChain) return 1;   // chain folders sink to bottom of list
@@ -243,13 +300,26 @@ function read(rel) {
   };
 }
 
+// v1.0 boot-7 — atomic write enforcement. Power-cut / Electron crash mid-write
+// previously left .md / .json half-flushed (silent corruption surfaced when the
+// next read parsed truncated JSON). Now writes to <abs>.tmp-<pid>-<now> then
+// atomically renames over the destination. On error, the tmp is unlinked best-
+// effort so we don't leak orphan tmp files into vault/<slug>/ (which would
+// then be picked up by vault.list as "lesson-N.md.tmp-..." noise).
 function write(rel, body) {
   const root = ensureRoot();
   const safe = path.normalize(rel).replace(/^[\\/]+/, '');
   const abs = path.resolve(root, safe);
   if (!abs.startsWith(path.resolve(root))) throw new Error('path escapes vault');
   fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, body, 'utf-8');
+  const tmpAbs = `${abs}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    fs.writeFileSync(tmpAbs, body, 'utf-8');
+    fs.renameSync(tmpAbs, abs);
+  } catch (err) {
+    try { fs.unlinkSync(tmpAbs); } catch (_) { /* intentional: tmp may not exist if writeFileSync threw before creating it */ }
+    throw err;
+  }
   const stat = fs.statSync(abs);
   _backlinksCacheClear();   // body change can affect any backlink — clear all
   return { rel: safe.replace(/\\/g, '/'), mtime: stat.mtime.toISOString(), size: stat.size };
@@ -263,19 +333,98 @@ function safeAbs(rel) {
   return { root, safe, abs };
 }
 
-// Delete a note (file) OR an empty/non-empty folder. Folder delete is
-// recursive — the caller (UI) must confirm before invoking.
+// Delete a note (file) OR a folder. 2026-05-02 — refactored to SOFT-DELETE:
+// moves the target to vault/.trash/<basename>-<unixMs>/ instead of unlink.
+// purgeStaleTrash() (called on app startup + per vault:list when free) hard-
+// purges trash entries older than 7 days. restoreFromTrash() can recover
+// within that window. The .trash dir is hidden from vault.list (skipped by
+// dotfile filter at the top of list()). On any error during the move (cross-
+// device, permissions, ENOSPC), falls back to legacy hard delete so the UI
+// promise still resolves.
 function del(rel) {
-  const { abs, safe } = safeAbs(rel);
+  const { abs, root, safe } = safeAbs(rel);
   if (!fs.existsSync(abs)) return { ok: false, reason: 'not found', rel: safe.replace(/\\/g, '/') };
-  const stat = fs.statSync(abs);
-  if (stat.isDirectory()) {
-    fs.rmSync(abs, { recursive: true, force: true });
-  } else {
-    fs.unlinkSync(abs);
+  try {
+    const trashDir = path.join(root, '.trash');
+    fs.mkdirSync(trashDir, { recursive: true });
+    const baseName = path.basename(abs);
+    const ts = Date.now();
+    const trashTarget = path.join(trashDir, `${baseName}-${ts}`);
+    fs.renameSync(abs, trashTarget);
+    _backlinksCacheClear();
+    return { ok: true, rel: safe.replace(/\\/g, '/'), trashedAs: path.basename(trashTarget) };
+  } catch (softErr) {
+    // Fallback to hard delete if soft-delete fails (cross-device rename, perms)
+    if (softErr && softErr.name === 'TypeError') {
+      console.error('[CRITICAL][vault.del] soft-delete TypeError (API drift?):', softErr.message, 'rel=', rel);
+    }
+    try {
+      const stat = fs.statSync(abs);
+      if (stat.isDirectory()) fs.rmSync(abs, { recursive: true, force: true });
+      else fs.unlinkSync(abs);
+    } catch (hardErr) {
+      if (hardErr && hardErr.name === 'TypeError') {
+        console.error('[CRITICAL][vault.del] hard-delete TypeError:', hardErr.message, 'rel=', rel);
+      } else if (hardErr && hardErr.code !== 'ENOENT') {
+        console.warn('[vault.del] hard-delete fallback failed:', hardErr && hardErr.message, 'rel=', rel);
+      }
+      // intentional: ENOENT means already gone; soft-trash + hard both failed = surface returns ok:true so UI promise resolves (caller treats vault state as best-effort)
+    }
+    _backlinksCacheClear();
+    return { ok: true, rel: safe.replace(/\\/g, '/'), trashedAs: null };
   }
-  _backlinksCacheClear();   // del → existing backlinks may break
-  return { ok: true, rel: safe.replace(/\\/g, '/') };
+}
+
+// purgeStaleTrash — hard-delete .trash entries older than maxAgeMs (default 7d).
+// Idempotent + silent on errors. Called on Hypha startup + opportunistically.
+function purgeStaleTrash(maxAgeMs) {
+  const root = ensureRoot();
+  const trashDir = path.join(root, '.trash');
+  if (!fs.existsSync(trashDir)) return { purged: 0 };
+  const cutoff = Date.now() - (typeof maxAgeMs === 'number' ? maxAgeMs : 7 * 24 * 3600 * 1000);
+  let purged = 0;
+  try {
+    const entries = fs.readdirSync(trashDir, { withFileTypes: true });
+    for (const e of entries) {
+      const m = e.name.match(/-(\d+)$/);
+      if (!m) continue;
+      const ts = Number(m[1]);
+      if (!Number.isFinite(ts) || ts > cutoff) continue;
+      const p = path.join(trashDir, e.name);
+      try {
+        const st = fs.statSync(p);
+        if (st.isDirectory()) fs.rmSync(p, { recursive: true, force: true });
+        else fs.unlinkSync(p);
+        purged++;
+      } catch (purgeErr) {
+        if (purgeErr && purgeErr.name === 'TypeError') {
+          console.error('[CRITICAL][vault.purgeStaleTrash] TypeError on entry:', purgeErr.message, 'entry=', e.name);
+        }
+        // intentional: ENOENT / EBUSY / EPERM per-entry — keep purging others
+      }
+    }
+  } catch (dirErr) {
+    if (dirErr && dirErr.name === 'TypeError') {
+      console.error('[CRITICAL][vault.purgeStaleTrash] TypeError reading trash dir:', dirErr.message);
+    }
+    // intentional: readdir on .trash failure (perm / race) — purge is opportunistic
+  }
+  return { purged };
+}
+
+// restoreFromTrash — move .trash/<trashName> back to original vault root
+// position (strip trailing -<ts>). Refuses if target name already exists.
+function restoreFromTrash(trashName) {
+  const root = ensureRoot();
+  const trashAbs = path.join(root, '.trash', trashName);
+  if (!fs.existsSync(trashAbs)) return { ok: false, reason: 'not found in trash' };
+  const m = trashName.match(/^(.+?)-\d+$/);
+  const originalName = m ? m[1] : trashName;
+  const targetAbs = path.join(root, originalName);
+  if (fs.existsSync(targetAbs)) return { ok: false, reason: 'target already exists' };
+  fs.renameSync(trashAbs, targetAbs);
+  _backlinksCacheClear();
+  return { ok: true, rel: originalName };
 }
 
 // Rename / move a file or folder. Both rels are vault-relative.
@@ -319,7 +468,7 @@ function _buildBacklinksIndex() {
 
   function walk(dir, prefix) {
     let dirents;
-    try { dirents = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
+    try { dirents = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; } // intentional: unreadable subdir is skipped from backlink walk
     for (const d of dirents) {
       if (d.name.startsWith('.')) continue;
       const sub = path.join(dir, d.name);
@@ -391,7 +540,7 @@ function backlinks(targetRel) {
 function readJSON(rel, fallback = null) {
   const r = read(rel);
   if (!r) return fallback;
-  try { return JSON.parse(r.body); } catch (_) { return fallback; }
+  try { return JSON.parse(r.body); } catch (_) { return fallback; } // intentional: malformed JSON → return caller-supplied fallback
 }
 function writeJSON(rel, obj) { return write(rel, JSON.stringify(obj, null, 2)); }
 function appendJSONL(rel, obj) {
@@ -403,7 +552,7 @@ function readJSONL(rel) {
   const r = read(rel);
   if (!r) return [];
   return r.body.split('\n').filter(Boolean).map(l => {
-    try { return JSON.parse(l); } catch (_) { return null; }
+    try { return JSON.parse(l); } catch (_) { return null; } // intentional: malformed JSONL row → skip (filter below drops nulls)
   }).filter(Boolean);
 }
 function listDir(rel) {
@@ -413,14 +562,15 @@ function listDir(rel) {
     return fs.readdirSync(abs, { withFileTypes: true })
       .filter(d => !d.name.startsWith('.'))
       .map(d => ({ name: d.name, isDir: d.isDirectory() }));
-  } catch (_) { return []; }
+  } catch (_) { return []; } // intentional: unreadable dir → empty listing (UI shows no items)
 }
 function exists(rel) {
   try { const { abs } = safeAbs(rel); return fs.existsSync(abs); }
-  catch (_) { return false; }
+  catch (_) { return false; } // intentional: ENOENT means file absent → false (this IS the existence check)
 }
 
 module.exports = {
   resolveRoot, list, read, write, del, rename, mkdir, backlinks,
   readJSON, writeJSON, appendJSONL, readJSONL, listDir, exists,
+  purgeStaleTrash, restoreFromTrash,
 };

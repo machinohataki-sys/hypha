@@ -1,0 +1,120 @@
+{
+  "_comment": "Quality Harness failure samples — 5 plan+body pairs that SHOULD trigger WARN or FAIL verdict. Each has a deliberately-engineered defect that the harness must catch.",
+  "_pass_criteria": "When fed through `runFullPipeline({preset:'lite'})`, all 5 should return verdict in {WARN, FAIL} (never PASS). For deep mode, Prosecutor should file ≥1 high-severity charge per sample.",
+  "samples": [
+    {
+      "name": "f1-overclaim-completion",
+      "_defect": "closing_prose claims 'complete cognitive structure' when lesson only covers I/O of one step",
+      "plan": {
+        "objective": "Identify the inputs and outputs of one workflow step.",
+        "prerequisite_check": null,
+        "hook_concrete": "一个工作流接收订单数据.",
+        "path": ["画白纸", "标 inputs", "标 outputs", "让同事复述"],
+        "micro_proof": { "stimulus": "列字段", "expected_signal": "order_id, sku", "fail_mode": "缺字段" },
+        "next_lesson_seed": "下一节"
+      },
+      "body": {
+        "intro_prose": "本节课聚焦于真正的核心.",
+        "path_prose": ["画白纸", "标输入", "标输出", "让同事复述"],
+        "closing_prose": "至此, 我们已经完整掌握了工作流设计的全部认知结构, 你已具备资深架构师的判断力."
+      },
+      "evidence_ledger": [],
+      "expected_verdict_min": "WARN"
+    },
+    {
+      "name": "f2-abstract-bloat-no-mechanism",
+      "_defect": "body uses 抽象名词堆叠 + '本质上 / 深层' 掩盖跳步, 没有具体 mechanism",
+      "plan": {
+        "objective": "Explain the 3 layers of a typical web auth system.",
+        "prerequisite_check": null,
+        "hook_concrete": "登录请求进来.",
+        "path": ["介绍 handler", "介绍 validator", "介绍 persister"],
+        "micro_proof": { "stimulus": "用 1 行说三层职责", "expected_signal": "handler validator persister", "fail_mode": "层混" },
+        "next_lesson_seed": "下一节"
+      },
+      "body": {
+        "intro_prose": "本质上, 现代 auth 系统是一个深层耦合的复杂涌现结构.",
+        "path_prose": [
+          "handler 层在抽象意义上承担接收和分发的本质功能.",
+          "validator 层从更深层次上保证了系统的完整性与一致性.",
+          "persister 层在结构性的意义上实现了状态的持久化与映射."
+        ],
+        "closing_prose": "三层共同涌现出一种安全的整体性."
+      },
+      "evidence_ledger": [],
+      "expected_verdict_min": "WARN"
+    },
+    {
+      "name": "f3-ingratiation-flooded",
+      "_defect": "body 含大量 ingratiation phrases (你真正抓住了关键 / 大多数人会误解 / 说实话 / 这其实是高手才会问的)",
+      "plan": {
+        "objective": "区分 SQL WHERE 和 HAVING.",
+        "prerequisite_check": null,
+        "hook_concrete": "WHERE 在前 HAVING 在后.",
+        "path": ["写 SQL", "标 WHERE 范围", "标 HAVING 范围"],
+        "micro_proof": { "stimulus": "为什么 WHERE 比 HAVING 早", "expected_signal": "rows aggregation", "fail_mode": "搞反" },
+        "next_lesson_seed": "下一节"
+      },
+      "body": {
+        "intro_prose": "说实话, 你真正抓住了关键 — 这其实是高手才会问的问题.",
+        "path_prose": [
+          "大多数人会误解这里, 但你已经接近核心了.",
+          "真正重要的是 WHERE 在 GROUP BY 之前. 我们可以更进一步.",
+          "这里有一个更深的结构, 但你的直觉是对的."
+        ],
+        "closing_prose": "坦白说, 你的提问质量已经超过常人."
+      },
+      "evidence_ledger": [],
+      "expected_verdict_min": "FAIL"
+    },
+    {
+      "name": "f4-empty-evidence-on-hard-claims",
+      "_defect": "evidence_ledger 含 hard claims (primary_source/reasoning) 但 evidence_pointer 全 null — validator 应抓",
+      "plan": {
+        "objective": "Define pure function properties.",
+        "prerequisite_check": null,
+        "hook_concrete": "Math.random() 不纯, add() 纯.",
+        "path": ["写 add", "证 deterministic", "去掉 side effects"],
+        "micro_proof": { "stimulus": "三性质", "expected_signal": "deterministic side effects same input", "fail_mode": "synonyms only" },
+        "next_lesson_seed": "下一节"
+      },
+      "body": {
+        "intro_prose": "纯函数有 3 个属性.",
+        "path_prose": ["deterministic", "no side effects", "same input → same output"],
+        "closing_prose": "记住 3 个性质."
+      },
+      "evidence_ledger": [
+        { "claim_ref": "path[0]", "claim_text": "deterministic", "evidence_type": "primary_source", "evidence_pointer": null, "confidence": "high", "verifiability": "high", "risk": "low" },
+        { "claim_ref": "path[1]", "claim_text": "no side effects", "evidence_type": "reasoning",       "evidence_pointer": null, "confidence": "high", "verifiability": "high", "risk": "low" }
+      ],
+      "expected_verdict_min": "WARN"
+    },
+    {
+      "name": "f5-skipped-hard-part",
+      "_defect": "Plan 里说会解释 mechanism, 但 body 跳过 — 用类比代替.",
+      "plan": {
+        "objective": "Explain how Levenshtein distance computes.",
+        "prerequisite_check": null,
+        "hook_concrete": "把 'cat' 改成 'cats' 需要几步?",
+        "path": [
+          "介绍 dynamic programming 公式.",
+          "走一遍 'cat' vs 'cats' 的矩阵.",
+          "解释 insert/delete/substitute 的代价."
+        ],
+        "micro_proof": { "stimulus": "Trace L('kitten','sitting')", "expected_signal": "matrix steps", "fail_mode": "黑盒答" },
+        "next_lesson_seed": "下一节"
+      },
+      "body": {
+        "intro_prose": "Levenshtein distance 衡量两个字符串的距离.",
+        "path_prose": [
+          "想象一个迷宫, 每走一步就改一个字.",
+          "公式很复杂, 你只需要知道它能算就行.",
+          "本质上是一种距离度量."
+        ],
+        "closing_prose": "这就是 Levenshtein distance."
+      },
+      "evidence_ledger": [],
+      "expected_verdict_min": "WARN"
+    }
+  ]
+}

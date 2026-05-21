@@ -1,0 +1,47 @@
+{
+  "id": "llm-systems-020",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Hoffmann et al. 2022 \"Training Compute-Optimal Large Language Models\" (Chinchilla) §3 + Eq. 4; arXiv:2203.15556",
+  "prompt_text": "Chinchilla compute-optimal model size: under the simplified relation N_opt = sqrt(C / 6), where C is total training compute in FLOPs and 6 is the FLOPs-per-parameter-token constant from Kaplan/Hoffmann. For C = 6e21 FLOPs, print N_opt as scientific notation to 4-decimal mantissa precision (e.g. via toExponential(4)).",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const C=6e21; const N=Math.pow(C/6,0.5); console.log(N.toExponential(4));",
+    "expected_stdout_hash": "abcce34156ad0d77dbdf531a04b4f323efb44fa401fb3595272f236f09467af7",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: names the FLOPs-per-param-token constant flops_per_param_token, uses Math.sqrt.",
+      "code": "const compute=6e21; const flops_per_param_token=6; const N_opt=Math.sqrt(compute/flops_per_param_token); console.log(N_opt.toExponential(4));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: drops the divide-by-6 (the FLOPs/parameter/token constant) and sqrts the raw compute.",
+      "code": "const C=6e21; const N=Math.sqrt(C); console.log(N.toExponential(4));",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: Chinchilla / flops_per_param_token / N_opt / Math.pow / toExponential present, but takes the CUBE root instead of the square root.",
+      "code": "const C=6e21; const flops_per_param_token=6; const N_opt=Math.pow(C/flops_per_param_token, 1/3); console.log(N_opt.toExponential(4));",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T06:28:56.682Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "62ecd59ff8b868b44ed370772eb54f7d06bcdd3075759ef9f552a9f6b55f7a1d",
+  "code_hash": "8dfb37116c5f7043adcd528b73292217b6368a78771e1b5f9fcd938eac2af3b2",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
+}

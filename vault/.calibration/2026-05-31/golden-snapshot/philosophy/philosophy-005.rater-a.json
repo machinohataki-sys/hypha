@@ -1,0 +1,35 @@
+{
+  "rater_id": "a",
+  "name": "author_ground_truth",
+  "ts": "2026-05-10T12:57:07.804Z",
+  "ratings": {
+    "c1": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "AUTHOR_GROUND_TRUTH (synthesized from features_hit_truth, calibration only)",
+      "ts": "2026-05-10T12:57:07.804Z"
+    },
+    "c2": {
+      "features_hit": [],
+      "verdict": "fail",
+      "justification": "AUTHOR_GROUND_TRUTH (synthesized from features_hit_truth, calibration only)",
+      "ts": "2026-05-10T12:57:07.804Z"
+    },
+    "c3": {
+      "features_hit": [
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "AUTHOR_GROUND_TRUTH (synthesized from features_hit_truth, calibration only)",
+      "ts": "2026-05-10T12:57:07.804Z"
+    }
+  },
+  "author_ground_truth": true,
+  "synthesized_from": "features_hit_truth",
+  "note": "AUTHOR_GROUND_TRUTH — calibration baseline ONLY. NOT a human rater. Real human labels (when collected) MUST overwrite this sidecar."
+}

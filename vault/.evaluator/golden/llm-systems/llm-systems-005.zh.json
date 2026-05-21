@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-005",
+  "source_hash": "89dc82a93c8a605308f67a8eb38ff502ee6dee1c4b88cbf10a6b2d67fb615dce",
+  "translated_at": "2026-05-11T02:01:01.511Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "let s=12345; const r=()=>{s=(1103515245*s+12345)%2147483648;return s/2147483648;}; let sum=0; for(let i=0;i<20;i++){sum+=(r()<0.3?0:1);} console.log(sum);"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(20);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(16);"
+    }
+  ],
+  "prompt_text_zh": "使用 LCG 种子=12345（乘数=1103515245，增量=12345，模数=2^31），p=0.3 dropout 率，n=20 个元素，生成一个确定性 dropout 掩码。掩码约定：r<p 表示丢弃 (0)，r>=p 表示保留 (1)。打印该掩码的整数和。"
+}

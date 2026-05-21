@@ -1,0 +1,48 @@
+{
+  "item_id": "philosophy-026",
+  "source_hash": "312a4e786c655f555940e77ea7a43cbb3055341d6926cf521155b785dc7820aa",
+  "translated_at": "2026-05-11T02:05:57.542Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "instance_zh": "罗素的摹状词 (theory of descriptions) 理论通过将限定摹状词 (definite description) 读作量化断言，在不承诺非存在指称物 (non-existent referent) 的情况下分析了“当今法国国王是秃子”。以三个逻辑步骤重构该分析，并指出它解决了关于空名 (empty names) 的何种谜题。",
+  "features_zh": [
+    {
+      "id": "f1",
+      "statement_zh": "限定摹状词 (definite description) 重写为量化断言（存在性 + 唯一性 + 谓词）",
+      "alt_phrasings_zh": [
+        "存在量词 (existential quantifier) 重写",
+        "存在恰好一个x"
+      ]
+    },
+    {
+      "id": "f2",
+      "statement_zh": "逻辑形式：恰好存在一个x，使得x是F的K且x是秃子",
+      "alt_phrasings_zh": [
+        "恰好一个x是F的K",
+        "x是唯一的且谓词成立"
+      ]
+    },
+    {
+      "id": "f3",
+      "statement_zh": "解决的谜题：空摹状词 (empty descriptions) 为假（而非无意义）；无需非存在对象 (non-existent objects)",
+      "alt_phrasings_zh": [
+        "避免迈农式对象 (Meinongian objects)",
+        "句子为假而非胡言乱语"
+      ]
+    }
+  ],
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "步骤1：将限定摹状词 (definite description) 重写为量化断言。步骤2：断言恰好存在一个x，使得x是法国国王且x是秃子——三个合取项：存在性、唯一性、谓述。步骤3：由于没有x满足F的K谓词，整个句子单纯为假。所解决的谜题在于，我们不再需要一个非存在的国王来使该句子有意义。"
+    },
+    {
+      "id": "c2",
+      "text_zh": "罗素说我们不应谈论不存在的事物。"
+    },
+    {
+      "id": "c3",
+      "text_zh": "该摹状词 (description) 展开为存在且唯一且秃子。因为不存在法国国王，该句子为假，而无需迈农式承诺 (Meinongian commitment)。"
+    }
+  ]
+}

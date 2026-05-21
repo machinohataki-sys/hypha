@@ -1,0 +1,47 @@
+{
+  "id": "basic-algorithms-003",
+  "topic": "basic-algorithms",
+  "lifecycle": "draft",
+  "source_anchor": "CLRS §9.1 minimum and maximum (linear-time scan); MDN Math.max with spread operator",
+  "prompt_text": "Find the maximum value in [4, 7, 2, 9, 1, 5] and print it. Expected output: \"9\".",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const a=[4,7,2,9,1,5]; let m=a[0]; for(let i=1;i<a.length;i++){if(a[i]>m)m=a[i];} console.log(m);",
+    "expected_stdout_hash": "2e6d31a5983a91251bfae5aefa1c0a19d8ba3cf601d0e8a706b4cfa9661a6b8a",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: Math.max with spread — built-in equivalent of the linear scan.",
+      "code": "const arr=[4,7,2,9,1,5]; console.log(Math.max(...arr));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: loop terminates at i<floor(length/2), only inspecting the first half — misses the 9 at index 3.",
+      "code": "const a=[4,7,2,9,1,5]; let m=a[0]; for(let i=1;i<Math.floor(a.length/2);i++){if(a[i]>m)m=a[i];} console.log(m);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: variable named \"max\", running scan structure intact, but the comparison is < instead of > so it tracks the minimum.",
+      "code": "const arr=[4,7,2,9,1,5]; let max=arr[0]; for(let i=1;i<arr.length;i++){if(arr[i]<max)max=arr[i];} console.log(max);",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T07:50:44.216Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "55b2603949cb9b2cf59515095a632f8ec4e2b30a989497d26aeef797137d5013",
+  "code_hash": "c647f84d4b1383d9f64afb458f82e59d1f4a182fa789496ef64c03304fc5cb43",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Second exec-cell domain seeded for V0.5 E1 mutation-test cross-domain validation."
+}

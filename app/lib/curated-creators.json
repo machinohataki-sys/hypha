@@ -1,0 +1,110 @@
+{
+  "_meta": {
+    "version": "v0.4.0",
+    "compiled_at": "2026-05-08",
+    "purpose": "L4 (engineering reality) + L1-adjacent (canonical pedagogy) substrate — top-tier educational YouTube creators whose pedagogical quality is high enough to anchor lessons. Read by app/agent.js:_harvestYouTube to (a) boost BM25 score 1.5x when channelId matches, (b) force-include top result when topic keyword high-matches a creator's specialization. Tagged sourceType='youtube-curated' (vs generic 'youtube').",
+    "refresh_policy": "Annual review. channelId is stable but creators occasionally rebrand or pause publication. last_verified field tracks each entry. If creator dies / rebrands / changes topic, demote to youtube-generic, do not silently retain.",
+    "schema_version": 1
+  },
+  "creators": [
+    {
+      "handle": "3blue1brown",
+      "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+      "name": "3Blue1Brown (Grant Sanderson)",
+      "specialization_keywords": ["linear algebra", "calculus", "differential equations", "neural network", "fourier", "topology", "probability", "vector", "matrix", "eigenvalue", "manim"],
+      "teaching_value": 95,
+      "authority": 85,
+      "content_type": "math-visualization",
+      "best_for_archetype": ["TECH-CONCEPT"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "handle": "AndrejKarpathy",
+      "channelId": "UCPk8m_r6fkUSYmvgCBwq-sw",
+      "name": "Andrej Karpathy",
+      "specialization_keywords": ["neural network", "transformer", "gpt", "from scratch", "backprop", "tokenizer", "llm", "training", "pytorch", "micrograd", "makemore", "nanoGPT"],
+      "teaching_value": 95,
+      "authority": 95,
+      "content_type": "ai-zero-to-hero",
+      "best_for_archetype": ["TECH-CONCEPT", "TECH-PROC"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "handle": "veritasium",
+      "channelId": "UCHnyfMqiRRG1u-2MsSQLbXA",
+      "name": "Veritasium (Derek Muller)",
+      "specialization_keywords": ["physics", "electromagnetism", "quantum", "relativity", "thermodynamics", "intuition", "misconception"],
+      "teaching_value": 90,
+      "authority": 80,
+      "content_type": "physics-intuition",
+      "best_for_archetype": ["TECH-CONCEPT", "DECL-MASS"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "handle": "TwoMinutePapers",
+      "channelId": "UCbfYPyITQ-7l4upoX8nvctg",
+      "name": "Two Minute Papers",
+      "specialization_keywords": ["paper", "research", "ai", "graphics", "simulation", "rendering", "neural", "diffusion"],
+      "teaching_value": 75,
+      "authority": 70,
+      "content_type": "research-summary",
+      "best_for_archetype": ["TECH-CONCEPT"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "handle": "Computerphile",
+      "channelId": "UC9-y-6csu5WGm29I7JiwpnA",
+      "name": "Computerphile",
+      "specialization_keywords": ["compiler", "algorithm", "cryptography", "operating system", "type system", "theory of computation", "language design", "regex"],
+      "teaching_value": 85,
+      "authority": 85,
+      "content_type": "cs-theory",
+      "best_for_archetype": ["TECH-CONCEPT", "TECH-PROC"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "handle": "statquest",
+      "channelId": "UCtYLUTtgS3k1Fg4y5tAhLbw",
+      "name": "StatQuest with Josh Starmer",
+      "specialization_keywords": ["statistics", "regression", "pca", "decision tree", "random forest", "xgboost", "bayesian", "p-value", "anova", "hypothesis test"],
+      "teaching_value": 95,
+      "authority": 80,
+      "content_type": "stats-from-scratch",
+      "best_for_archetype": ["TECH-CONCEPT", "DECL-MASS"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "handle": "Mathologer",
+      "channelId": "UC1_uAIS3r8Vu6JjXWvastJg",
+      "name": "Mathologer (Burkard Polster)",
+      "specialization_keywords": ["number theory", "algebra", "combinatorics", "geometry", "proof", "famous problem", "ramanujan", "fermat", "euler"],
+      "teaching_value": 90,
+      "authority": 85,
+      "content_type": "math-deep-dive",
+      "best_for_archetype": ["TECH-CONCEPT"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "handle": "Reducible",
+      "channelId": "UCK8XIGR5kRidIw2fWqwyHRA",
+      "name": "Reducible",
+      "specialization_keywords": ["algorithm", "graph", "shortest path", "fft", "compression", "huffman", "raytracing", "quadtree", "cs theory"],
+      "teaching_value": 90,
+      "authority": 80,
+      "content_type": "algorithms-visualization",
+      "best_for_archetype": ["TECH-CONCEPT", "TECH-PROC"],
+      "last_verified": "2026-05-08"
+    },
+    {
+      "handle": "WelchLabsVideo",
+      "channelId": "UConVfxXodg78Tzh5nNu85Ew",
+      "name": "Welch Labs",
+      "specialization_keywords": ["calculus", "neural network", "imaginary number", "complex analysis", "probability", "ai foundations"],
+      "teaching_value": 85,
+      "authority": 75,
+      "content_type": "math-and-ai-intuition",
+      "best_for_archetype": ["TECH-CONCEPT"],
+      "last_verified": "2026-05-08"
+    }
+  ]
+}

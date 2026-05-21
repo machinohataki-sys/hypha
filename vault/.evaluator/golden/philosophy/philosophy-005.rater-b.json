@@ -1,0 +1,35 @@
+{
+  "rater_id": "b",
+  "name": "wolf",
+  "ts": "2026-05-10T12:54:55.121Z",
+  "ratings": {
+    "c1": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "Candidate hits all features: f1 with 'non-physical structure', f2 with 'identical empirical predictions', f3 with 'metaphysical, not falsifiable'.",
+      "ts": "2026-05-10T12:54:50.517Z"
+    },
+    "c2": {
+      "features_hit": [],
+      "verdict": "fail",
+      "justification": "Candidate response fails to address any of the required features substantively.",
+      "ts": "2026-05-10T12:54:52.228Z"
+    },
+    "c3": {
+      "features_hit": [
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "The candidate correctly notes that nominalism and realism make identical empirical predictions (f2) and that the debate cannot be settled empirically (f3), but fails to specify an observable consequence of Plato's theory (f1).",
+      "ts": "2026-05-10T12:54:55.121Z"
+    }
+  },
+  "wolf_baseline": true,
+  "model": "glm-direct:glm-4.5-air",
+  "cost_estimate_yuan": 0.015
+}

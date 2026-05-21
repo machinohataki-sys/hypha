@@ -1,0 +1,47 @@
+{
+  "id": "llm-systems-007",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Sennrich Haddow Birch 2016 \"Neural Machine Translation of Rare Words with Subword Units\" §3 BPE; Touvron et al. 2023 LLaMA §2 tokenizer",
+  "prompt_text": "For the simple whitespace-split tokenizer applied to \"the quick brown fox jumps over the lazy dog\", compute average bytes per token = utf8_byte_length / token_count. Print to 4 decimal places.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const text='the quick brown fox jumps over the lazy dog'; const tokens=text.split(/\\s+/); const bytes=text.length; const avg=bytes/tokens.length; console.log(avg.toFixed(4));",
+    "expected_stdout_hash": "90435147b1c9a185cb9f71cf5ba1d34fcec2bbf8465a22c072fa3549c2e46241",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: uses Buffer.byteLength UTF-8 byte counter and literal-space split — same numerator/denominator.",
+      "code": "const sentence='the quick brown fox jumps over the lazy dog'; const tok_count=sentence.split(' ').length; const utf8_bytes=Buffer.byteLength(sentence,'utf8'); const bpt=utf8_bytes/tok_count; console.log(bpt.toFixed(4));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: inverts the ratio (tokens-per-byte instead of bytes-per-token).",
+      "code": "const text='the quick brown fox jumps over the lazy dog'; const tokens=text.split(/\\s+/); const ratio=tokens.length/text.length; console.log(ratio.toFixed(4));",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: uses tokens / utf8_bytes vocabulary, but counts byte length of tokens.join(\"\") which drops the 8 separator chars.",
+      "code": "const text='the quick brown fox jumps over the lazy dog'; const tokens=text.split(/\\s+/); const utf8_bytes=tokens.join('').length; const avg=utf8_bytes/tokens.length; console.log(avg.toFixed(4));",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T06:28:56.416Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "257a08087d069debc2d4bcce9568c0efc0a1a8cf1f953da16e85a19401530855",
+  "code_hash": "5e4e897f008e4ed70b970185d490b77f8e4b8a458bc17b169aab2935fe6d9e00",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
+}

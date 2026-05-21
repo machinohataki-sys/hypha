@@ -1,0 +1,38 @@
+{
+  "id": "failure-02-jargon-soup",
+  "topic": "神经网络反向传播",
+  "failure_mode": "jargon-soup",
+  "lesson_body_snippet": {
+    "thesis": "Backprop 通过 chain rule 在 computation graph 上做 reverse-mode autodiff, 实现 gradient descent 的 efficient gradient computation.",
+    "canonical_example": "在 MLP / CNN / RNN / Transformer 等 architecture 中, backprop 通过 BPTT / vanilla SGD / Adam / AdamW optimizer 进行 weight update.",
+    "common_misconceptions": [
+      "Backprop 是 vanishing/exploding gradient 的 cause.",
+      "Backprop 与 forward propagation 是 dual operation."
+    ],
+    "exit_proof": "请实现 a simple backprop algorithm using PyTorch autograd.",
+    "mechanism_explanation": "Backprop 通过 reverse-mode automatic differentiation 应用 chain rule on a directed acyclic computation graph, 把 loss function 的 gradient 反向传递到 weights, 完成 parameter update 的 vectorized computation.",
+    "jargon_list": [
+      "chain rule",
+      "reverse-mode autodiff",
+      "computation graph",
+      "BPTT",
+      "AdamW",
+      "vanishing gradient",
+      "exploding gradient",
+      "DAG"
+    ]
+  },
+  "why_fails": "Thesis 三层术语堆叠 (chain rule + computation graph + reverse-mode autodiff + gradient descent) 而无任何 plain-language gloss; canonical_example 列 4 个 architecture + 4 个 optimizer 名 = 术语购物清单 不教任何具体; jargon_list 8 条超过 max 5 + 各 entry 没 gloss; mechanism 全是 术语对术语 翻译, 0 个 body metaphor.",
+  "nine_dim_actual_scores": {
+    "goalCoherence": 50,
+    "jargonControl": 5,
+    "levelMatch": 20,
+    "misconceptionDefense": 30,
+    "evidenceOfLearning": 25,
+    "actionConversion": 30,
+    "productTransferQuality": 25,
+    "notGenericCourse": 35,
+    "hyphaSoul": 15
+  },
+  "regression_assertion": "harness 必须把此 sample 判 FAIL — jargonControl < 20 且 overall_score < 40."
+}

@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-019",
+  "source_hash": "dc8ca9a574c2edb0c723038f437aaa769183386d21ccf7b81982d4ec4384f0a5",
+  "translated_at": "2026-05-11T02:08:51.488Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const s=1024,d=64,b=256; console.log((((s*d+d*b)*(s/b))/(4*s*s*d)).toFixed(6));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(0.5);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"0.001221\");"
+    }
+  ],
+  "prompt_text_zh": "FlashAttention 相较于普通注意力 (attention) 的 HBM 访问比率：普通注意力 (attention) 读写约 4 * seq_len^2 * head_dim 字节的 HBM。分块 FlashAttention 在 (seq_len / block_size) 个分块中，每个外层分块读取 (seq_len * head_dim + head_dim * block_size)。给定 seq_len=1024，head_dim=64，block_size=256，打印 flash/vanilla 的比率，保留至小数点后 6 位。"
+}

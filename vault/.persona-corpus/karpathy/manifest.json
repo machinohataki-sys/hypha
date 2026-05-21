@@ -1,0 +1,43 @@
+{
+  "persona_id": "karpathy",
+  "display_name": "Andrej Karpathy",
+  "compiled_date": "2026-05-09",
+  "purpose": "HYPHA tutor persona corpus distillation, v0.5.1 lane, 1st persona",
+  "sources": {
+    "twitter": {
+      "file": "twitter.json",
+      "note": "X anonymous-throttled to 5 most-recent posts; bb-browser daemon. Search endpoint returned error.",
+      "tweet_count": 5
+    },
+    "blog": {
+      "dir": "blog/",
+      "essays": [
+        {"slug": "recipe", "title": "A Recipe for Training Neural Networks", "date": "2019-04-25", "chars": 23126, "weight": "high — pure pedagogy / canonical reasoning style"},
+        {"slug": "lecun1989", "title": "Deep Neural Nets: 33 years ago and 33 years from now", "date": "2022-03-14", "chars": 16024, "weight": "high — historical reflection + projection"},
+        {"slug": "rnn-effectiveness", "title": "The Unreasonable Effectiveness of Recurrent Neural Networks", "date": "2015-05-21", "chars": 48953, "weight": "very high — landmark essay, voice signature"},
+        {"slug": "microgpt", "title": "microgpt", "date": "2026-02-12", "chars": 36363, "weight": "very high — most recent voice"},
+        {"slug": "phd", "title": "A Survival Guide to a PhD", "date": "2016-09-07", "chars": 47768, "weight": "high — meta-pedagogy + life advice register"},
+        {"slug": "pong-rl", "title": "Deep Reinforcement Learning: Pong from Pixels", "date": "2016-05-31", "chars": 40889, "weight": "high — long-form first-principles tutorial"},
+        {"slug": "imagenet-competing", "title": "What I learned from competing against a ConvNet on ImageNet", "date": "2014-09-02", "chars": 19019, "weight": "medium — first-person reflection register"}
+      ],
+      "total_chars": 232142
+    },
+    "talks": {
+      "dir": "talks/",
+      "transcripts": [
+        {"slug": "lets_build_gpt", "title": "Let's build GPT: from scratch, in code, spelled out", "date": "2023-01-17", "chars": 110313, "verbatim": true, "via": "ytscribe → pickscribe.com"},
+        {"slug": "intro_to_llms", "title": "[1hr Talk] Intro to Large Language Models", "date": "2023-11-22", "chars": 65679, "verbatim": true, "via": "ytscribe"},
+        {"slug": "state_of_gpt_medium_summary", "title": "State of GPT (3rd-party Tony Tong analysis)", "date": "2023-05-27", "chars": 21128, "verbatim": false, "note": "ytscribe paywalled; karpathy.ai/stateofgpt.pdf 404 → using Medium summary"},
+        {"slug": "state_of_gpt_glasp_summary", "title": "State of GPT (Glasp summary)", "date": "2023-05-24", "chars": 3645, "verbatim": false}
+      ],
+      "total_chars": 200765
+    }
+  },
+  "total_corpus_chars": 432912,
+  "total_corpus_words_estimate": 65000,
+  "distillation_target": {
+    "schema": "Character Contract per app/lib/agent-character/contracts/mycelium-professor.json",
+    "output_path": "app/lib/agent-character/contracts/karpathy.json",
+    "wisdom_md": "vault/.persona-wisdom/karpathy.md"
+  }
+}

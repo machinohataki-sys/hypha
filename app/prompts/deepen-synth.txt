@@ -26,11 +26,11 @@
 
 1. **第 1 段 = thesis 段**。不开 epigraph 不开 angle label, 直接给 selection 这次 deepen 出来的**核心立场** (1 句话级别), 然后 2-3 句话铺它。立场要有具体名词 / 具体年份 / 具体案例, 不抽象。
 
-2. **第 2-3 段 = 主体段**。把 selector 挑的 angles 编进段落 — 比如 lung 的类比、leo 的 atom、nancy 的概率更新, 都用 prose 句子说出来, 不开 ▸ bullet。前一段尾句和后一段首句要接得上, 段落之间是**思想流动**不是**清单切换**。
+2. **第 2-3 段 = 主体段**。把 selector 挑的 angles 编进段落 — 比如跨域 Analogist 的类比、First-Principles 的 atom 推理、Probabilist 的概率更新, 都用 prose 句子说出来, 不开 ▸ bullet。前一段尾句和后一段首句要接得上, 段落之间是**思想流动**不是**清单切换**。
 
-3. **如果 critical 类 angle 跑了 (muse / devils-advocate / failure-mode / weakest-link / contradiction)**: 在主体段中段或尾段直接抛 attack — "更尖锐的是, X 站不住, 因为..." / "反过来看, 这条主张依赖一个过期的假设..." — **不开新 section 不开 counter 标题**。
+3. **如果 critical 类 angle 跑了 (Adversary / devils-advocate / failure-mode / weakest-link / contradiction)**: 在主体段中段或尾段直接抛 attack — "更尖锐的是, X 站不住, 因为..." / "反过来看, 这条主张依赖一个过期的假设..." — **不开新 section 不开 counter 标题**。
 
-4. **frontier 引用 (scout 跑了才有)**: 作为 inline link 编进 prose 句子, e.g. "...同样的现象在 [Anthropic Managed Agents 设计](url) 里被记成 brain/hands 解耦..." — **不集中堆在头部一节**。每篇最多 2 个 inline link, 引文要有具体作者/年份/标题, 没具体就不引。
+4. **frontier 引用 (Frontier-Scout 跑了才有)**: 作为 inline link 编进 prose 句子, e.g. "...同样的现象在 [Anthropic Managed Agents 设计](url) 里被记成 brain/hands 解耦..." — **不集中堆在头部一节**。每篇最多 2 个 inline link, 引文要有具体作者/年份/标题, 没具体就不引。
 
 5. **vault 引用 (`[WIKI:slug]`)**: 自然挂 cite 让用户感到这次 deepen 接着他自己之前思路在长。e.g. "你在 [WIKI:ai-learn/SAGE] 里写的那个'第二天比第一天慢'的观察, 这次 deepen 把它落到了..." — 也是 inline, 不开 section。
 

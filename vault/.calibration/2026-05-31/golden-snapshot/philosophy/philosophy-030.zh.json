@@ -1,0 +1,48 @@
+{
+  "item_id": "philosophy-030",
+  "source_hash": "23663b9b77b3ff7c7d08ecb181f02adb21352670562cb54e0dc44cc2e951214a",
+  "translated_at": "2026-05-11T01:55:58.983Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "instance_zh": "蒯因 (Quine) 攻击了分析-综合 (analytic-synthetic) 区分，并主张信念之网 (web of belief) 作为整体面对经验。分三步重构这一整体论 (holism) 主张，并指出它对理论修正施加的一项实践方法论约束。",
+  "features_zh": [
+    {
+      "id": "f1",
+      "statement_zh": "拒绝严格的分析-综合 (analytic-synthetic) 划分：任何信念原则上都是可修正的",
+      "alt_phrasings_zh": [
+        "无坚固的分析-综合 (analytic-synthetic) 界线",
+        "任何陈述皆可修正"
+      ]
+    },
+    {
+      "id": "f2",
+      "statement_zh": "信念之网 (web of belief)：理论作为整体面对经验，而非逐条陈述地面对（迪昂-蒯因确证整体论 / Duhem-Quine confirmation holism）",
+      "alt_phrasings_zh": [
+        "确证整体论 (confirmation holism)",
+        "迪昂-蒯因论题 (Duhem-Quine thesis)"
+      ]
+    },
+    {
+      "id": "f3",
+      "statement_zh": "方法论约束：在顽固的经验证据面前，我们可以在任何地方进行修正，但保守主义 (conservatism) 与简单性 (simplicity) 指导着应放弃哪些信念",
+      "alt_phrasings_zh": [
+        "修正中的保守主义 (conservatism)",
+        "最小损伤 (minimum mutilation)"
+      ]
+    }
+  ],
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "第一步：没有陈述是严格分析的 (analytic) 从而可免于修正；分析-综合 (analytic-synthetic) 界线至多只是一个程度问题。第二步：理论作为联合体面对经验——即迪昂-蒯因 (Duhem-Quine) 观点，没有任何单一陈述能够被孤立地确证或反驳。第三步：当经验证据反驳时，我们可以自由地修正网络中的任何地方，但保守主义 (conservatism)（最小损伤 / minimum mutilation）与简单性 (simplicity) 指导着应优先放弃哪些信念。"
+    },
+    {
+      "id": "c2",
+      "text_zh": "蒯因 (Quine) 是一位否认分析性 (analyticity) 的经验主义者。"
+    },
+    {
+      "id": "c3",
+      "text_zh": "任何信念皆是可修正的。网络作为整体面对经验，而非逐条陈述地面对。约束在于以最小损伤 (minimum mutilation) 进行修正，优先修正边缘而非核心。"
+    }
+  ]
+}

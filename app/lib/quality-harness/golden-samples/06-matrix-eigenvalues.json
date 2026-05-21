@@ -1,0 +1,37 @@
+{
+  "id": "golden-06-matrix-eigenvalues",
+  "topic": "矩阵特征值",
+  "user_profile": "中级",
+  "goal": "理解特征值是矩阵线性变换的 '不动方向上的伸缩比', 不是抽象数",
+  "ideal_lesson_body": {
+    "thesis": "By the end of this lesson, the learner will identify, for any 2x2 transformation matrix, the directions that survive the transformation and read off the corresponding stretch factors.",
+    "canonical_example": "Shear matrix [[1,1],[0,1]] — 唯一不动方向是 x 轴 (λ=1, 唯一特征向量), 其余方向都被歪斜. 反例 rotation [[0,-1],[1,0]] 无实特征向量.",
+    "common_misconceptions": [
+      "Eigenvalue = matrix 的某种 '大小' / norm. 错: eigenvalue 是 '某个方向上的 stretch ratio', 与 matrix 的 norm 是不同 invariant.",
+      "所有 matrix 都有实 eigenvalue. 错: 2D 旋转 90° 没有任何向量被映回自己 (除 0), 所以 eigenvalue 是复数."
+    ],
+    "exit_proof": "给学习者三个 2x2 matrix (shear / reflection across y=x / 90° rotation), 让 ta 不算行列式, 直接画/想 哪些向量被映回自己倍, 并读出 λ.",
+    "mechanism_explanation": "矩阵 A 把每条向量推到新方向 — 大部分向量被歪掉, 但有的方向被映回原方向 (只是长度变了). 这些 '硬骨头方向' 就是 eigenvector, 那个 '长度变化倍数' 就是 eigenvalue.",
+    "jargon_list": [
+      "eigenvector — 被 A 作用后方向不变的非零向量",
+      "eigenvalue — eigenvector 在 A 下被拉伸的倍数",
+      "characteristic polynomial — det(A - λI) = 0, 求 λ 的方程"
+    ],
+    "note_connection": "(first lesson — no prior note to bind to)",
+    "learn_goal": "理解特征值是矩阵线性变换的 '不动方向上的伸缩比', 不是抽象数",
+    "user_profile": "中级",
+    "intro_hook_scene": "1929 von Mises 给 power iteration 写论文时, 注意到反复乘 A 后 几乎任何起始向量都会指向 '最大 λ 对应的特征向量' — 像河流终归大海."
+  },
+  "nine_dim_target_scores": {
+    "goalCoherence": 90,
+    "jargonControl": 85,
+    "levelMatch": 85,
+    "misconceptionDefense": 90,
+    "evidenceOfLearning": 90,
+    "actionConversion": 80,
+    "productTransferQuality": 70,
+    "notGenericCourse": 85,
+    "hyphaSoul": 80
+  },
+  "notes": "Golden because: 用 shear 而非 diagonal matrix 当 canonical_example (反 textbook); exit_proof 让 user 不算 det 直接几何推理 = 真理解测试; misconception 复 eigenvalue 是高发盲点."
+}

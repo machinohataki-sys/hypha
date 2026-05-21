@@ -1,0 +1,33 @@
+{
+  "id": "failure-01-generic-textbook",
+  "topic": "AI Agent 入门",
+  "failure_mode": "generic-textbook",
+  "lesson_body_snippet": {
+    "thesis": "本课介绍 AI Agent 的基本概念, 包括 agent 的定义, 类型, 架构和应用.",
+    "canonical_example": "Agent 在很多领域都有应用, 例如客服, 推荐, 自动驾驶等.",
+    "common_misconceptions": [
+      "Agent 是 AI 的一种.",
+      "Agent 与机器人是一样的."
+    ],
+    "exit_proof": "测验: agent 的英文是什么? agent 的中文是什么?",
+    "mechanism_explanation": "Agent 通过感知 (perception)、决策 (decision)、执行 (action) 三个步骤完成任务. 这是 agent 的标准架构.",
+    "jargon_list": [
+      "agent — 智能代理",
+      "perception — 感知",
+      "decision — 决策"
+    ]
+  },
+  "why_fails": "Thesis 用 'X 的基本概念, 包括...' encyclopedia framing — 没有可证伪的 thesis, 没具体场景; canonical_example 无人名/年份/数字 — 'agent 在很多领域应用' = 营销话术不是教学; misconception 两条都是 vacuous (无人真信); exit_proof 是 recall 测验不是 apply; mechanism 用 '标准架构' 死记词. 整 lesson 像 B 站网课, 不带 HYPHA 灵魂.",
+  "nine_dim_actual_scores": {
+    "goalCoherence": 30,
+    "jargonControl": 35,
+    "levelMatch": 40,
+    "misconceptionDefense": 15,
+    "evidenceOfLearning": 10,
+    "actionConversion": 15,
+    "productTransferQuality": 10,
+    "notGenericCourse": 5,
+    "hyphaSoul": 10
+  },
+  "regression_assertion": "harness 必须把此 sample 判 FAIL — overall_score < 40 且 hyphaSoul < 30."
+}

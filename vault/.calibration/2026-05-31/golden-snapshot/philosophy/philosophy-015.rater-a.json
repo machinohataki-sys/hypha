@@ -1,0 +1,23 @@
+{
+  "rater_id": "a",
+  "name": "founder",
+  "ts": "2026-05-11T04:37:25.129Z",
+  "ratings": {
+    "c1": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "",
+      "ts": "2026-05-11T04:37:09.272Z"
+    },
+    "c2": {
+      "features_hit": [],
+      "verdict": "fail",
+      "justification": "",
+      "ts": "2026-05-11T04:37:25.129Z"
+    }
+  }
+}

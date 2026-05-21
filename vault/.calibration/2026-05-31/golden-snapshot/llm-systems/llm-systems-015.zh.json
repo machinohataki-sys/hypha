@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-015",
+  "source_hash": "03f73ea189774bc4b31979a16ecd106b4dfc86ecd48a434fb6cc9cc9a06349da",
+  "translated_at": "2026-05-11T02:07:12.982Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const c=-1.2,r=-2.0; console.log((1/(1+Math.exp(-(c-r)))).toFixed(6));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(0.5);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"0.689974\");"
+    }
+  ],
+  "prompt_text_zh": "用于RLHF奖励建模的Bradley-Terry偏好概率：给定 chosen_logp = -1.2 与 rejected_logp = -2.0，计算 P(chosen > rejected) = sigmoid(chosen_logp - rejected_logp)。打印至小数点后6位。"
+}

@@ -26,3 +26,46 @@ Thumbs.db
 # Backup / lock files
 *.bak
 *.tmp
+
+# V0.5 — temp smoke + scratch files
+.tmp-smoke-*
+
+# V0.5 — SQLite indices + test slugs are machine-local
+*.db
+*.db-shm
+*.db-wal
+vault/test-slug/
+vault/.events-quarantine/
+
+# V0.5 — pre-V0.5 archive + scratch + helpers
+vault/.archive-pre-v0.5/
+.tmp-meow-audit/
+bench-corpus-test/
+bench-test-report.json
+_bare_test_temp.js
+_brace.cjs
+_brace_check_temp.js
+_check_braces.cjs
+_inspect_ocw.js
+_inspect_ocw2.js
+_inspect_oyc.js
+_inspect_oyc2.js
+_orig.jsx
+_perline.cjs
+_smoke_layer1.js
+_verify_pack_temp.js
+g1-form*.md
+"E*victor*"
+
+# Vault is user-local; only methodology subdirs are tracked
+vault/*
+!vault/.evaluator/
+!vault/.evaluator/**
+!vault/.dev-log/
+!vault/.dev-log/**
+!vault/.calibration/
+!vault/.calibration/**
+!vault/.persona-corpus/
+!vault/.persona-corpus/**
+!vault/.persona-wisdom/
+!vault/.persona-wisdom/**

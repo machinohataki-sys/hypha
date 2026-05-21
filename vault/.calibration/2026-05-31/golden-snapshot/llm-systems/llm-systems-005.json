@@ -1,0 +1,47 @@
+{
+  "id": "llm-systems-005",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Srivastava et al. 2014 \"Dropout\" §4; PyTorch torch.nn.functional.dropout reference",
+  "prompt_text": "Generate a deterministic dropout mask using LCG seed=12345 (multiplier=1103515245, increment=12345, modulus=2^31), p=0.3 dropout rate, n=20 elements. Mask convention: r<p means dropped (0), r>=p means kept (1). Print the integer sum of the mask.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "let s=12345; const rand=()=>{s=(1103515245*s+12345)%2147483648;return s/2147483648;}; const p=0.3; const n=20; let sum=0; for(let i=0;i<n;i++){sum+=(rand()<p?0:1);} console.log(sum);",
+    "expected_stdout_hash": "e6c21e8d260fe71882debdb339d2402a2ca7648529bc2303f48649bce0380017",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: same LCG via bitwise mod-2^31 mask + while loop counting keeps.",
+      "code": "let state=12345; function next(){state=(1103515245*state+12345)&0x7FFFFFFF;return state/2147483648;} let kept=0,i=0; while(i++<20){ if(next()>=0.3) kept++; } console.log(kept);",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: inverts the dropout convention (treats r>=p as dropped instead of kept).",
+      "code": "let s=12345; const r=()=>{s=(1103515245*s+12345)%2147483648;return s/2147483648;}; let sum=0; for(let i=0;i<20;i++){sum+=(r()>=0.3?0:1);} console.log(sum);",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: LCG vocabulary (multiplier / increment / modulus) and right loop, but uses 2^32 modulus (unsigned) instead of 2^31 (signed) — the classic stdlib lcg signedness slip.",
+      "code": "let s=12345; const multiplier=1103515245,increment=12345,modulus=4294967296; const r=()=>{s=(multiplier*s+increment)%modulus;return s/modulus;}; let sum=0; for(let i=0;i<20;i++){sum+=(r()<0.3?0:1);} console.log(sum);",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T06:28:56.375Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "8f24712e183aa6cac075d376c27b4139afd9f92cbee317aa1bc1ac03697ae86c",
+  "code_hash": "1b554e0bf5ef4448ffc57497b0e1bf288607554e030d0fbb608474761cd7c166",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
+}

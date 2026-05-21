@@ -1,0 +1,47 @@
+{
+  "id": "basic-algorithms-002",
+  "topic": "basic-algorithms",
+  "lifecycle": "draft",
+  "source_anchor": "CLRS §2.1 insertion sort / §2.3 merge sort (general comparison-sort correctness); MDN Array.prototype.sort numeric comparator",
+  "prompt_text": "Sort the array [3, 1, 4, 1, 5, 9, 2, 6] in ascending numeric order and print it as JSON. Expected output: \"[1,1,2,3,4,5,6,9]\".",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const a=[3,1,4,1,5,9,2,6]; a.sort((x,y)=>x-y); console.log(JSON.stringify(a));",
+    "expected_stdout_hash": "b31b75771c282234588a38e9b4b2d4c1db40c0cde37a78dd61bf311a4026f053",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: non-mutating spread-then-sort with the same (a,b)=>a-b comparator.",
+      "code": "const arr=[3,1,4,1,5,9,2,6]; const sorted=[...arr].sort((a,b)=>a-b); console.log(JSON.stringify(sorted));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: single bubble-sort pass only swaps adjacent pairs once, leaving the array unsorted (a full bubble sort needs n-1 passes).",
+      "code": "const a=[3,1,4,1,5,9,2,6]; for(let i=0;i<a.length-1;i++){if(a[i]>a[i+1]){const t=a[i]; a[i]=a[i+1]; a[i+1]=t;}} console.log(JSON.stringify(a));",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: uses sort with (a,b)=>... comparator and spread copy, but the comparator sign is flipped so the array sorts descending.",
+      "code": "const arr=[3,1,4,1,5,9,2,6]; const sorted=[...arr].sort((a,b)=>b-a); console.log(JSON.stringify(sorted));",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T07:50:44.196Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "517bf7fb8964f1b2479fa00629ffbf9784bf023c217acf26b0cd44e7b7e823fb",
+  "code_hash": "2fc59d41b29218b715ac81a81d20a71f022beca5923f73d831c16c0e328655da",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Second exec-cell domain seeded for V0.5 E1 mutation-test cross-domain validation."
+}

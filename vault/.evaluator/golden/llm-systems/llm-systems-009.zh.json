@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-009",
+  "source_hash": "78f6521ab33a6f09c2f524e1f8f76e2db34f7b13ec6be2953bbdad105bdd35ba",
+  "translated_at": "2026-05-11T02:03:51.706Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const L=32,k=4; console.log(((L/k+k)/L).toFixed(4));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log(0.25);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"0.3750\");"
+    }
+  ],
+  "prompt_text_zh": "梯度检查点 (gradient checkpointing) 内存比例：使用 L=32 个 Transformer 层和每隔 k 段检查点 (checkpoint-every-k segments)，其中 k=4，全激活缓存 (full activation cache) 为 L 单位；检查点缓存为 (L/k) 个检查点加上活动段内重新计算的 k 个激活。打印比例 = (L/k + k) / L，保留 4 位小数。"
+}

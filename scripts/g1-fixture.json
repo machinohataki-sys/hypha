@@ -1,0 +1,68 @@
+{
+  "_comment": "G1 v0.1 acceptance gate fixture — Micro Proof inter-rater reliability.",
+  "_design": "5 micro_proof cases — 2 clearly-pass / 1 clearly-fail / 2 borderline. Each tester scores 0-100 independently. Pass: max |score_A - score_B| ≤ 15 across 5 cases.",
+  "_pass_criteria_fill_in": "After 2 testers fill score_A + score_B, compute |score_A - score_B| per row. PASS if max diff ≤ 15. Also compute Cohen's κ on binary pass/fail (≥60 → pass, <60 → fail) and confirm κ ≥ 0.6.",
+  "_runner": "scripts/g1-blank-form.cjs (prints markdown form for testers to fill)",
+  "cases": [
+    {
+      "name": "1-clearly-pass-list",
+      "_intent": "clearly pass — response contains all expected tokens with structure",
+      "stimulus": "List the 4 components of an LLM agent loop.",
+      "expected_signal": "Response contains: prompt, tool, observation, decision.",
+      "fail_mode": "missing components / generic words / no separators",
+      "user_response": "1) prompt — input to model 2) tool — external function the model calls 3) observation — tool's output 4) decision — model picks next step or stops.",
+      "score_A": null,
+      "score_B": null,
+      "tester_A_reason": "",
+      "tester_B_reason": ""
+    },
+    {
+      "name": "2-clearly-pass-artifact",
+      "_intent": "clearly pass — production-style artifact answers the recall query",
+      "stimulus": "Map the inputs and outputs of one workflow step in your project.",
+      "expected_signal": "Response contains: order_id, sku, quantity, stock_remaining, decision.",
+      "fail_mode": "vague nouns / no field names / no decision",
+      "user_response": "inputs: order_id (uuid), sku (varchar), quantity (int)\noutputs: stock_remaining (int after reserve), decision (accept/partial/reject based on stock vs quantity)",
+      "score_A": null,
+      "score_B": null,
+      "tester_A_reason": "",
+      "tester_B_reason": ""
+    },
+    {
+      "name": "3-clearly-fail-empty",
+      "_intent": "clearly fail — response is generic and contains zero expected tokens",
+      "stimulus": "Name the 3 layers of a typical web auth system.",
+      "expected_signal": "Response contains: handler, validator, persister.",
+      "fail_mode": "vague layers / missing one",
+      "user_response": "auth has frontend and backend, you check passwords and store sessions",
+      "score_A": null,
+      "score_B": null,
+      "tester_A_reason": "",
+      "tester_B_reason": ""
+    },
+    {
+      "name": "4-borderline-partial",
+      "_intent": "borderline — has 2 of 3 tokens, but synonyms used for the 3rd",
+      "stimulus": "Name the 3 storage areas in git.",
+      "expected_signal": "Response contains: working tree, staging, repository.",
+      "fail_mode": "missing staging / wrong names",
+      "user_response": "the working directory, the index, and the .git folder where commits live",
+      "score_A": null,
+      "score_B": null,
+      "tester_A_reason": "",
+      "tester_B_reason": ""
+    },
+    {
+      "name": "5-borderline-correct-but-thin",
+      "_intent": "borderline — names are right but no elaboration; rubric ambiguity test",
+      "stimulus": "List 3 commands that move files between git areas.",
+      "expected_signal": "Response contains: add, commit, checkout.",
+      "fail_mode": "uses GUI verbs / missing one",
+      "user_response": "add commit checkout",
+      "score_A": null,
+      "score_B": null,
+      "tester_A_reason": "",
+      "tester_B_reason": ""
+    }
+  ]
+}

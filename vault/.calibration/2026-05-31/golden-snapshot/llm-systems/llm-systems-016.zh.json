@@ -1,0 +1,22 @@
+{
+  "item_id": "llm-systems-016",
+  "source_hash": "0020ff7bc9b026bf744638edc8084ec4267a9c94409904e7a93002d4ec4ea473",
+  "translated_at": "2026-05-11T02:08:19.484Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "const L=[1.2,0.5,2.1,0.3]; console.log(JSON.stringify(L.map((v,i)=>[v,i]).sort((a,b)=>b[0]-a[0]).slice(0,2).map(p=>p[1])));"
+    },
+    {
+      "id": "c2",
+      "text_zh": "console.log([0,2]);"
+    },
+    {
+      "id": "c3",
+      "text_zh": "console.log(\"[2,0]\");"
+    }
+  ],
+  "prompt_text_zh": "混合专家 (Mixture-of-experts) top-k 门控 (gating)：给定 gate_logits = [1.2, 0.5, 2.1, 0.3] 和 top_k = 2，返回按得分降序（最高优先）排序的前 2 个专家索引 (expert indices)。打印为 JSON 数组。"
+}

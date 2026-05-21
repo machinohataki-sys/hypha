@@ -1,0 +1,48 @@
+{
+  "item_id": "philosophy-001",
+  "source_hash": "b4e0b9e6c774907419960e2b78c6d9d9e494cf1c9dcf136438ab2abeb0e6f6ea",
+  "translated_at": "2026-05-11T01:25:14.626Z",
+  "version": "0.5.zh.D18",
+  "translator": "T6_STRONG-glm-direct",
+  "instance_zh": "泰勒斯声称水是万物的第一原则。陈述其主张中将其与宗教解释区分开来的结构特征，以及一个能证伪其作为关于实体 (substance) 的字面主张的可观察现象。",
+  "features_zh": [
+    {
+      "id": "f1",
+      "statement_zh": "还原为单一自然基底 (substrate)",
+      "alt_phrasings_zh": [
+        "一元论 (monism)",
+        "一元论的 (monistic)"
+      ]
+    },
+    {
+      "id": "f2",
+      "statement_zh": "无诉求神明的自然主义解释",
+      "alt_phrasings_zh": [
+        "无神明",
+        "世俗的"
+      ]
+    },
+    {
+      "id": "f3",
+      "statement_zh": "可通过观察无水存续的实体 (substance) 予以证伪",
+      "alt_phrasings_zh": [
+        "可通过无水事物证伪",
+        "可观察的反驳"
+      ]
+    }
+  ],
+  "candidates_zh": [
+    {
+      "id": "c1",
+      "text_zh": "泰勒斯说一切皆还原为水——一种实体 (substance)，无需神明。我们可以通过发现任何在零含水量下存续的物质来证伪它。"
+    },
+    {
+      "id": "c2",
+      "text_zh": "水是流经万物的神圣本质，神圣且原始。"
+    },
+    {
+      "id": "c3",
+      "text_zh": "它是一元论的 (monistic)，但泰勒斯从未说过如何检验它。"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "id": "llm-systems-016",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Shazeer et al. 2017 \"Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer\" §3; Fedus Zoph Shazeer 2022 \"Switch Transformer\" §2.2",
+  "prompt_text": "Mixture-of-experts top-k gating: given gate_logits = [1.2, 0.5, 2.1, 0.3] and top_k = 2, return the top-2 expert indices sorted by score descending (largest first). Print as a JSON array.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const logits=[1.2,0.5,2.1,0.3]; const k=2; const idx=logits.map((v,i)=>({v,i})).sort((a,b)=>b.v-a.v).slice(0,k).map(o=>o.i); console.log(JSON.stringify(idx));",
+    "expected_stdout_hash": "292ab8f540e50d4e8a98ba17360a8176a193a0af9a6b968ced26b449cc200e81",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: uses Array.prototype.keys() + sort by gate[idx] descending, slice top_k.",
+      "code": "const gate=[1.2,0.5,2.1,0.3]; const top_k=2; const ranked=[...gate.keys()].sort((a,b)=>gate[b]-gate[a]).slice(0,top_k); console.log(JSON.stringify(ranked));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: sorts ascending (bottom-k) instead of descending (top-k).",
+      "code": "const logits=[1.2,0.5,2.1,0.3]; const idx=logits.map((v,i)=>({v,i})).sort((a,b)=>a.v-b.v).slice(0,2).map(o=>o.i); console.log(JSON.stringify(idx));",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: gate_logits / top_k / sort descending — but returns the top-k SCORES not their indices.",
+      "code": "const gate_logits=[1.2,0.5,2.1,0.3]; const top_k=2; const top_scores=gate_logits.slice().sort((a,b)=>b-a).slice(0,top_k); console.log(JSON.stringify(top_scores));",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T06:28:56.608Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "25cc1e648dbd2bd645c99ad3fc4e8d9bbb0f4b6cd9b98e37cec783c34bdc5569",
+  "code_hash": "54e471093790e1a0c34cdf4bad2d931bddc0cd5428a1b30c3b057e6621b84ccc",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
+}

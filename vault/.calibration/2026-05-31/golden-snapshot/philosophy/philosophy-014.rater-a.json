@@ -1,0 +1,33 @@
+{
+  "rater_id": "a",
+  "name": "founder",
+  "ts": "2026-05-11T04:35:59.080Z",
+  "ratings": {
+    "c1": {
+      "features_hit": [
+        "f1",
+        "f2"
+      ],
+      "verdict": "pass",
+      "justification": "",
+      "ts": "2026-05-11T04:09:04.324Z"
+    },
+    "c2": {
+      "features_hit": [
+        "f3"
+      ],
+      "verdict": "fail",
+      "justification": "",
+      "ts": "2026-05-11T04:09:38.215Z"
+    },
+    "c3": {
+      "features_hit": [
+        "f1",
+        "f2"
+      ],
+      "verdict": "pass",
+      "justification": "",
+      "ts": "2026-05-11T04:35:59.080Z"
+    }
+  }
+}

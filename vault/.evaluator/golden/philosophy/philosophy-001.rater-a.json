@@ -1,0 +1,28 @@
+{
+  "rater_id": "a",
+  "name": "test_a",
+  "ts": "2026-05-10T10:03:39.867Z",
+  "ratings": {
+    "c1": {
+      "features_hit": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "verdict": "pass",
+      "justification": "all 3 named"
+    },
+    "c2": {
+      "features_hit": [],
+      "verdict": "fail",
+      "justification": "religious"
+    },
+    "c3": {
+      "features_hit": [
+        "f1"
+      ],
+      "verdict": "fail",
+      "justification": "only monism"
+    }
+  }
+}

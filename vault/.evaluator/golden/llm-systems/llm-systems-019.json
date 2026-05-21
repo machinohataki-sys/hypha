@@ -1,0 +1,47 @@
+{
+  "id": "llm-systems-019",
+  "topic": "llm-systems",
+  "lifecycle": "draft",
+  "source_anchor": "Dao et al. 2022 \"FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness\" §3.1 (HBM IO complexity); arXiv:2205.14135",
+  "prompt_text": "FlashAttention HBM access ratio vs vanilla attention: vanilla reads/writes ~4 * seq_len^2 * head_dim HBM bytes. Tiled FlashAttention reads (seq_len * head_dim + head_dim * block_size) per outer tile across (seq_len / block_size) tiles. Given seq_len=1024, head_dim=64, block_size=256, print the ratio flash/vanilla to 6 decimal places.",
+  "verification_channel": "code",
+  "schema_version": "0.5.D20-pivot",
+  "exec_cell": {
+    "language": "node",
+    "code": "const seq=1024,dim=64,blk=256; const vanilla=4*seq*seq*dim; const flash=(seq*dim+dim*blk)*(seq/blk); const ratio=flash/vanilla; console.log(ratio.toFixed(6));",
+    "expected_stdout_hash": "0e4744b67dbe6f7ca923584f538a83be633ffdd3e1d0fc3177aca8b2267b6076",
+    "timeout_ms": 5000
+  },
+  "k_threshold": 1,
+  "candidate_responses": [
+    {
+      "id": "c1",
+      "expected_pass": true,
+      "text": "CORRECT: alternate naming (N/d/B, hbm_vanilla, hbm_flash, tiles) — same arithmetic.",
+      "code": "const N=1024,d=64,B=256; const hbm_vanilla=4*N*N*d; const tiles=N/B; const hbm_flash=(N*d+d*B)*tiles; console.log((hbm_flash/hbm_vanilla).toFixed(6));",
+      "features_hit_truth": [
+        "exec_pass"
+      ]
+    },
+    {
+      "id": "c2",
+      "expected_pass": false,
+      "text": "WRONG: drops the 4x prefactor on vanilla HBM bytes; the ratio comes out 4x larger.",
+      "code": "const seq=1024,dim=64,blk=256; const vanilla=seq*seq*dim; const flash=(seq*dim+dim*blk)*(seq/blk); console.log((flash/vanilla).toFixed(6));",
+      "features_hit_truth": []
+    },
+    {
+      "id": "c3",
+      "expected_pass": false,
+      "text": "CARGO-CULT: seq_len / head_dim / block_size / HBM / tiles vocabulary, but builds HBM_flash by ADDING the per-tile parts and the tile count, not multiplying.",
+      "code": "const seq_len=1024,head_dim=64,block_size=256; const HBM_vanilla=4*seq_len*seq_len*head_dim; const tiles=seq_len/block_size; const HBM_flash=(seq_len*head_dim)+(head_dim*block_size)+tiles; const ratio=HBM_flash/HBM_vanilla; console.log(ratio.toFixed(6));",
+      "features_hit_truth": []
+    }
+  ],
+  "sealed_at": "2026-05-11T06:28:56.664Z",
+  "sealed_algorithm": "sha256",
+  "sealed_normalization": "raw_stdout (no rstrip; matches exec-cell.js behavior)",
+  "prompt_hash": "17c897ae05b885046d43c99ee14d58d257788edd20186b498f563b6e12dec2d1",
+  "code_hash": "25bf972a4c2c4f75431098c7f197f3694d50da660b69722f4cb55c0085d22daa",
+  "notes": "D20-pivot schema (exec-cell channel). Pass = (exit_code===0) AND sha256(stdout)===expected_stdout_hash. Each candidate_response carries {id, text (prose), code (executable JS), expected_pass (author-declared boolean), features_hit_truth (kept for backward compat; unused by exec-channel auto-judge)}. Rater sidecars not required for code channel — ground truth is candidate.expected_pass, predicted is exec-cell hash match. See app/scripts/run-eval-exec-channel.js."
+}
