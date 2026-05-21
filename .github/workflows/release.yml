@@ -34,7 +34,7 @@ jobs:
     name: smoke gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci --no-audit --no-fund
@@ -52,7 +52,7 @@ jobs:
           - { os: windows-latest, target: win }
           - { os: macos-latest,   target: mac }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci --no-audit --no-fund
