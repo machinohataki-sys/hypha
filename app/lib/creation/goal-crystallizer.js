@@ -267,11 +267,19 @@ ${dimensions.map((d, i) => `  ${i + 1}. ${d}`).join('\n')}${tokenBlock}
 Generate the questions JSON per the SCHEMA. Pick the 3 most DISAMBIGUATING items — skip dimensions the draft already specifies. If LOADED TOKENS are present, prioritise them over archetype-dim slots (timeline anchor still locked as Q3 unless ≥3 loaded tokens).`;
 
   const capability = options.capability || 'T3_MID';
-  const maxTokens = Number.isFinite(options.maxTokens) ? options.maxTokens : 1500;
+  // 2026-05-21: bumped default 1500→2500. 3 CN questions + rationale + JSON
+  // wrapper trip 1500 → DeepSeek returns truncated string mid-rationale →
+  // JSON parse fails → router marks provider failed → fallback chain
+  // exhausts. 2500 buys ~70% headroom; retry-on-throw below covers the rest.
+  const maxTokens = Number.isFinite(options.maxTokens) ? options.maxTokens : 2500;
   const temperature = Number.isFinite(options.temperature) ? options.temperature : 0.4;
   const { executeChat } = require('../llm');
 
-  const _tryOnce = async (userMsg) => {
+  // Retry helper: provider failures from truncation surface as "non-JSON in
+  // JSON-mode" thrown by router after all providers exhaust. One bump-and-
+  // retry is cheap insurance — second pass gets maxTokens × 1.6 (cap 4000).
+  // Re-throws on second failure so caller can surface the error normally.
+  const _tryOnce = async (userMsg, mt = maxTokens) => {
     const t0 = Date.now();
     const dispatch = await executeChat(capability, {
       messages: [
@@ -279,16 +287,29 @@ Generate the questions JSON per the SCHEMA. Pick the 3 most DISAMBIGUATING items
         { role: 'user', content: userMsg },
       ],
       json: true,
-      maxTokens,
+      maxTokens: mt,
       temperature,
       timeoutMs: 45_000,
     });
     return { dispatch, ms: Date.now() - t0 };
   };
 
+  // Wrap _tryOnce with one retry on truncation/timeout-class errors.
+  const _tryWithRecovery = async (userMsg) => {
+    try {
+      return await _tryOnce(userMsg, maxTokens);
+    } catch (err) {
+      const msg = String((err && err.message) || err);
+      const isTruncOrTimeout = /non-JSON|timed out|All providers in fallback|truncat/i.test(msg);
+      if (!isTruncOrTimeout) throw err;
+      const retryMaxTokens = Math.min(Math.round(maxTokens * 1.6), 4000);
+      return await _tryOnce(userMsg, retryMaxTokens);
+    }
+  };
+
   try {
-    // L1: first try
-    let { dispatch, ms } = await _tryOnce(userMsgBase);
+    // L1: first try (with truncation-retry wrapper)
+    let { dispatch, ms } = await _tryWithRecovery(userMsgBase);
     let result = dispatch && dispatch.result;
     let v = validateQuestions(result);
     if (!v.ok) {
@@ -317,7 +338,7 @@ Generate the questions JSON per the SCHEMA. Pick the 3 most DISAMBIGUATING items
       retried = true;
       const retryMsg = userMsgBase + `\n\n[PREV ATTEMPT FAILED — questions did not cite these user tokens verbatim: ${missing.map(t => `"${t}"`).join(', ')}. You MUST include one question per missing token whose stem contains the exact token. Re-generate.]`;
       try {
-        const r2 = await _tryOnce(retryMsg);
+        const r2 = await _tryWithRecovery(retryMsg);
         const r2result = r2.dispatch && r2.dispatch.result;
         const v2 = validateQuestions(r2result);
         if (v2.ok) {
@@ -589,23 +610,37 @@ ${answers.map((a, i) => `  ${i + 1}. Q: ${a.question || a.prompt || '?'}\n     d
 Synthesize the crystallized goal JSON per the SCHEMA. Output STRICT JSON only.`;
 
   const capability = options.capability || 'T3_MID';
-  const maxTokens = Number.isFinite(options.maxTokens) ? options.maxTokens : 1000;
+  // 2026-05-21: bumped default 1000→2500 mirroring questions stage. Crystallized
+  // schema is fuller (tags + milestones + 8 fields) — 1000 trips truncation
+  // on Chinese rationale strings. Retry-on-truncation matches questions path.
+  const maxTokens = Number.isFinite(options.maxTokens) ? options.maxTokens : 2500;
   const temperature = Number.isFinite(options.temperature) ? options.temperature : 0.35;
 
   try {
     const { executeChat } = require('../llm');
-    const t0 = Date.now();
-    const dispatch = await executeChat(capability, {
-      messages: [
-        { role: 'system', content: CRYSTALLIZE_SYSTEM_PROMPT },
-        { role: 'user', content: userMsg },
-      ],
-      json: true,
-      maxTokens,
-      temperature,
-      timeoutMs: 45_000,
-    });
-    const ms = Date.now() - t0;
+    const _call = async (mt) => {
+      const t0 = Date.now();
+      const dispatch = await executeChat(capability, {
+        messages: [
+          { role: 'system', content: CRYSTALLIZE_SYSTEM_PROMPT },
+          { role: 'user', content: userMsg },
+        ],
+        json: true,
+        maxTokens: mt,
+        temperature,
+        timeoutMs: 45_000,
+      });
+      return { dispatch, ms: Date.now() - t0 };
+    };
+    let dispatch, ms;
+    try {
+      ({ dispatch, ms } = await _call(maxTokens));
+    } catch (err) {
+      const m = String((err && err.message) || err);
+      if (/non-JSON|timed out|All providers in fallback|truncat/i.test(m)) {
+        ({ dispatch, ms } = await _call(Math.min(Math.round(maxTokens * 1.6), 4000)));
+      } else throw err;
+    }
 
     const result = dispatch && dispatch.result;
     const v = validateCrystallized(result);

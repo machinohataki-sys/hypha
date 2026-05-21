@@ -10,6 +10,24 @@ not a git-log dump.
 
 ## [Unreleased]
 
+## [2.0.0-rc.3] - 2026-05-21
+
+Hotfix: Goal Crystallizer truncation triage. User-reported error on first
+real rc.2 install: "DeepSeek returned non-JSON in JSON-mode" — 3 CN questions
++ rationale + JSON wrapper trip 1500-token cap; response cuts off mid-string;
+JSON parse fails; router exhausts fallback chain.
+
+### Fixed
+- `app/lib/creation/goal-crystallizer.js`: bumped default `maxTokens`
+  1500 → 2500 (questions stage) and 1000 → 2500 (crystallize stage).
+  Added `_tryWithRecovery` wrapper — on truncation/timeout class errors,
+  retries once with `maxTokens × 1.6` (cap 4000). Matches both stages
+  symmetrically. Backward compat preserved (explicit `options.maxTokens`
+  callers unaffected).
+
+Local: `_dev_verify_goal_crystallizer.js` 62/62 + `_dev_verify_goal_v2.js`
+32/32 PASS, no regression.
+
 ## [2.0.0-rc.2] - 2026-05-21
 
 CI smoke fixes on top of rc.1. No product code changes beyond:
@@ -348,7 +366,8 @@ captured during the boot-8 audit:
   fails 11/15 of its sub-tests; ship is not blocked but the
   regression is tracked for v1.0.0.
 
-[Unreleased]: https://github.com/machinohataki-sys/hypha/compare/v2.0.0-rc.2...HEAD
+[Unreleased]: https://github.com/machinohataki-sys/hypha/compare/v2.0.0-rc.3...HEAD
+[2.0.0-rc.3]: https://github.com/machinohataki-sys/hypha/releases/tag/v2.0.0-rc.3
 [2.0.0-rc.2]: https://github.com/machinohataki-sys/hypha/releases/tag/v2.0.0-rc.2
 [2.0.0-rc.1]: https://github.com/machinohataki-sys/hypha/releases/tag/v2.0.0-rc.1
 [1.0.0-rc.1]: https://github.com/machinohataki-sys/hypha/releases/tag/v1.0.0-rc.1
