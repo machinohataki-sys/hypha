@@ -91,12 +91,11 @@ test('build.yml triggers on tags + workflow_dispatch and skips signing', () => {
 // -----------------------------------------------------------------------------
 // 4. release.yml — tag trigger + GH_TOKEN gate + smoke gate
 // -----------------------------------------------------------------------------
-test('release.yml gates publish behind GH_TOKEN + smoke gate', () => {
+test('release.yml gates publish behind GITHUB_TOKEN + smoke gate', () => {
   const src = read('.github/workflows/release.yml');
   assert(/tags:\s*\n\s*-\s*['"]v\*\.\*\.\*['"]/.test(src), 'release.yml missing v*.*.* tag trigger');
-  assert(/secrets\.GH_TOKEN/.test(src), 'release.yml missing secrets.GH_TOKEN reference');
-  // graceful skip when token absent
-  assert(/secrets\.GH_TOKEN\s*!=\s*['"]{2}/.test(src), 'release.yml missing GH_TOKEN empty-string guard');
+  // electron-builder reads $GH_TOKEN env; map from auto-provided GITHUB_TOKEN.
+  assert(/GH_TOKEN:\s*\$\{\{\s*secrets\.GITHUB_TOKEN\s*\}\}/.test(src), 'release.yml must map GH_TOKEN from auto-provided secrets.GITHUB_TOKEN');
   assert(/npm run smoke:all/.test(src), 'release.yml missing smoke gate');
   assert(/--publish always/.test(src), 'release.yml does not call electron-builder --publish always');
   assert(/permissions:\s*\n\s*contents:\s*write/.test(src), 'release.yml missing contents:write permission');
