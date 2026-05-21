@@ -317,6 +317,7 @@ async function tryLessonComplete({ slug, lessonIdx, harnessResult, transcript, p
   // Compute S+R when caller supplied a transcript window; log row + emit
   // boundary-warning event when combined < 0.5. Best-effort — never blocks
   // trigger dispatch on coherence engine failures.
+  let coherenceScore = null;
   try {
     if (Array.isArray(transcript) && transcript.length > 0) {
       const companion = require('./companion');
@@ -326,6 +327,7 @@ async function tryLessonComplete({ slug, lessonIdx, harnessResult, transcript, p
         .map((t) => ({ text: t.text || t.censored, allowed: t.allowed !== false }));
       const probeList = Array.isArray(probes) ? probes : [];
       const score = companion.scorePersonaCoherence({ emissions, probes: probeList });
+      coherenceScore = score;
       coherenceLog.logCoherenceScore({
         lesson_id: lessonIdx != null ? String(lessonIdx) : null,
         session_id: `${slug}:L${lessonIdx}`,
@@ -344,6 +346,23 @@ async function tryLessonComplete({ slug, lessonIdx, harnessResult, transcript, p
       }
     }
   } catch (_) { /* coherence is advisory; never breaks dispatch */ } // intentional: persona-coherence side-effect must not regress lesson_complete dispatch
+
+  // AMD-MEOW-P8 B4 — multi-session memory rollup on session-end.
+  // Append a rolled-up summary (emotional arc, repair count, coherence avg,
+  // themes) so the NEXT session can prelude with continuity. Best-effort —
+  // never blocks dispatch. No-transcript path skips this entirely so the
+  // memory file stays signal-only (regression V16 in v2 smoke).
+  try {
+    if (Array.isArray(transcript) && transcript.length > 0) {
+      const sessionMemory = require('./companion/session-memory');
+      const summary = sessionMemory.summarizeTranscript({ transcript, coherenceScore });
+      sessionMemory.saveSessionMemory({
+        session_id: `${slug}:L${lessonIdx}`,
+        lesson_id: lessonIdx != null ? String(lessonIdx) : null,
+        summary,
+      });
+    }
+  } catch (_) { /* session memory is advisory; never breaks dispatch */ } // intentional: rollup write must not regress lesson_complete dispatch
   return result;
 }
 

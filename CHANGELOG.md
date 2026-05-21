@@ -10,8 +10,42 @@ not a git-log dump.
 
 ## [Unreleased]
 
-v2.0 development — system completeness push from rc.3 baseline. Multi-batch
-multi-agent ship sequence; each batch tracked here as it lands on `main`.
+## [2.0.0-rc.1] - 2026-05-21
+
+System completeness push from v1.0.0-rc.3 baseline. 4 batches × 5+5+5+3 = 18
+parallel Machino agents shipped scout-blessed frontier integrations (S52 / S63 /
+S66 / S67 / S68 / S69 / S73 / S75 / S77 / S80 / S81 / S83 / S86 / S88) plus
+gap-closure across all 10 production systems. Average ship-% across the 10
+audit rows: rc.1 ~83% → rc.1 (v2) ~94%. Companion (biggest rc.1 gap at ~60%)
+now ~93%. Smoke baseline: 74/74 PASS / 646 tests (rc.1 baseline +13 smokes /
++179 tests). No product regressions; all rc.3 functionality preserved.
+
+### Added — v2 push batch 4 (2026-05-21)
+- **IPC + preload wiring** (18 handlers + 18 bridges): `companion:coherence-
+  log` + `companion:coherence-trend` / `growth:cross-spark-strength` +
+  `growth:north-star-alert` / `exam:scope-shrink` + `exam:judge-4axis` /
+  `commons:lifecycle-transition` + `commons:license-validate` /
+  `creation:dependency-graph-list` + `creation:dependency-cascade-events` /
+  `infra:cost-preflight` + `infra:lifetime-monthly-rollup` +
+  `infra:router-events-tail` / `cold-start:get-playbook` +
+  `cold-start:classify-persona` / `note:atlas-entropy-badge` +
+  `note:atlas-decay` / `goal:feasibility-with-confidence`. Exposed via
+  `window.hypha.v2.<namespace>.<fn>` in renderer.
+- **Companion multi-session memory** (closes CLAUDE.md table gap):
+  `session-memory.js` appends rolled summary `{emotional_arc, repair_count,
+  coherence_avg, themes}` to `vault/.hypha/companion-memory.jsonl` at session-
+  end via existing `companionTriggers.tryLessonComplete` hook. New
+  `buildContextPrelude({lastN: 3}) → ≤200-char Chinese-EN mixed-register
+  prelude` ready for next-session injection. Auto-load deferred to caller
+  (no force-inject per Lens 9 SURGICAL).
+- **v2.0 release-ready audit smoke** (`_dev_verify_v2_release_ready.js`, 8
+  invariants): version regex, CHANGELOG header presence, smoke baseline floor,
+  20 new lib modules present, 14 new smoke files present, ship-% audit table
+  (all systems ≥85%), 14 Scout digest IDs wired, Companion no longer biggest
+  gap.
+- 3 new smokes (~100 net new tests): `companion_memory` 14/14 +
+  `v2_ipc` 72/72 + `v2_release_ready` 6/8 (2 conditional pre-bump, now
+  unconditional post-bump).
 
 ### Added — v2 push batch 3 (2026-05-21)
 - **Goal System depth** (~88% → ~95%): Feasibility math confidence band (sparsity-
@@ -299,5 +333,6 @@ captured during the boot-8 audit:
   fails 11/15 of its sub-tests; ship is not blocked but the
   regression is tracked for v1.0.0.
 
-[Unreleased]: https://github.com/machinohataki-sys/hypha/compare/v1.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/machinohataki-sys/hypha/compare/v2.0.0-rc.1...HEAD
+[2.0.0-rc.1]: https://github.com/machinohataki-sys/hypha/releases/tag/v2.0.0-rc.1
 [1.0.0-rc.1]: https://github.com/machinohataki-sys/hypha/releases/tag/v1.0.0-rc.1

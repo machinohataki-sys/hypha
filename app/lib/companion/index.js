@@ -24,6 +24,7 @@ const { enforceBoundary, getKeywordMapping } = require('./boundary-guard');
 const { KEYWORD_MAPPING } = require('./keyword-mapping');
 const personaCoherence = require('./persona-coherence');
 const coherenceLog = require('./coherence-log');
+const sessionMemory = require('./session-memory');
 const { MOCK_TAG_KEY, MOCK_TAG_VALUE } = require('../v0-mock-marker');
 
 /**
@@ -165,4 +166,12 @@ module.exports = {
   logCoherenceScore: coherenceLog.logCoherenceScore,
   readCoherenceLog: coherenceLog.readCoherenceLog,
   getCoherenceTrend: coherenceLog.getTrend,
+  // B4 (2026-05-21) — multi-session memory continuity. Append-only roll-up
+  // at lesson_complete; caller-driven prelude read at next session start.
+  // No force-inject — caller decides where to thread the prelude.
+  saveSessionMemory: sessionMemory.saveSessionMemory,
+  loadRecentSessions: sessionMemory.loadRecentSessions,
+  buildContextPrelude: sessionMemory.buildContextPrelude,
+  clearSessionMemory: sessionMemory.clearMemory,
+  summarizeTranscript: sessionMemory.summarizeTranscript,
 };
