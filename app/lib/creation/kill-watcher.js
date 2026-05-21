@@ -38,6 +38,7 @@ const path = require('node:path');
 const vault = require('../vault');
 const assumptionLedger = require('./assumption-ledger');
 const productSpark = require('./product-spark');
+const dependencyGraph = require('./dependency-graph');
 
 // ---------------------------------------------------------------------------
 // Constants — pulled from library exports so the state machines stay aligned.
@@ -337,6 +338,63 @@ function _reviewAlreadyEmitted(vaultRoot, kind, slug, entryId) {
   return false;
 }
 
+// CASCADE_REVIEW emission — per Scout S81. When `sourceEntryId` transitions
+// active -> invalidated (via auto-refute / auto-reject), walk its dependents
+// recursively + emit one CASCADE_REVIEW row per downstream entry. Suggests
+// `review_downstream` action — NEVER auto-mutates downstream rows (mirrors B1
+// REVIEW non-mutation contract). De-duped per-sweep on (source, cascade) pair.
+function _cascadeAlreadyEmitted(vaultRoot, sourceEntryId, cascadeEntryId) {
+  const abs = path.join(vaultRoot, REVIEW_AUDIT_FILE);
+  const rows = _readJsonl(abs);
+  for (const r of rows) {
+    if (r && r.action === 'CASCADE_REVIEW'
+      && r.source_entry === sourceEntryId
+      && r.cascade_entry === cascadeEntryId) return true;
+  }
+  return false;
+}
+
+function _emitCascadeReviews(vaultRoot, sourceEntryId, sourceKind, reason, now, summary, errors) {
+  try {
+    const dependents = dependencyGraph.getDependents(sourceEntryId, vaultRoot);
+    if (!dependents || !dependents.length) return;
+    const abs = path.join(vaultRoot, REVIEW_AUDIT_FILE);
+    for (const cascadeId of dependents) {
+      if (_cascadeAlreadyEmitted(vaultRoot, sourceEntryId, cascadeId)) continue;
+      const event = {
+        ts: now.toISOString(),
+        action: 'CASCADE_REVIEW',
+        source_entry: sourceEntryId,
+        source_kind: sourceKind,
+        cascade_entry: cascadeId,
+        reason,
+        suggested_action: 'review_downstream',
+      };
+      try {
+        _appendJsonl(abs, event);
+        if (!summary.by_kind.cascade_reviews_emitted) summary.by_kind.cascade_reviews_emitted = [];
+        summary.by_kind.cascade_reviews_emitted.push({
+          source_entry: sourceEntryId,
+          cascade_entry: cascadeId,
+          source_kind: sourceKind,
+        });
+      } catch (err) {
+        errors.push({
+          slug: '*cascade*',
+          file: REVIEW_AUDIT_FILE,
+          error_msg: `cascade emit failed: ${err.message}`,
+        });
+      }
+    }
+  } catch (err) {
+    errors.push({
+      slug: '*cascade*',
+      file: REVIEW_AUDIT_FILE,
+      error_msg: `cascade walk failed: ${err.message}`,
+    });
+  }
+}
+
 function _sweepTarget(target, now, summary, errors, vaultRoot) {
   // assumptions.jsonl
   try {
@@ -351,6 +409,9 @@ function _sweepTarget(target, now, summary, errors, vaultRoot) {
           _suggestTransition('assumption', latest.state), now, summary, errors);
         if (!ASSUMPTION_KILL_FROM.has(latest.state)) continue;
         _killAssumption(target, latest, now, summary, errors);
+        // active -> invalidated transition: walk dependents + emit cascade.
+        _emitCascadeReviews(vaultRoot, latest.assumption_id, 'assumption',
+          'assumption_refuted_deadline', now, summary, errors);
       }
     }
   } catch (err) {
@@ -369,6 +430,8 @@ function _sweepTarget(target, now, summary, errors, vaultRoot) {
           _suggestTransition('spark', latest.state), now, summary, errors);
         if (!SPARK_KILL_FROM.has(latest.state)) continue;
         _killSpark(target, latest, now, summary, errors);
+        _emitCascadeReviews(vaultRoot, latest.spark_id, 'spark',
+          'spark_rejected_deadline', now, summary, errors);
       }
     }
   } catch (err) {
@@ -387,6 +450,10 @@ function _sweepTarget(target, now, summary, errors, vaultRoot) {
           _suggestTransition('decision', null), now, summary, errors);
         if (_alreadyFlagged(target, row.ts)) continue;
         _flagDecision(target, row, now, summary, errors);
+        // Decision past deadline is itself a retraction-trigger candidate;
+        // emit cascade so downstream entries get a heads-up.
+        _emitCascadeReviews(vaultRoot, row.ts, 'decision',
+          'decision_flagged_deadline', now, summary, errors);
       }
     }
   } catch (err) {
@@ -410,6 +477,7 @@ async function runKillWatcherSweep({ vaultRoot, now } = {}) {
       sparks_rejected: [],
       decisions_flagged: [],
       reviews_emitted: [],
+      cascade_reviews_emitted: [],
     },
     errors: [],
   };
@@ -461,10 +529,18 @@ function loadReviewEvents(vaultRoot) {
   return _readJsonl(abs);
 }
 
+// Helper for tests + UI: just the CASCADE_REVIEW slice.
+function loadCascadeEvents(vaultRoot) {
+  const root = vaultRoot || vault.resolveRoot();
+  const abs = path.join(root, REVIEW_AUDIT_FILE);
+  return _readJsonl(abs).filter(r => r && r.action === 'CASCADE_REVIEW');
+}
+
 module.exports = {
   runKillWatcherSweep,
   loadDecisionReviews,
   loadReviewEvents,
+  loadCascadeEvents,
   // exposed for tests + introspection
   _ASSUMPTION_KILL_FROM: ASSUMPTION_KILL_FROM,
   _SPARK_KILL_FROM: SPARK_KILL_FROM,

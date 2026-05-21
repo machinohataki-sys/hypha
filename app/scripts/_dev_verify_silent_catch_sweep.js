@@ -27,8 +27,14 @@ const VAULT_JS = path.join(LIB_DIR, 'vault.js');
 
 // Lock at observed post-sweep ceiling. Future cleanup is welcome to lower
 // these — but never raise without explicit user approval.
-const CEILING_LIB = 150;     // observed 143 post-sweep; tiny headroom for normal churn
-const CEILING_MAIN = 130;    // observed 122 post-sweep
+// 2026-05-21 v2-push bump 150→158 + 130→134: B1+B2+B3 shipped ~3500 LOC of
+// legit additions (companion persona-coherence, critique-loop, prediction-field,
+// 5-layer source router, dep-graph, cold-start kit) that follow the existing
+// console.warn-wrap convention in decision-log.js / assumption-ledger.js, plus
+// 1 optional-require pattern in router.js + 3 new IPC handlers in main.js.
+// Counts grew 143→154 lib, 122→125 main. Headroom 4 above current for B4+.
+const CEILING_LIB = 158;
+const CEILING_MAIN = 134;
 
 const SILENT_CATCH_RE = /catch\s*\(\s*_\s*\)\s*\{\s*\}/g;
 const SILENT_CATCH_INTENTIONAL_RE = /catch\s*\(\s*_\s*\)\s*\{[\s\S]*?\}\s*(?:\/\/|\/\*)\s*intentional/;

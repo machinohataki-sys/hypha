@@ -9345,6 +9345,40 @@ ipcMain.handle('lifetime:link-progress', async (_e, { slug, linkIdx } = {}) => {
   catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
 
+// v1.0 Infra v2 (2026-05-20) — monthly rollup analytics surface (read-only).
+ipcMain.handle('lifetime:monthly-rollup', async (_e, { slug } = {}) => {
+  try { return await require('./lib/lifetime-ledger').monthlyRollup(slug); }
+  catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+
+// v1.0 Infra v2 — pre-flight cost quote for lesson-gen request shape.
+// UI calls this to render a confirm dialog before T6 dispatch.
+ipcMain.handle('cost:preflight-quote', async (_e, opts = {}) => {
+  try { return require('./lib/llm/cost-predictor').preflightQuote(opts); }
+  catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+
+// v1.0 Infra v2 — cashflow shield gate state + reset countdown.
+ipcMain.handle('cashflow:gate-state', async (_e, { userId, tier } = {}) => {
+  try {
+    const shield = require('./lib/cashflow-shield/shield');
+    const s = shield.checkCashflowShield(userId, tier);
+    const reset = shield.getResetInfo();
+    return { ok: true, shield: s, reset };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+
+// v1.0 Infra v2 — router event tail for diagnostics surface (read-only,
+// last N entries). main process only — renderer goes through this IPC.
+ipcMain.handle('router:events-tail', async (_e, { limit = 50 } = {}) => {
+  try {
+    const vault = require('./lib/vault');
+    const all = vault.readJSONL('.hypha/router-events.jsonl');
+    const n = Math.max(1, Math.min(500, Number(limit) || 50));
+    return { ok: true, events: all.slice(-n) };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+
 // 阶 3 北极星 metric (2026-05-17) — 工业 lessons.length OUT, 三柱替换:
 //   mastery_concepts_ratified + spark_matured + artifacts_shipped
 //

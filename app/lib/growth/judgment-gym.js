@@ -38,6 +38,12 @@ const MAX_CLAIM_LEN = 500;
 const MAX_REASONING_LEN = 800;
 const DEFAULT_MIN_AGE_DAYS = 3;
 
+// Yerkes-Dodson edge band — stability in [0.3, 0.7] = right at the boundary
+// between over-confident (1.0 always-agree) and pure noise (0.0 flip-flop).
+const EDGE_BAND_LOW = 0.3;
+const EDGE_BAND_HIGH = 0.7;
+const DEFAULT_EDGE_TARGET = 0.5;
+
 function _gymPath(slug) {
   const vaultRoot = resolveRoot();
   return path.join(vaultRoot, String(slug), '.judgment-gym.jsonl');
@@ -288,6 +294,100 @@ async function dueForRejudge({
   }
 }
 
+// Per-domain stability calibration. Stability = fraction of judgments where
+// initial matches latest rejudgment (proxy: did your cold-judgment hold?).
+// 1.0 = always stable (could be over-confident); 0.0 = always flips
+// (under-confident / noisy); 0.5 = honest edge. Y-D optimum = mid-band.
+function _stabilityForEntry(entry) {
+  if (!entry || !Array.isArray(entry.rejudgments) || entry.rejudgments.length === 0) {
+    return null;
+  }
+  const latest = entry.rejudgments[entry.rejudgments.length - 1];
+  return latest.judgment === entry.initialJudgment ? 1 : 0;
+}
+
+async function getCalibration({ slug } = {}) {
+  try {
+    if (!slug || typeof slug !== 'string') {
+      return { ok: false, error: 'MISSING_SLUG' };
+    }
+    const rows = _readAllRows(_gymPath(slug));
+    const entries = _aggregate(rows);
+    const perTopic = new Map();
+    for (const e of entries) {
+      const topic = (typeof e.topic === 'string' && e.topic) ? e.topic : '__unknown__';
+      const stab = _stabilityForEntry(e);
+      if (stab === null) continue;
+      const bucket = perTopic.get(topic) || { topic, n: 0, sum: 0 };
+      bucket.n += 1;
+      bucket.sum += stab;
+      perTopic.set(topic, bucket);
+    }
+    const calibration = Array.from(perTopic.values()).map(b => ({
+      topic: b.topic,
+      n: b.n,
+      stability: Number((b.sum / b.n).toFixed(3)),
+    }));
+    return { ok: true, calibration };
+  } catch (err) {
+    return { ok: false, error: 'EXCEPTION', message: err && err.message };
+  }
+}
+
+// Pick the next claim to surface at the user's edge of competence:
+// 1. Open claims whose topic stability sits inside the edge band (0.3..0.7)
+//    are scored by distance from target (default 0.5).
+// 2. Tie-break by age (older = more thawed = better for rejudge).
+// 3. Cold-start: topic with no rejudgments yet → treat stability = target so
+//    user gets exposure (rather than refuse).
+async function nextEdgeChallenge({
+  slug,
+  target = DEFAULT_EDGE_TARGET,
+  band = [EDGE_BAND_LOW, EDGE_BAND_HIGH],
+} = {}) {
+  try {
+    if (!slug || typeof slug !== 'string') {
+      return { ok: false, error: 'MISSING_SLUG' };
+    }
+    const calRes = await getCalibration({ slug });
+    if (!calRes.ok) return calRes;
+    const stabByTopic = new Map(calRes.calibration.map(c => [c.topic, c.stability]));
+
+    const openRes = await listOpenClaims({ slug, limit: 200 });
+    if (!openRes.ok) return openRes;
+
+    const [lo, hi] = Array.isArray(band) && band.length === 2 ? band : [EDGE_BAND_LOW, EDGE_BAND_HIGH];
+    const tgt = (typeof target === 'number' && target >= 0 && target <= 1) ? target : DEFAULT_EDGE_TARGET;
+
+    const scored = openRes.entries.map(e => {
+      const topic = (typeof e.topic === 'string' && e.topic) ? e.topic : '__unknown__';
+      const stab = stabByTopic.has(topic) ? stabByTopic.get(topic) : tgt;
+      const inBand = stab >= lo && stab <= hi;
+      return { entry: e, topic, stability: stab, inBand, distance: Math.abs(stab - tgt) };
+    });
+
+    const inBand = scored.filter(s => s.inBand);
+    const pool = inBand.length > 0 ? inBand : scored;
+    pool.sort((a, b) => a.distance - b.distance
+      || String(a.entry.ts).localeCompare(String(b.entry.ts)));
+
+    if (pool.length === 0) {
+      return { ok: true, entry: null, reason: 'NO_OPEN_CLAIMS' };
+    }
+    const top = pool[0];
+    return {
+      ok: true,
+      entry: top.entry,
+      topic: top.topic,
+      stability: top.stability,
+      inBand: top.inBand,
+      distance: Number(top.distance.toFixed(3)),
+    };
+  } catch (err) {
+    return { ok: false, error: 'EXCEPTION', message: err && err.message };
+  }
+}
+
 module.exports = {
   addClaim,
   listOpenClaims,
@@ -295,10 +395,16 @@ module.exports = {
   rejudgeClaim,
   getClaim,
   dueForRejudge,
+  getCalibration,
+  nextEdgeChallenge,
   _internals: {
     JUDGMENT_ENUM,
     MAX_CLAIM_LEN,
     MAX_REASONING_LEN,
     DEFAULT_MIN_AGE_DAYS,
+    EDGE_BAND_LOW,
+    EDGE_BAND_HIGH,
+    DEFAULT_EDGE_TARGET,
+    stabilityForEntry: _stabilityForEntry,
   },
 };

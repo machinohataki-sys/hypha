@@ -32,6 +32,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const vault = require('../vault');
+const dependencyGraph = require('./dependency-graph');
 
 const FILE_NAME = 'decisions.jsonl';
 const MIN_DECISION_CHARS = 10;
@@ -89,6 +90,28 @@ function _validatePrediction(pred, ctx) {
   return { claim, falsifier, deadline_iso: deadlineRaw };
 }
 
+// Normalise optional `depends_on: string[]`. Drops non-strings + empty + dups;
+// caps length at 32 (sanity, not security). Returns null on empty/invalid.
+function _normaliseDependsOn(raw, ctx) {
+  if (raw === undefined || raw === null) return null;
+  if (!Array.isArray(raw)) {
+    try { console.warn(`${ctx}: depends_on must be array, dropped`); } catch (_) {}
+    return null;
+  }
+  const out = [];
+  const seen = new Set();
+  for (const v of raw) {
+    if (typeof v !== 'string') continue;
+    const t = v.trim();
+    if (!t) continue;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+    if (out.length >= 32) break;
+  }
+  return out.length ? out : null;
+}
+
 // Slug guard — mirrors product-registry._safeProductId rejection rules.
 function _safeSlug(slug) {
   if (!slug || typeof slug !== 'string') return null;
@@ -120,6 +143,7 @@ function appendDecision(slug, row) {
   }
   const source = row.source === 'auto-extract' ? 'auto-extract' : 'manual';
   const prediction = _validatePrediction(row.prediction, 'decision-log');
+  const dependsOn = _normaliseDependsOn(row.depends_on, 'decision-log');
   const stamped = {
     ts: typeof row.ts === 'string' && row.ts ? row.ts : new Date().toISOString(),
     lesson_idx: lessonIdx,
@@ -132,12 +156,24 @@ function appendDecision(slug, row) {
     source,
   };
   if (prediction) stamped.prediction = prediction;
+  if (dependsOn && dependsOn.length) stamped.depends_on = dependsOn;
   const abs = _filePath(safe);
   try {
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.appendFileSync(abs, JSON.stringify(stamped) + '\n', 'utf8');
   } catch (err) {
     return { ok: false, error: `decision-log: write failed: ${err.message}` };
+  }
+  // Decision entry_id = ts (per kill-watcher anchor convention). depends_on
+  // becomes from=this.ts → to=targetId edges, kind='depends_on'. Warn-not-fail
+  // when referenced ids do not (yet) exist — the target may be added later.
+  if (dependsOn && dependsOn.length) {
+    for (const toId of dependsOn) {
+      const res = dependencyGraph.addEdge({ from_id: stamped.ts, to_id: toId, kind: 'depends_on' });
+      if (!res.ok) {
+        try { console.warn(`decision-log: depends_on edge skipped (${stamped.ts} -> ${toId}): ${res.error}`); } catch (_) {}
+      }
+    }
   }
   return { ok: true, row: stamped };
 }
@@ -171,4 +207,12 @@ function listDecisions(slug, { limit, since } = {}) {
 module.exports = {
   appendDecision,
   listDecisions,
+  // Vague-falsifier guard shared with sister modules (e.g. growth/project-spine
+  // milestone falsifier) — single regex source defends against drift.
+  _falsifierGuard: {
+    VAGUE_FALSIFIER_RE,
+    CONCRETE_FALSIFIER_RE,
+    MIN_PREDICTION_CHARS,
+    isVagueFalsifier: _isVagueFalsifier,
+  },
 };

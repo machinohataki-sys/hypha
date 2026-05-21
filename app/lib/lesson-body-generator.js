@@ -482,6 +482,24 @@ function validateBodyV2(body, opts = {}) {
     }
   }
 
+  // rc.1 → 1.0 — Encyclopedia-Opener Guard (DICTIONARY / ACADEMIC / META_TEXTBOOK).
+  // Strict superset of the narrow HOOK_ABSTRACT_RE above. We only ERROR when
+  // the legacy check did NOT already error (avoid double-flagging the same
+  // case). The broader bank catches "X is a kind of Y" / "X has been studied
+  // for ..." / "In this lesson we will learn ..." that the v0.4 regex missed.
+  try {
+    const _guard = require('./anti-slop/encyclopedia-opener-guard');
+    const scan = _guard.scanLessonBody(body);
+    if (scan.fired) {
+      const alreadyFlagged = errors.some(e => typeof e === 'string' && e.startsWith('hook_abstract:'));
+      if (!alreadyFlagged) {
+        const fam = Array.from(new Set(scan.hits.map(h => h.family))).join('/');
+        const sample = scan.hits[0] ? scan.hits[0].label : '';
+        errors.push(`hook_abstract: ${scan.field_scanned} matches ${fam} anti-pattern — ${sample}`);
+      }
+    }
+  } catch (_) { /* guard is optional; never break legacy body validation */ }
+
   // V0.4.4 — HUMANITIES floor (2026-05-19 council Leo + Lung). Bodies for
   // humanities lessons MUST expose framework controversy + concrete counter-
   // cases, else they teach contested-as-settled (epistemic malpractice per
@@ -940,12 +958,38 @@ async function generateLessonBodyV2({
         } catch (_) { /* observability only */ }
       }
 
+      // rc.1 → 1.0 — Anti-Slop P2 meta-coherence + Brief Quality field audit.
+      // Both run advisory-by-default (errors surface in _meta.brief_quality /
+      // _meta.meta_coherence; they DO NOT trigger a regen — avoid runaway
+      // LLM cost on borderline drafts). Course Trust Panel can render these
+      // as soft signals. Opt-in strict mode via options.strictBriefQuality.
+      let metaCoherence = null;
+      try {
+        const _mc = require('./anti-slop/meta-coherence-detector');
+        metaCoherence = _mc.detectMetaCoherence(result);
+      } catch (_) { /* P2 layer is optional */ }
+
+      let briefQuality = null;
+      try {
+        const _bq = require('./lesson-brief-field-validator');
+        const strict = !!(options && options.strictBriefQuality);
+        const r = _bq.validateBriefQuality(result, { strict });
+        briefQuality = {
+          ok: r.ok,
+          error_count: r.errors.length,
+          warning_count: r.warnings.length,
+          issues: (r.errors.length ? r.errors : r.warnings).slice(0, 6),
+        };
+      } catch (_) { /* validator is optional */ }
+
       return {
         body: _applyAdaptive(result, slug),  // W8.3 adaptive UX surface pass
         _meta: {
           ...baseMeta,
           drift_score: driftScore,
           evidence_ledger: evidenceLedgerMeta,
+          meta_coherence: metaCoherence,
+          brief_quality: briefQuality,
           critique: critiqueMeta,
           drift_warning: (driftScore !== null && driftScore > DRIFT_THRESHOLD)
             ? {

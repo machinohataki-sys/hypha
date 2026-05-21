@@ -34,6 +34,17 @@ const MAX_DAILY_COST_CNY = Object.freeze({
 });
 
 const SOFT_WARN_FRACTION = 0.8;
+// Three-tier gate transitions for v1.0 — UI surfaces consume `gate_state`:
+//   < 0.9 limit       → OK            (silent)
+//   [0.9, 1.0) limit  → WARN_90       (toast, BYOK fallback hint)
+//   [1.0, 1.1) limit  → SOFT_BLOCK_100 (overage allowed if BYOK key present)
+//   >= 1.1 limit      → HARD_BLOCK_110 (UI disabled until midnight reset)
+// 10% headroom above 100% absorbs in-flight calls that already passed the
+// pre-call gate; without it a fast double-fire could over-shoot then strand
+// the user mid-lesson. Hard ceiling at 110% prevents runaway loop damage.
+const WARN_FRACTION       = 0.9;
+const SOFT_BLOCK_FRACTION = 1.0;
+const HARD_BLOCK_FRACTION = 1.1;
 
 // v1.0 boot-8 (2026-05-20) — process-life cache: userId → resolved tier id.
 // Avoids re-reading vault/data/profile.json on every LLM pre-call. Profile
@@ -195,13 +206,23 @@ function checkCashflowShield(userId, tier = 'pro') {
     && today >= limit * SOFT_WARN_FRACTION
     && today < limit;
   const dev = !!(costBudget.isDevMode && costBudget.isDevMode());
+  let gateState = 'OK';
+  if (limit !== Infinity) {
+    const ratio = today / limit;
+    if (ratio >= HARD_BLOCK_FRACTION)      gateState = 'HARD_BLOCK_110';
+    else if (ratio >= SOFT_BLOCK_FRACTION) gateState = 'SOFT_BLOCK_100';
+    else if (ratio >= WARN_FRACTION)       gateState = 'WARN_90';
+  } else {
+    gateState = 'OK_UNLIMITED';
+  }
   return {
-    ok: limit === Infinity ? true : today < limit,
+    ok: limit === Infinity ? true : gateState !== 'HARD_BLOCK_110',
     today_cost_cny: Number(today.toFixed(6)),
     remaining_cny: (limit === Infinity) ? null : Number(remaining.toFixed(6)),
     limit_cny: (limit === Infinity) ? null : limit,
     unlimited: limit === Infinity,
     soft_warn: softWarn,
+    gate_state: gateState,
     tier: eff,
     requested_tier: tier,
     profile_tier: profileTier || null,
@@ -245,7 +266,30 @@ function enforceShield(userId, plannedCall = {}) {
   const isUnlimited = tier === 'byok' || shield.unlimited === true;
   if (!isUnlimited) {
     const remaining = Number(shield.remaining_cny);
-    if (!shield.ok || est > remaining) {
+    const projected = (shield.today_cost_cny || 0) + (est || 0);
+    const limit = Number(shield.limit_cny);
+    const projectedRatio = limit > 0 ? projected / limit : 0;
+    // Hard ceiling at 110% — runaway-loop circuit breaker. Pre-call gate must
+    // refuse so even an in-flight overspend cannot pierce this.
+    if (projectedRatio >= HARD_BLOCK_FRACTION || shield.gate_state === 'HARD_BLOCK_110') {
+      throw new BudgetExceededError(
+        `daily cost hard ceiling reached (${tier}: ¥${shield.today_cost_cny.toFixed(2)}/¥${shield.limit_cny} ≥ 110%)`,
+        { reason: 'hard_ceiling', shield, tier, planned: plannedCall, projectedRatio },
+      );
+    }
+    // Soft block 100-110%: allowed only when BYOK fallback is available (caller
+    // supplies plannedCall.byok_fallback === true after prompting user). Without
+    // fallback, surface SOFT_BLOCK so caller can show the prompt.
+    if (projectedRatio >= SOFT_BLOCK_FRACTION) {
+      if (plannedCall.byok_fallback !== true) {
+        throw new BudgetExceededError(
+          `daily cost ceiling reached, BYOK fallback required (${tier}: ¥${shield.today_cost_cny.toFixed(2)}/¥${shield.limit_cny})`,
+          { reason: 'daily_ceiling', shield, tier, planned: plannedCall,
+            gate_state: 'SOFT_BLOCK_100', byok_fallback_available: true },
+        );
+      }
+      // BYOK fallback acknowledged → proceed but mark.
+    } else if (!shield.ok || est > remaining) {
       throw new BudgetExceededError(
         `daily cost ceiling reached (${tier}: ¥${shield.today_cost_cny}/¥${shield.limit_cny})`,
         { reason: 'daily_ceiling', shield, tier, planned: plannedCall },
@@ -323,14 +367,32 @@ function notifyExceedSoft(userId, tier = 'pro') {
   };
 }
 
+// Daily reset metadata — user-local midnight from system timezone. UI uses
+// `next_reset_ms` for countdown surface; smoke verifies key stability across a
+// synthetic clock advance.
+function getResetInfo() {
+  const now = new Date();
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+  return {
+    today_key: _today(),
+    next_reset_ms: tomorrow.getTime(),
+    next_reset_iso: tomorrow.toISOString(),
+    timezone_offset_min: now.getTimezoneOffset(),
+  };
+}
+
 module.exports = {
   MAX_DAILY_COST_CNY,
   SOFT_WARN_FRACTION,
+  WARN_FRACTION,
+  SOFT_BLOCK_FRACTION,
+  HARD_BLOCK_FRACTION,
   BudgetExceededError,
   checkCashflowShield,
   enforceShield,
   recordCharge,
   notifyExceedSoft,
+  getResetInfo,
   // v1.0 boot-8 — tier-cap cache surface (main.js invalidates on tier change)
   resolveCachedTier,
   clearTierCache,

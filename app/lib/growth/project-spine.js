@@ -27,6 +27,9 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 const { resolveRoot } = require('../vault');
+// Reuse the vague-falsifier guard from Creation System Decision Log — single
+// source of truth for "what counts as a concrete, measurable falsifier".
+const { _falsifierGuard } = require('../creation/decision-log');
 
 const KIND_ENUM = Object.freeze([
   'decision',
@@ -34,9 +37,11 @@ const KIND_ENUM = Object.freeze([
   'open-question',
   'building-on',
   'revisit-later',
+  'milestone',
 ]);
 
 const MAX_CONTENT_LEN = 2000;
+const MAX_FALSIFIER_LEN = 600;
 
 function _spinePath(slug) {
   const vaultRoot = resolveRoot();
@@ -57,6 +62,31 @@ function _readAllRows(abs) {
   return out;
 }
 
+// Validate optional milestone-falsifier sub-doc. Mirrors decision-log shape
+// (claim/falsifier/deadline_iso) — same guard, same vagueness rejection. On
+// invalid: return ERR string; on absent: return null silently.
+function _validateMilestoneFalsifier(f) {
+  if (f === undefined || f === null) return { ok: true, value: null };
+  if (typeof f !== 'object' || Array.isArray(f)) {
+    return { ok: false, reason: 'falsifier must be object' };
+  }
+  const min = _falsifierGuard.MIN_PREDICTION_CHARS;
+  const claim = typeof f.claim === 'string' ? f.claim.trim() : '';
+  const falsifier = typeof f.falsifier === 'string' ? f.falsifier.trim() : '';
+  const deadline = typeof f.deadline_iso === 'string' ? f.deadline_iso.trim() : '';
+  if (claim.length < min) return { ok: false, reason: `falsifier.claim < ${min} chars` };
+  if (falsifier.length < min) return { ok: false, reason: `falsifier.falsifier < ${min} chars` };
+  if (falsifier.length > MAX_FALSIFIER_LEN) return { ok: false, reason: 'falsifier.falsifier too long' };
+  if (deadline.length < min) return { ok: false, reason: 'falsifier.deadline_iso missing' };
+  if (!Number.isFinite(Date.parse(deadline))) {
+    return { ok: false, reason: 'falsifier.deadline_iso not parseable ISO' };
+  }
+  if (_falsifierGuard.isVagueFalsifier(falsifier)) {
+    return { ok: false, reason: 'falsifier vague — needs number/comparator/date anchor' };
+  }
+  return { ok: true, value: { claim, falsifier, deadline_iso: deadline } };
+}
+
 async function addSpineEntry({
   slug,
   kind,
@@ -64,6 +94,7 @@ async function addSpineEntry({
   sourceLessonIdx = null,
   sourceLessonTitle = null,
   tags = [],
+  falsifier = null,
 } = {}) {
   try {
     if (!slug || typeof slug !== 'string') {
@@ -78,6 +109,11 @@ async function addSpineEntry({
     }
     if (trimmed.length > MAX_CONTENT_LEN) {
       return { ok: false, error: 'TOO_LONG' };
+    }
+
+    const falsifierCheck = _validateMilestoneFalsifier(falsifier);
+    if (!falsifierCheck.ok) {
+      return { ok: false, error: 'INVALID_FALSIFIER', message: falsifierCheck.reason };
     }
 
     const entry = {
@@ -96,6 +132,7 @@ async function addSpineEntry({
         : [],
       tombstone: false,
     };
+    if (falsifierCheck.value) entry.falsifier = falsifierCheck.value;
 
     const abs = _spinePath(slug);
     try {
@@ -181,5 +218,7 @@ module.exports = {
   _internals: {
     KIND_ENUM,
     MAX_CONTENT_LEN,
+    MAX_FALSIFIER_LEN,
+    validateMilestoneFalsifier: _validateMilestoneFalsifier,
   },
 };

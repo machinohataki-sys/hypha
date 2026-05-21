@@ -126,6 +126,46 @@ function gateAgainstBudget(predictedCny, remainingBudgetCny, opts = {}) {
   return { allowed: true, reason: 'OK', ratio };
 }
 
+// Pre-flight quote — UI-confirmation surface for lesson-gen request shape.
+// Heuristic = predictCost ¥ × generation_length_factor, where the factor lets
+// callers model multi-turn / multi-section lesson gen without re-tokenizing.
+// Confidence is bucketed off input-token volume + capability (heuristic
+// tokenizer accuracy degrades on dense CJK and very short prompts).
+function preflightQuote(opts = {}) {
+  const messages = Array.isArray(opts.messages) ? opts.messages : [];
+  const capability = opts.capability;
+  const factor = Number(opts.generation_length_factor);
+  const lengthFactor = (Number.isFinite(factor) && factor > 0) ? factor : 1.0;
+  const base = predictCost(messages, capability, {
+    maxOutputTokens: Number(opts.max_output_tokens) || undefined,
+  });
+  if (!base.ok) {
+    return { ok: false, error: base.error };
+  }
+  const e = base.estimate;
+  const predictedCny = +(e.cny_est * lengthFactor).toFixed(4);
+  const predictedTokens = e.input_tokens_est + Math.ceil(e.output_tokens_max * lengthFactor);
+  let confidence = 'low';
+  if (e.input_tokens_est >= 200 && (capability === 'T6_STRONG' || capability === 'T4_JUDGE')) {
+    confidence = 'medium';
+  }
+  if (e.input_tokens_est >= 1000 && lengthFactor <= 1.5) confidence = 'high';
+  return {
+    ok: true,
+    predicted_cny: predictedCny,
+    predicted_tokens: predictedTokens,
+    confidence,
+    breakdown: {
+      input_tokens_est: e.input_tokens_est,
+      output_tokens_max: Math.ceil(e.output_tokens_max * lengthFactor),
+      base_cny_est: e.cny_est,
+      generation_length_factor: lengthFactor,
+      capability,
+    },
+    estimation_source: 'tokenizer-fallback',
+  };
+}
+
 module.exports = {
   COST_PER_1K_TOKENS,
   DEFAULT_OUTPUT_TOKENS,
@@ -133,4 +173,5 @@ module.exports = {
   estimateMessages,
   predictCost,
   gateAgainstBudget,
+  preflightQuote,
 };

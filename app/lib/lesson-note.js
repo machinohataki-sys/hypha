@@ -65,7 +65,23 @@ function yamlScalar(v) {
   return s;
 }
 
-function buildFrontmatter({ plan, scoreResult, goalContract, lessonId, generatedAt, userIntent, visualArchetype, pedagogicalArchetype, knowledgePointRefs, productionScaffold } = {}) {
+// Distill provenance shape: { from_lesson_ids:[int], from_user_sparks:[string], at_ts:ISO }
+// Renders as one inline JSON line in frontmatter for ease of re-parse without YAML libs.
+// Backward compat: omitted entirely when caller does not pass provenance.
+function _renderProvenance(p) {
+  if (!p || typeof p !== 'object') return null;
+  const fromLessons = Array.isArray(p.from_lesson_ids)
+    ? p.from_lesson_ids.filter(n => Number.isInteger(n) && n >= 0).slice(0, 64)
+    : [];
+  const fromSparks = Array.isArray(p.from_user_sparks)
+    ? p.from_user_sparks.map(s => String(s || '').slice(0, 80)).filter(Boolean).slice(0, 32)
+    : [];
+  const at = typeof p.at_ts === 'string' && p.at_ts.trim() ? p.at_ts.trim() : new Date().toISOString();
+  if (fromLessons.length === 0 && fromSparks.length === 0) return null;
+  return JSON.stringify({ from_lesson_ids: fromLessons, from_user_sparks: fromSparks, at_ts: at });
+}
+
+function buildFrontmatter({ plan, scoreResult, goalContract, lessonId, generatedAt, userIntent, visualArchetype, pedagogicalArchetype, knowledgePointRefs, productionScaffold, provenance } = {}) {
   const fields = [];
   fields.push(['lesson_id', lessonId]);
   fields.push(['generated', generatedAt]);
@@ -100,6 +116,8 @@ function buildFrontmatter({ plan, scoreResult, goalContract, lessonId, generated
     // Use compact JSON string (yamlScalar would over-quote nested object).
     fields.push(['production_scaffold', JSON.stringify(productionScaffold)]);
   }
+  const prov = _renderProvenance(provenance);
+  if (prov) fields.push(['distill_provenance', prov]);
   return fields.map(([k, v]) => `${k}: ${yamlScalar(v)}`).join('\n') + '\n';
 }
 
@@ -315,6 +333,9 @@ async function depositLessonNote({
   // vault state files. Direct callers can supply them explicitly.
   userIntent, visualArchetype, pedagogicalArchetype,
   knowledgePoints, knowledgePointRefs, productionScaffold, priorLesson,
+  // v0.5+ Note System §3 — dual-layer distill provenance trace.
+  // Optional. When provided, persisted in frontmatter as `distill_provenance`.
+  provenance,
 } = {}) {
   // 1. Validate inputs (graceful — only the load-bearing fields are hard-required).
   if (!plan || typeof plan !== 'object') {
@@ -342,7 +363,7 @@ async function depositLessonNote({
   const fm = buildFrontmatter({
     plan, scoreResult, goalContract, lessonId: nextN, generatedAt,
     userIntent, visualArchetype, pedagogicalArchetype,
-    knowledgePointRefs, productionScaffold,
+    knowledgePointRefs, productionScaffold, provenance,
   });
   const md = buildBody({
     plan, body, response: response || '', scoreResult,
@@ -518,6 +539,28 @@ async function depositKnowledgePointNote({
   return { ok: true, path: filePath, kp_id: kpId, lesson_idx: lessonIdx };
 }
 
+// Parse `distill_provenance` value (raw FM string post-yamlScalar) back into
+// a typed shape. Returns null if absent / malformed. Defensive for callers
+// reading older notes without provenance (backward compatible).
+function parseDistillProvenance(rawValue) {
+  if (!rawValue || typeof rawValue !== 'string') return null;
+  let trimmed = rawValue.trim();
+  if (!trimmed) return null;
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    trimmed = trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+  }
+  try {
+    const obj = JSON.parse(trimmed);
+    if (!obj || typeof obj !== 'object') return null;
+    return {
+      from_lesson_ids: Array.isArray(obj.from_lesson_ids) ? obj.from_lesson_ids.filter(n => Number.isInteger(n)) : [],
+      from_user_sparks: Array.isArray(obj.from_user_sparks) ? obj.from_user_sparks.filter(s => typeof s === 'string') : [],
+      at_ts: typeof obj.at_ts === 'string' ? obj.at_ts : null,
+    };
+  } catch (_) { return null; }
+}
+
 module.exports = {
   depositLessonNote,
   slugify,
@@ -529,4 +572,6 @@ module.exports = {
   renderPriorReview,
   renderTOC,
   formatCrossSyllabusLink,
+  // v0.5+ Note System §3 — dual-layer distill provenance.
+  parseDistillProvenance,
 };

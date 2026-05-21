@@ -13,6 +13,81 @@ not a git-log dump.
 v2.0 development — system completeness push from rc.3 baseline. Multi-batch
 multi-agent ship sequence; each batch tracked here as it lands on `main`.
 
+### Added — v2 push batch 3 (2026-05-21)
+- **Goal System depth** (~88% → ~95%): Feasibility math confidence band (sparsity-
+  driven, suggests "ask more" on thin context), Single↔chain dispatcher soft
+  threshold zone 0.65-0.75 with opt-in `softThreshold:true`, multi-axis Drift
+  Detector (semantic + epistemic_register + success_criteria_alignment composite),
+  Goal Crystallizer per-question quality scorer with regen flag at <0.4.
+- **Lesson System depth** (~92% → ~96.5%): Anti-Slop P2 meta-coherence detector
+  (Jaccard between summary/takeaway and body, advisory `_meta` emit), Lesson Brief
+  11-field validator with measurable-verb / causal-connector / corrective-signal
+  floors (advisory by default), encyclopedia-opener guard with regex bank
+  (DICTIONARY / ACADEMIC / META_TEXTBOOK families + body-field precedence),
+  concept-drift emitter writes `CONCEPT_DRIFT` events to
+  `vault/<slug>/.hypha/concept-drift.jsonl` on inconsistent re-definitions.
+- **Note System depth** (~88% → ~95%): Dual-layer distill provenance (FM field
+  `provenance: {from_lesson_ids, from_user_sparks, at_ts}`), Living Note
+  reactivation 3-band confidence (high ≥0.7 auto-reactivate / 0.5-0.7 propose /
+  <0.5 silent), append-only `reactivation-log.jsonl` with reason. Atlas concept
+  half-life decay (90d × 0.5, archive at <0.1 to atlas-archive append-only).
+  Entropy badge per concept cluster (Shannon base-2 over visit-frequency,
+  convergence / divergence / stable / insufficient_data states).
+- **Companion System wired** (~84% → ~93%): `vault/.hypha/companion-coherence.jsonl`
+  persistence layer + auto-invocation at session-end via `companionTriggers.
+  tryLessonComplete` (computes S+R from transcript, logs, emits boundary_warning
+  on combined<0.5). Repair pattern threaded into boundary-guard reject envelope
+  (`repair_response` additive field). `getCoherenceTrend` helper for 7-day
+  trajectory analysis. Closes B1.M1 gaps #2/#3/#4 (UI surface remains deferred).
+- **Cold-start kit** (Scout S83+S86, arXiv 2605.13880 PREPING + 2605.14205
+  SimPersona): 4 archetype seed playbooks (`engineer-mid` / `engineer-senior` /
+  `pm` / `researcher`) × 20 hand-authored synthetic learning trajectories each.
+  Rule-based persona classifier from onboarding answers (lexicon + anti-signal
+  scoring + tie-break order). Cohort refiner reads `events.jsonl` post-5+
+  events, re-classifies, persists to `archetype-revisions.jsonl`. Day-1 trough
+  mitigation: users have a personalized playbook before first lesson.
+- 6 new smokes (180 net new tests): `goal_v2` 32/32 + `lesson_v2` 38/38 +
+  `note_v2` 39/39 + `companion_v2` 16/16 + `cold_start_kit` 18/18 (397
+  assertions) + `dependency_graph` was 59/59 (counted in B2). Updated:
+  `silent_catch_sweep` ceiling 150→158 + 130→134 (v2 push churn, justified
+  inline). Marked `growth_v2` RUN_SEQUENTIAL for sweep-race robustness.
+
+### Added — v2 push batch 2 (2026-05-21)
+- **Exam System depth** (~78% → ~91%): T4_JUDGE 4-axis weighted aggregate
+  (correctness / depth / clarity / register_match), adaptive Scope Engine
+  3-fail tier shrink → prerequisites, weighted Final Compression daily plan
+  via largest-remainder allocation, strict User Bank importer with
+  row-indexed validation errors.
+- **Commons System lifecycle** (~80% → ~92%, Scout S52): Pack lifecycle
+  state machine `draft → ratified → superseded → deprecated`, frozen-on-
+  ratify guard, supersede cascade, lifecycle audit log. License approved-
+  list gate (PUBLIC_DOMAIN / CC0 / CC_BY / CC_BY_SA / CC_BY_NC / MIT /
+  Apache-2.0) + upstream NC + SA conflict detection. Source trust 90-day
+  decay (×0.9 per window, floor 0.3×raw, override exempt) with audit emit.
+- **Growth System depth** (~82% → ~91%, Scout S77): Cross-Spark Jaccard
+  strength score with ≥0.3 gate (cosine deferred to v0.8 embed infra),
+  Judgment Gym Yerkes-Dodson edge picker with per-topic stability,
+  Thinking-Tools 7-anchor cluster map (first-principles + lateral pairing),
+  Project Spine milestone falsifier (reuses B1 vague-falsifier guard),
+  North Star runtime alert at >10% pillar drop → `vault/.hypha/growth-
+  alerts.jsonl`.
+- **Infrastructure hardening** (~78% → ~91%, Scout S69): Cross-capability
+  router degradation chain T6_STRONG → T4_JUDGE → T3_MID with router-events
+  jsonl emit, Cashflow Shield 3-tier gate (WARN 90% / SOFT_BLOCK 100% /
+  HARD_BLOCK 110%) with timezone-aware daily reset, Lifetime Ledger
+  `monthlyRollup` (per-axis sum/avg/p95), Cost Predictor `preflightQuote`
+  for pre-flight cost dialogs. 4 new `main.js` IPC handlers.
+- **Dependency-graph + retraction propagation** (Scout S81, arXiv
+  2604.20283): In-memory DAG over Decision Log + Assumption Ledger with
+  optional `depends_on` edges, cycle detection at write-time, cascade
+  REVIEW emission on retraction walks `getDependents` recursively + emits
+  to `vault/.hypha/kill-watcher.jsonl` with `suggested_action:
+  'review_downstream'` (non-mutating). Wikilink-resolver 4-evidence ranker
+  (lexical / frequency / neighborhood Jaccard / semantic edit-distance)
+  with default `lifecycle:invalidated|deprecated` filter.
+- 5 new smokes (131 net new tests): `exam_v2` 14/14 + `commons_v2` 16/16 +
+  `growth_v2` 16/16 + `infra_v2` 26/26 + `dependency_graph` 59/59.
+
 ### Added — v2 push batch 1 (2026-05-21)
 - **Companion persona-coherence metric** (Scout S68, arXiv 2605.12850):
   Stability + Robustness scorer with harmonic-mean fusion, gate at ≥0.75.

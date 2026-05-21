@@ -40,6 +40,7 @@ const fs = require('node:fs');
 const crypto = require('node:crypto');
 const path = require('node:path');
 const vault = require('../vault');
+const dependencyGraph = require('./dependency-graph');
 
 const FILE_NAME = 'assumptions.jsonl';
 const MIN_CLAIM_CHARS = 10;
@@ -88,6 +89,26 @@ function _validatePrediction(pred, ctx) {
     return null;
   }
   return { claim, falsifier, deadline_iso: deadlineRaw };
+}
+
+function _normaliseDependsOn(raw, ctx) {
+  if (raw === undefined || raw === null) return null;
+  if (!Array.isArray(raw)) {
+    try { console.warn(`${ctx}: depends_on must be array, dropped`); } catch (_) {}
+    return null;
+  }
+  const out = [];
+  const seen = new Set();
+  for (const v of raw) {
+    if (typeof v !== 'string') continue;
+    const t = v.trim();
+    if (!t) continue;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+    if (out.length >= 32) break;
+  }
+  return out.length ? out : null;
 }
 
 const STATES = Object.freeze(['unvalidated', 'validating', 'validated', 'refuted']);
@@ -176,6 +197,7 @@ function appendAssumption(slug, row) {
   const state = STATES.includes(row.state) ? row.state : 'unvalidated';
   const source = row.source === 'auto-extract' ? 'auto-extract' : 'manual';
   const prediction = _validatePrediction(row.prediction, 'assumption-ledger');
+  const dependsOn = _normaliseDependsOn(row.depends_on, 'assumption-ledger');
   const nowIso = new Date().toISOString();
   const stamped = {
     ts: typeof row.ts === 'string' && row.ts ? row.ts : nowIso,
@@ -190,12 +212,24 @@ function appendAssumption(slug, row) {
     source,
   };
   if (prediction) stamped.prediction = prediction;
+  if (dependsOn && dependsOn.length) stamped.depends_on = dependsOn;
   const abs = _filePath(safe);
   try {
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.appendFileSync(abs, JSON.stringify(stamped) + '\n', 'utf8');
   } catch (err) {
     return { ok: false, error: `assumption-ledger: write failed: ${err.message}` };
+  }
+  // Assumption entry_id = assumption_id (stable across state-transition rows).
+  // depends_on only fires on the ORIGINAL append, not transition rows (which
+  // never expose this field).
+  if (dependsOn && dependsOn.length) {
+    for (const toId of dependsOn) {
+      const res = dependencyGraph.addEdge({ from_id: stamped.assumption_id, to_id: toId, kind: 'depends_on' });
+      if (!res.ok) {
+        try { console.warn(`assumption-ledger: depends_on edge skipped (${stamped.assumption_id} -> ${toId}): ${res.error}`); } catch (_) {}
+      }
+    }
   }
   return { ok: true, row: stamped };
 }

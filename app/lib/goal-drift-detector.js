@@ -134,4 +134,96 @@ function detectDrift(goalContract, lessonOutput) {
   };
 }
 
-module.exports = { detectDrift };
+// ── Multi-axis composite drift (v0.12, 2026-05-21) ─────────────────────────
+// Existing detectDrift returns single-score drift across 4 algorithmic axes
+// (vocab / alignment / forbidden / jargon_load). detectDriftMultiAxis layers
+// 3 ORTHOGONAL axes on top — composite captures register + success-test drift
+// that vocab+alignment cannot. Returns OLD shape + axes_composite + composite_score.
+//
+// Three axes (each 0..1, high = drift):
+//   1. semantic              — re-use detectDrift().drift_score / 100
+//   2. epistemic_register    — HUMANITIES goal vs TECH lesson output (or vice versa) mismatch
+//   3. success_criteria_alignment — lesson output references the stated success test / verifiable target
+//
+// Composite = 0.45·semantic + 0.30·epistemic_register + 0.25·success_criteria
+
+const HUMANITIES_REGISTER_TOKENS = ['文学', '小说', '诗', '散文', '剧', '作家', '故事', '叙事', '隐喻', 'literature', 'narrative', 'poetry', 'novel', 'essay'];
+const TECH_REGISTER_TOKENS = ['函数', '算法', '编程', '代码', '架构', '部署', '编译', 'function', 'algorithm', 'compile', 'deploy', 'api', 'sdk', 'http'];
+const HUMANITIES_ARCHETYPES = ['HUMANITIES', 'MINDSET'];
+const TECH_ARCHETYPES = ['TECH-CONCEPT', 'TECH-PROC', 'LANG-ACQ', 'DECL-MASS'];
+
+function _registerSignature(text) {
+  const lower = String(text || '').toLowerCase();
+  let hum = 0, tech = 0;
+  for (const t of HUMANITIES_REGISTER_TOKENS) {
+    if (lower.includes(t.toLowerCase())) hum++;
+  }
+  for (const t of TECH_REGISTER_TOKENS) {
+    if (lower.includes(t.toLowerCase())) tech++;
+  }
+  return { hum, tech, total: hum + tech };
+}
+
+function _registerDrift(goalContract, lessonOutput) {
+  const archetype = goalContract && goalContract.archetype;
+  const goalText = [goalContract && goalContract.north_star_goal, goalContract && goalContract.main_creation].filter(Boolean).join(' ');
+  const lessonText = JSON.stringify(lessonOutput || {});
+  const goalSig = _registerSignature(goalText);
+  const lessonSig = _registerSignature(lessonText);
+
+  let expected = null;
+  if (archetype && HUMANITIES_ARCHETYPES.includes(archetype)) expected = 'hum';
+  else if (archetype && TECH_ARCHETYPES.includes(archetype)) expected = 'tech';
+  else if (goalSig.total > 0) expected = goalSig.hum >= goalSig.tech ? 'hum' : 'tech';
+
+  if (!expected || lessonSig.total === 0) return 0;
+  const wrongShare = expected === 'hum'
+    ? lessonSig.tech / lessonSig.total
+    : lessonSig.hum / lessonSig.total;
+  return Math.max(0, Math.min(1, wrongShare));
+}
+
+function _successCriteriaDrift(goalContract, lessonOutput) {
+  const goal = goalContract || {};
+  const criteria = [
+    goal.success_test, goal.success_criteria, goal.verifiable_outcome,
+    goal.main_creation, ...(Array.isArray(goal.milestones) ? goal.milestones : []),
+  ].filter(t => typeof t === 'string' && t.trim());
+
+  if (criteria.length === 0) return 0;
+  const lessonText = JSON.stringify(lessonOutput || {}).toLowerCase();
+  const criteriaTokens = new Set();
+  for (const c of criteria) for (const tok of tokenize(c)) if (tok.length >= 2) criteriaTokens.add(tok);
+  if (criteriaTokens.size === 0) return 0;
+  let hit = 0;
+  for (const tok of criteriaTokens) if (lessonText.includes(tok)) hit++;
+  return Math.max(0, Math.min(1, 1 - hit / criteriaTokens.size));
+}
+
+function detectDriftMultiAxis(goalContract, lessonOutput) {
+  const base = detectDrift(goalContract, lessonOutput);
+  const semantic = Math.max(0, Math.min(1, (base.drift_score || 0) / 100));
+  const epistemic_register = _registerDrift(goalContract, lessonOutput);
+  const success_criteria_alignment = _successCriteriaDrift(goalContract, lessonOutput);
+  const composite_score = 0.45 * semantic + 0.30 * epistemic_register + 0.25 * success_criteria_alignment;
+  return {
+    ...base,
+    axes_composite: {
+      semantic: Math.round(semantic * 100) / 100,
+      epistemic_register: Math.round(epistemic_register * 100) / 100,
+      success_criteria_alignment: Math.round(success_criteria_alignment * 100) / 100,
+    },
+    composite_score: Math.round(composite_score * 100) / 100,
+    composite_verdict: composite_score >= 0.6 ? 'high'
+      : composite_score >= 0.35 ? 'moderate'
+      : 'low',
+  };
+}
+
+module.exports = {
+  detectDrift,
+  detectDriftMultiAxis,
+  _registerSignature,
+  _registerDrift,
+  _successCriteriaDrift,
+};

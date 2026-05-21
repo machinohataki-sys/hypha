@@ -159,6 +159,51 @@ function _normalizeItem(raw, sourceLabel) {
   return item;
 }
 
+// v2-push-b2: strict validation. Returns array of error strings (empty = valid).
+// Boundary validation per Lens 9 SURGICAL — reject malformed at the system
+// boundary, do not silently drop into normalize-and-discard.
+const _VALID_TIERS = Object.freeze(['must_master', 'high_yield', 'recognition', 'out_of_scope']);
+
+function _validateItem(item, rowIdx) {
+  const errors = [];
+  const label = `row ${rowIdx + 1}`;
+  if (!item.question || item.question.length === 0) {
+    errors.push(`${label}: missing question field`);
+  }
+  if (!item.answer || item.answer.length === 0) {
+    errors.push(`${label}: missing answer field`);
+  }
+  // Ambiguous-correct guard: if options[] is present, answer should match one
+  // exactly OR be a single letter pointing at a position. Otherwise the item
+  // is unanswerable downstream.
+  if (Array.isArray(item.options) && item.options.length > 0 && item.answer) {
+    const ans = item.answer.trim();
+    const matchExact = item.options.some((opt) => opt.trim() === ans);
+    // Letter form (A/B/C/D or 1/2/3...) — must point at valid index.
+    const letterIdx = /^[A-Za-z]$/.test(ans) ? (ans.toUpperCase().charCodeAt(0) - 65) : -1;
+    const numIdx = /^\d+$/.test(ans) ? (parseInt(ans, 10) - 1) : -1;
+    const ptrIdx = letterIdx >= 0 ? letterIdx : numIdx;
+    const matchPtr = ptrIdx >= 0 && ptrIdx < item.options.length;
+    if (!matchExact && !matchPtr) {
+      errors.push(`${label}: answer "${ans}" not found in options [${item.options.join(' | ')}]`);
+    }
+    // Duplicate-option guard (ambiguous correct option).
+    const seen = new Set();
+    for (const opt of item.options) {
+      const k = opt.trim();
+      if (seen.has(k)) {
+        errors.push(`${label}: duplicate option "${k}" — ambiguous correct answer`);
+        break;
+      }
+      seen.add(k);
+    }
+  }
+  if (item.tier && !_VALID_TIERS.includes(item.tier)) {
+    errors.push(`${label}: invalid tier "${item.tier}" (expected one of ${_VALID_TIERS.join('/')})`);
+  }
+  return errors;
+}
+
 /**
  * Parse a bank file content (string) into items. format may be inferred from
  * the file extension (passed as `format`).
@@ -167,9 +212,12 @@ function _normalizeItem(raw, sourceLabel) {
  * @param {string} args.format      — 'csv'|'json'|'md'
  * @param {string} args.content     — raw text
  * @param {string} [args.sourceLabel] — defaults to 'user-upload'
- * @returns {object[]}
+ * @param {boolean} [args.strict]   — v2-push-b2: when true, reject malformed
+ *                                    rows w/ ImportValidationError instead of
+ *                                    silently dropping question-less items.
+ * @returns {object[]} (non-strict) | object[] w/ all validated (strict)
  */
-function parseBankContent({ format, content, sourceLabel } = {}) {
+function parseBankContent({ format, content, sourceLabel, strict } = {}) {
   const f = String(format || '').toLowerCase();
   let rawItems = [];
   if (f === 'csv') {
@@ -187,9 +235,22 @@ function parseBankContent({ format, content, sourceLabel } = {}) {
   } else {
     throw new Error(`unsupported bank format: ${format}`);
   }
-  return rawItems
-    .map((r) => _normalizeItem(r, sourceLabel))
-    .filter((i) => i.question.length > 0);
+  const normalized = rawItems.map((r) => _normalizeItem(r, sourceLabel));
+  if (strict === true) {
+    const allErrors = [];
+    normalized.forEach((item, idx) => {
+      const errs = _validateItem(item, idx);
+      if (errs.length > 0) allErrors.push(...errs);
+    });
+    if (allErrors.length > 0) {
+      const err = new Error(`bank import rejected: ${allErrors.length} validation error(s)\n  - ${allErrors.slice(0, 10).join('\n  - ')}`);
+      err.code = 'BANK_VALIDATION_FAILED';
+      err.validation_errors = allErrors;
+      throw err;
+    }
+    return normalized;
+  }
+  return normalized.filter((i) => i.question.length > 0);
 }
 
 /**
@@ -207,6 +268,7 @@ function importBank(slug, bankFile) {
     format: bankFile.format,
     content: bankFile.content,
     sourceLabel: bankFile.source || bankFile.name || 'user-upload',
+    strict: bankFile.strict === true,
   });
   const bankId = _generateBankId(bankFile.name);
   const meta = {
@@ -310,6 +372,7 @@ module.exports = {
   parseBankContent,
   _parseCSV,
   _parseMD,
+  _validateItem,
   // API
   importBank,
   listBanks,

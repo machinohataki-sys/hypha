@@ -134,6 +134,41 @@ function _clamp01(n) {
   return Math.min(Math.max(v, 0), 1);
 }
 
+// v2-push-b2: 4-axis judge. Weighted aggregate: correctness 0.5 / clarity 0.15 /
+// depth 0.2 / register_match 0.15 (sum=1.0). correctness dominant because exam
+// grading first-cares-about right-answer; register_match lowest because manuscript
+// register is desirable but not the primary axis for an exam answer.
+const AXIS_WEIGHTS = Object.freeze({
+  correctness:    0.50,
+  clarity:        0.15,
+  depth:          0.20,
+  register_match: 0.15,
+});
+const AXIS_KEYS = Object.freeze(Object.keys(AXIS_WEIGHTS));
+
+function _coerceAxes(rawAxes, fallbackConfidence) {
+  // Back-compat: when LLM omits `axes`, synthesize from confidence — every axis
+  // gets confidence-as-default. This keeps existing 9-smoke green while new
+  // 4-axis callers see the full structure.
+  const fb = _clamp01(fallbackConfidence);
+  if (!rawAxes || typeof rawAxes !== 'object') {
+    const synth = {};
+    for (const k of AXIS_KEYS) synth[k] = fb;
+    return { axes: synth, synthesized: true };
+  }
+  const axes = {};
+  for (const k of AXIS_KEYS) {
+    axes[k] = rawAxes[k] != null ? _clamp01(rawAxes[k]) : fb;
+  }
+  return { axes, synthesized: false };
+}
+
+function _aggregateAxes(axes) {
+  let sum = 0;
+  for (const k of AXIS_KEYS) sum += (axes[k] || 0) * AXIS_WEIGHTS[k];
+  return _clamp01(sum);
+}
+
 function _buildPrompt({ question, userAnswer, rubric, modelAnswer }) {
   const q = _truncate(question, _MAX_INPUT_CHARS);
   const ua = _truncate(userAnswer, _MAX_INPUT_CHARS);
@@ -165,10 +200,22 @@ function _buildPrompt({ question, userAnswer, rubric, modelAnswer }) {
     '  - "redo_exercise"  — verdict=partial, try variant',
     '  - "review_concept" — verdict=incorrect, revisit prereq',
     '',
+    'Score 4 axes independently in [0..1]:',
+    '  - correctness    — answer matches rubric facts',
+    '  - clarity        — articulation, structure, no fog',
+    '  - depth          — moves past surface restatement',
+    '  - register_match — sober examiner voice (no slop, no hedging filler)',
+    '',
     'Schema:',
     '{',
     '  "verdict": "correct" | "partial" | "incorrect",',
     '  "confidence": 0.0..1.0,',
+    '  "axes": {',
+    '    "correctness": 0.0..1.0,',
+    '    "clarity": 0.0..1.0,',
+    '    "depth": 0.0..1.0,',
+    '    "register_match": 0.0..1.0',
+    '  },',
     '  "reasoning": "1-3 sentence rationale citing rubric point names",',
     '  "concept_gaps": ["string", ...],',
     '  "suggested_next": "advance" | "redo_exercise" | "review_concept"',
@@ -355,6 +402,8 @@ async function judgeOpenAnswer(input, opts) {
   const reasoning = String(parsed.reasoning || '').slice(0, 1200);
   const concept_gaps = _coerceGaps(parsed.concept_gaps);
   const suggested_next = _coerceSuggested(parsed.suggested_next, verdict);
+  const { axes, synthesized: axes_synthesized } = _coerceAxes(parsed.axes, confidence);
+  const aggregate_score = _aggregateAxes(axes);
 
   const result = {
     verdict,
@@ -362,12 +411,15 @@ async function judgeOpenAnswer(input, opts) {
     reasoning,
     concept_gaps,
     suggested_next,
+    axes,
+    aggregate_score,
     _meta: {
       provider: (dispatch && dispatch.providerId) || null,
       model:    (dispatch && dispatch.model) || null,
       attempts: (dispatch && dispatch.attempts) || null,
       predicted_cost_cny: (dispatch && dispatch.predicted_cost && dispatch.predicted_cost.cny_est) || null,
       cost_gate_state:    (dispatch && dispatch.cost_gate && dispatch.cost_gate.state) || null,
+      axes_synthesized,
     },
   };
 
@@ -377,6 +429,9 @@ async function judgeOpenAnswer(input, opts) {
     question_hash: _hashShort(question),
     verdict,
     confidence,
+    aggregate_score,
+    axes,
+    axes_synthesized,
     concept_gaps_n: concept_gaps.length,
     suggested_next,
     provider: result._meta.provider,
@@ -392,10 +447,14 @@ async function judgeOpenAnswer(input, opts) {
 module.exports = {
   VERDICTS,
   SUGGESTED_NEXT,
+  AXIS_WEIGHTS,
+  AXIS_KEYS,
   judgeOpenAnswer,
   // exposed for tests / future re-use
   _extractFirstJSON,
   _buildPrompt,
   _coerceVerdict,
   _coerceSuggested,
+  _coerceAxes,
+  _aggregateAxes,
 };

@@ -38,6 +38,18 @@ const NOTE_PREVIEW_CHARS = 300;
 const LLM_MAX_PICKS      = 3;
 const LLM_MAX_TOKENS     = 900;
 
+// Confidence bands (v0.5+ Note System §3 deliverable 2).
+//   high   — jaccard ≥ HIGH_FLOOR  AND  LLM agreed → auto-reactivate
+//   medium — jaccard ∈ [MED_FLOOR, HIGH_FLOOR) OR (≥ HIGH_FLOOR but LLM dropped) → propose to user
+//   low    — jaccard < MED_FLOOR → skip silently (not surfaced; logged only when explicitly enabled)
+//
+// LLM agreement = the candidate appears in the model's selected set.
+// Floors are deliberately conservative; tuning lives behind opts overrides.
+const CONFIDENCE_HIGH_JACCARD_FLOOR   = 0.7;
+const CONFIDENCE_MEDIUM_JACCARD_FLOOR = 0.5;
+const REACTIVATION_LOG_DIR  = '.hypha';
+const REACTIVATION_LOG_FILE = 'reactivation-log.jsonl';
+
 // Stopword set — small, biased to drop common CN + EN filler that
 // inflates jaccard between two pedagogical paragraphs that share
 // register-words but no actual concepts.
@@ -155,6 +167,48 @@ function _truncate(s, n) {
   return t.slice(0, n) + '…';
 }
 
+// Classify a candidate into a confidence band per the deliverable-2 contract.
+// `jaccard` already lives on the merged candidate; `llmAgreed` is whether
+// Stage-2 LLM selected this note (true / false / 'unknown' when LLM was
+// unavailable). `unknown` is treated like agreed=false but produces a
+// 'reason: llm_unavailable' on the log row so triage stays honest.
+function _classifyConfidence({ jaccard, llmAgreed,
+  highFloor = CONFIDENCE_HIGH_JACCARD_FLOOR,
+  mediumFloor = CONFIDENCE_MEDIUM_JACCARD_FLOOR,
+}) {
+  const j = Number(jaccard) || 0;
+  if (j >= highFloor && llmAgreed === true) {
+    return { band: 'high', reason: `jaccard ${j} ≥ ${highFloor} + LLM agreed → auto-reactivate` };
+  }
+  if (j >= highFloor && llmAgreed !== true) {
+    return { band: 'medium', reason: `jaccard ${j} ≥ ${highFloor} but LLM ${llmAgreed === 'unknown' ? 'unavailable' : 'dropped'} → propose` };
+  }
+  if (j >= mediumFloor) {
+    return { band: 'medium', reason: `jaccard ${j} ∈ [${mediumFloor}, ${highFloor}) → propose to user` };
+  }
+  return { band: 'low', reason: `jaccard ${j} < ${mediumFloor} → skip silently` };
+}
+
+function _reactivationLogPath(slug) {
+  const slugDir = _resolveSlugDir(slug);
+  const root = path.dirname(slugDir); // vault root
+  return path.join(root, REACTIVATION_LOG_DIR, REACTIVATION_LOG_FILE);
+}
+
+function _appendReactivationLog(slug, rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return { written: 0 };
+  try {
+    const p = _reactivationLogPath(slug);
+    const dir = path.dirname(p);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const lines = rows.map(r => JSON.stringify(r)).join('\n') + '\n';
+    fs.appendFileSync(p, lines, 'utf8');
+    return { written: rows.length };
+  } catch (_) {
+    return { written: 0 };
+  }
+}
+
 // Build the user prompt for the T4_JUDGE pick. Keep it tight — small note
 // previews + clear JSON schema. Returns { system, user, payloadCandidates }.
 function _buildPrompt(currentLessonText, topCandidates) {
@@ -241,6 +295,9 @@ async function findReactivationCandidates(args = {}) {
     llm_selected: 0,
     fallback_used: false,
     error: null,
+    confidence_counts: { high: 0, medium: 0, low: 0 },
+    auto_reactivated: 0,
+    log_rows_written: 0,
   };
 
   if (!slug) {
@@ -357,6 +414,71 @@ async function findReactivationCandidates(args = {}) {
   const candidates = merged.slice(0, maxResults);
   summary.llm_selected = candidates.length;
 
+  // Confidence band classification (v0.5+ deliverable 2).
+  // llmAgreed: 'unknown' if Stage 2 didn't run (no executeChat available),
+  //            true if the note appeared in llmPicked,
+  //            false if LLM ran but didn't select this note.
+  const llmRan = Array.isArray(llmPicked);
+  const llmIdxSet = new Set(llmRan ? llmPicked.map(p => p.note_idx) : []);
+  const highFloor = Number.isFinite(Number(opts.highConfFloor)) ? Number(opts.highConfFloor) : CONFIDENCE_HIGH_JACCARD_FLOOR;
+  const mediumFloor = Number.isFinite(Number(opts.mediumConfFloor)) ? Number(opts.mediumConfFloor) : CONFIDENCE_MEDIUM_JACCARD_FLOOR;
+  const currentLessonIdxForLog = currentLessonIdx >= 0 ? currentLessonIdx : null;
+  const nowIso = new Date().toISOString();
+
+  for (const c of candidates) {
+    const llmAgreed = llmRan ? llmIdxSet.has(c.note_idx) : 'unknown';
+    const { band, reason } = _classifyConfidence({ jaccard: c.jaccard, llmAgreed, highFloor, mediumFloor });
+    c.confidence = band;
+    c.confidence_reason = reason;
+    c.auto_reactivate = band === 'high';
+    summary.confidence_counts[band] = (summary.confidence_counts[band] || 0) + 1;
+    if (band === 'high') summary.auto_reactivated += 1;
+  }
+
+  // Also surface the low-confidence rejects to the log so reviewers can audit
+  // why a candidate was skipped silently. These are scored notes that did NOT
+  // make `merged` — we recover them from `topK` minus picked.
+  const pickedIdxSet = new Set(candidates.map(c => c.note_idx));
+  const lowConfLogRows = [];
+  for (const c of topK) {
+    if (pickedIdxSet.has(c.note_idx)) continue;
+    const llmAgreed = llmRan ? llmIdxSet.has(c.note_idx) : 'unknown';
+    const { band, reason } = _classifyConfidence({ jaccard: c.jaccard, llmAgreed, highFloor, mediumFloor });
+    if (band === 'low') {
+      summary.confidence_counts.low = (summary.confidence_counts.low || 0) + 1;
+      lowConfLogRows.push({
+        ts: nowIso,
+        slug,
+        current_lesson_idx: currentLessonIdxForLog,
+        candidate_lesson_idx: c.note_idx,
+        confidence: band,
+        confidence_reason: reason,
+        jaccard: c.jaccard,
+        llm_agreed: llmAgreed,
+        surfaced: false,
+      });
+    }
+  }
+
+  const surfacedLogRows = candidates.map(c => ({
+    ts: nowIso,
+    slug,
+    current_lesson_idx: currentLessonIdxForLog,
+    candidate_lesson_idx: c.note_idx,
+    confidence: c.confidence,
+    confidence_reason: c.confidence_reason,
+    jaccard: c.jaccard,
+    llm_agreed: llmRan ? llmIdxSet.has(c.note_idx) : 'unknown',
+    surfaced: true,
+    auto_reactivate: c.auto_reactivate,
+  }));
+
+  const allRows = surfacedLogRows.concat(lowConfLogRows);
+  if (allRows.length > 0) {
+    const w = _appendReactivationLog(slug, allRows);
+    summary.log_rows_written = w.written;
+  }
+
   return { candidates, summary };
 }
 
@@ -367,6 +489,11 @@ module.exports = {
   DEFAULT_MIN_AGE_DAYS,
   JACCARD_FLOOR,
   JACCARD_TOPK,
+  CONFIDENCE_HIGH_JACCARD_FLOOR,
+  CONFIDENCE_MEDIUM_JACCARD_FLOOR,
+  REACTIVATION_LOG_FILE,
   _tokens,
   _jaccard,
+  _classifyConfidence,
+  _reactivationLogPath,
 };
