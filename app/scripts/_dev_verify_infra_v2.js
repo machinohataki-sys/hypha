@@ -20,6 +20,15 @@
 
 const path = require('node:path');
 
+// Force production mode in this smoke. The Cashflow Shield has a dev-mode
+// bypass that promotes any tier to 'byok' (unlimited cap) when NODE_ENV=development
+// or HYPHA_DEV/HYPHA_ALLOW_CLI is set. Under that bypass enforceShield never
+// throws — which would mask the 110% hard-block contract this smoke asserts.
+// Both local + CI must run with dev-mode OFF for these tests to be meaningful.
+process.env.NODE_ENV = 'production';
+delete process.env.HYPHA_DEV;
+delete process.env.HYPHA_ALLOW_CLI;
+
 const ROUTER_PATH = path.resolve(__dirname, '../lib/llm/router.js');
 const SHIELD_PATH = path.resolve(__dirname, '../lib/cashflow-shield/shield.js');
 const INDEX_PATH  = path.resolve(__dirname, '../lib/llm/index.js');
