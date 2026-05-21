@@ -18,6 +18,35 @@ not a git-log dump.
 - Source extractor caps tightened: 200 MB per file, 8 files per call,
   800 MB total per ingest.
 
+## [1.0.0-rc.2] - 2026-05-21
+
+CI / release-pipeline iteration on top of rc.1. No product code changes.
+
+### Fixed
+- `package-lock.json` regenerated to match `package.json` after
+  electron-builder + electron-updater landed in earlier boots.
+- CI smoke now passes on fresh 3-OS runners: `SKIP_HEADLESS` markers
+  added to LLM-key-dependent smokes (`cost_ledger` / `creation_system` /
+  `full_chain` / `route_goal` / `golden_path_e2e`) and to the
+  `sweep_runner` smoke (needs a prior local baseline file).
+- `pack_schema` PS5 now soft-skips when the `vault/.commons-packs/`
+  seed fixture is absent (vault is gitignored, missing on CI checkout).
+- `release.yml` maps `GH_TOKEN` from the auto-provided
+  `secrets.GITHUB_TOKEN` — no manual GitHub secret required for basic
+  release publish; signing certs remain optional.
+
+### Added
+- `esbuild ^0.28.0` in `devDependencies` so `pricing_ui_wire` and
+  `ui_polish` smokes can compile JSX in CI without a global install.
+- PDF native upgrade (last user-driven slice of rc.1):
+  - `native-pdf-v2.js` uses pdfjs-dist directly — heading 启发式
+    (font-size top 5% = H1, top 15% = H2), multi-column reading order,
+    image-heavy detection → OCR fallback, transparent v1 fallback.
+  - `raw-stash.js` no longer recommends `pip install markitdown`;
+    new message explains what HYPHA tried and suggests uploading the
+    EPUB version or splitting the PDF.
+  - `_dev_verify_native_pdf_v2.js` smoke: 17/17 PASS.
+
 ## [1.0.0-rc.1] - 2026-05-20
 
 First release candidate spanning the ten production systems described in
