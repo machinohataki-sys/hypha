@@ -5,13 +5,15 @@
 # `electron-builder --publish always` which uploads installers + autoupdate
 # metadata to the GitHub Release matching the tag.
 #
-# Secrets required for full pipeline:
-#   GH_TOKEN              repo-scoped token for the release upload
+# Secrets:
+#   GITHUB_TOKEN          auto-provided by GitHub Actions (contents:write perm
+#                         declared below — enough to create releases on the
+#                         same repo, no user setup needed)
 #   CSC_LINK / CSC_KEY_PASSWORD          (Windows code signing — optional)
 #   APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID  (macOS notarize)
 #
-# Every secret-dependent step is guarded with `if: secrets.X != ''` so the
-# workflow degrades gracefully for fork PRs (which cannot see secrets).
+# Without Apple/Windows certs, builds ship unsigned ("unknown publisher"
+# warning on first launch). Release upload itself works via GITHUB_TOKEN.
 
 name: release
 
@@ -41,7 +43,6 @@ jobs:
   publish:
     name: publish · ${{ matrix.os }}
     needs: smoke-gate
-    if: ${{ env.HAS_GH_TOKEN == 'true' || secrets.GH_TOKEN != '' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -50,8 +51,6 @@ jobs:
           - { os: ubuntu-latest,  target: linux }
           - { os: windows-latest, target: win }
           - { os: macos-latest,   target: mac }
-    env:
-      HAS_GH_TOKEN: ${{ secrets.GH_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -59,7 +58,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Publish via electron-builder
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          # GitHub auto-provides GITHUB_TOKEN; electron-builder reads GH_TOKEN.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Windows signing (skip cleanly if absent)
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
