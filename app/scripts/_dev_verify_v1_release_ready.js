@@ -28,20 +28,23 @@ function record(id, label, pass, detail) {
   console.log(`[${id}] ${tag}  ${label}${detail ? ' — ' + detail : ''}`);
 }
 
-// RR1 — package.json version
+// RR1 — package.json version matches the v1.0 line (rc.N or stable)
 try {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  record('RR1', "package.json version === '1.0.0-rc.1'",
-    pkg.version === '1.0.0-rc.1', `version=${pkg.version}`);
+  const ok = /^1\.0\.0(-rc\.\d+)?$/.test(pkg.version);
+  record('RR1', "package.json version on 1.0.0 line",
+    ok, `version=${pkg.version}`);
 } catch (e) {
   record('RR1', 'package.json readable + parses', false, e.message);
 }
 
-// RR2 — CHANGELOG section
+// RR2 — CHANGELOG has a matching release-header section
 try {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   const cl = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8');
-  const has = /^##\s+\[1\.0\.0-rc\.1\]/m.test(cl);
-  record('RR2', "CHANGELOG.md has '## [1.0.0-rc.1]' section",
+  const re = new RegExp('^##\\s+\\[' + pkg.version.replace(/\./g, '\\.') + '\\]', 'm');
+  const has = re.test(cl);
+  record('RR2', `CHANGELOG.md has '## [${pkg.version}]' section`,
     has, has ? 'header found' : 'header missing');
 } catch (e) {
   record('RR2', 'CHANGELOG.md readable', false, e.message);
