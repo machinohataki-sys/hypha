@@ -10,6 +10,21 @@ not a git-log dump.
 
 ## [Unreleased]
 
+## [2.0.0-rc.2] - 2026-05-21
+
+CI smoke fixes on top of rc.1. No product code changes beyond:
+- Decision Log monotonic ISO ts stamper (`_monotonicNowIso`) — prevents
+  same-millisecond timestamp collisions on fast systems (Linux / macOS CI
+  runners) that broke the dependency-graph self-edge guard. Module-local
+  state; preserves valid ISO 8601 format.
+
+### Fixed
+- `_dev_verify_infra_v2.js`: now uses `tier='free'` deterministically + routes
+  vault to isolated tmp via `HYPHA_DATA` (was setting `HYPHA_VAULT_ROOT` which
+  vault.js doesn't read). Eliminates profile.json dependency in tests.
+- `_dev_verify_dependency_graph.js` self-edge failures on Ubuntu/macOS
+  resolved by the Decision Log monotonic stamper.
+
 ## [2.0.0-rc.1] - 2026-05-21
 
 System completeness push from v1.0.0-rc.3 baseline. 4 batches × 5+5+5+3 = 18
@@ -333,6 +348,7 @@ captured during the boot-8 audit:
   fails 11/15 of its sub-tests; ship is not blocked but the
   regression is tracked for v1.0.0.
 
-[Unreleased]: https://github.com/machinohataki-sys/hypha/compare/v2.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/machinohataki-sys/hypha/compare/v2.0.0-rc.2...HEAD
+[2.0.0-rc.2]: https://github.com/machinohataki-sys/hypha/releases/tag/v2.0.0-rc.2
 [2.0.0-rc.1]: https://github.com/machinohataki-sys/hypha/releases/tag/v2.0.0-rc.1
 [1.0.0-rc.1]: https://github.com/machinohataki-sys/hypha/releases/tag/v1.0.0-rc.1
