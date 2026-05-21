@@ -140,7 +140,7 @@
     "node-fetch": "^2.7.0",
     "openai": "^4.65.0",
     "pdf-parse": "^1.1.4",
-    "pdfjs-dist": "^4.10.38",
+    "pdfjs-dist": "^5.7.284",
     "tesseract.js": "^6.0.1",
     "turndown": "^7.2.4",
     "youtube-search-api": "^2.0.1",
