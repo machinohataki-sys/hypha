@@ -267,11 +267,19 @@ ${dimensions.map((d, i) => `  ${i + 1}. ${d}`).join('\n')}${tokenBlock}
 Generate the questions JSON per the SCHEMA. Pick the 3 most DISAMBIGUATING items — skip dimensions the draft already specifies. If LOADED TOKENS are present, prioritise them over archetype-dim slots (timeline anchor still locked as Q3 unless ≥3 loaded tokens).`;
 
   const capability = options.capability || 'T3_MID';
-  const maxTokens = Number.isFinite(options.maxTokens) ? options.maxTokens : 1500;
+  // 2026-05-21: bumped default 1500→2500. 3 CN questions + rationale + JSON
+  // wrapper trip 1500 → DeepSeek returns truncated string mid-rationale →
+  // JSON parse fails → router marks provider failed → fallback chain
+  // exhausts. 2500 buys ~70% headroom; retry-on-throw below covers the rest.
+  const maxTokens = Number.isFinite(options.maxTokens) ? options.maxTokens : 2500;
   const temperature = Number.isFinite(options.temperature) ? options.temperature : 0.4;
   const { executeChat } = require('../llm');
 
-  const _tryOnce = async (userMsg) => {
+  // Retry helper: provider failures from truncation surface as "non-JSON in
+  // JSON-mode" thrown by router after all providers exhaust. One bump-and-
+  // retry is cheap insurance — second pass gets maxTokens × 1.6 (cap 4000).
+  // Re-throws on second failure so caller can surface the error normally.
+  const _tryOnce = async (userMsg, mt = maxTokens) => {
     const t0 = Date.now();
     const dispatch = await executeChat(capability, {
       messages: [
@@ -279,16 +287,29 @@ Generate the questions JSON per the SCHEMA. Pick the 3 most DISAMBIGUATING items
         { role: 'user', content: userMsg },
       ],
       json: true,
-      maxTokens,
+      maxTokens: mt,
       temperature,
       timeoutMs: 45_000,
     });
     return { dispatch, ms: Date.now() - t0 };
   };
 
+  // Wrap _tryOnce with one retry on truncation/timeout-class errors.
+  const _tryWithRecovery = async (userMsg) => {
+    try {
+      return await _tryOnce(userMsg, maxTokens);
+    } catch (err) {
+      const msg = String((err && err.message) || err);
+      const isTruncOrTimeout = /non-JSON|timed out|All providers in fallback|truncat/i.test(msg);
+      if (!isTruncOrTimeout) throw err;
+      const retryMaxTokens = Math.min(Math.round(maxTokens * 1.6), 4000);
+      return await _tryOnce(userMsg, retryMaxTokens);
+    }
+  };
+
   try {
-    // L1: first try
-    let { dispatch, ms } = await _tryOnce(userMsgBase);
+    // L1: first try (with truncation-retry wrapper)
+    let { dispatch, ms } = await _tryWithRecovery(userMsgBase);
     let result = dispatch && dispatch.result;
     let v = validateQuestions(result);
     if (!v.ok) {
@@ -300,6 +321,13 @@ Generate the questions JSON per the SCHEMA. Pick the 3 most DISAMBIGUATING items
       .map(_sanitizeQuestion)
       .filter(Boolean);
 
+    // L2.5: Q quality score (v0.12). Tags emitted in _meta; advisory only — we
+    // do NOT drop questions here even if score < floor, because the existing
+    // smoke contract requires exactly N questions returned. Caller (UI) can
+    // re-request regeneration via separate IPC if scores look poor.
+    let quality_scores = scoreQuestions(questions);
+    let regenerated_for_quality = false;
+
     // L2: token-citation validation
     let missing = _findUncitedTokens(loadedTokens, questions);
     let retried = false;
@@ -310,7 +338,7 @@ Generate the questions JSON per the SCHEMA. Pick the 3 most DISAMBIGUATING items
       retried = true;
       const retryMsg = userMsgBase + `\n\n[PREV ATTEMPT FAILED — questions did not cite these user tokens verbatim: ${missing.map(t => `"${t}"`).join(', ')}. You MUST include one question per missing token whose stem contains the exact token. Re-generate.]`;
       try {
-        const r2 = await _tryOnce(retryMsg);
+        const r2 = await _tryWithRecovery(retryMsg);
         const r2result = r2.dispatch && r2.dispatch.result;
         const v2 = validateQuestions(r2result);
         if (v2.ok) {
@@ -340,6 +368,10 @@ Generate the questions JSON per the SCHEMA. Pick the 3 most DISAMBIGUATING items
 
     const confidence = Math.max(0, Math.min(1, Number(result.confidence) || 0));
 
+    // Re-score after any stub/retry mutations so emitted scores match returned Qs.
+    quality_scores = scoreQuestions(questions);
+    const low_quality_count = quality_scores.filter(s => s.score < QUALITY_FLOOR).length;
+
     return {
       ok: true,
       questions,
@@ -354,6 +386,10 @@ Generate the questions JSON per the SCHEMA. Pick the 3 most DISAMBIGUATING items
         retried,
         stubbed,
         defense_level: stubbed.length > 0 ? 'L4_stub' : (retried ? 'L3_retry' : 'L1_first_try'),
+        quality_scores,
+        low_quality_count,
+        quality_floor: QUALITY_FLOOR,
+        regenerated_for_quality,
       },
     };
   } catch (err) {
@@ -412,6 +448,118 @@ function _extractLoadedTokens(draft) {
   return Array.from(tokens).slice(0, 5);
 }
 
+// ── Q quality scorer (v0.12, 2026-05-21) ──────────────────────────────────
+// Per-question quality score combines info_gain estimate + redundancy penalty.
+// Score < QUALITY_FLOOR → regenerate Q via L3_retry instead of showing user.
+// Pure JS heuristic; no LLM call.
+//
+// info_gain heuristic (0..1):
+//   + 0.30  4 distinct option labels (no collapsed duplicates)
+//   + 0.25  option labels carry NAMED instances (not abstract categories)
+//   + 0.20  stem ≤ 14 chars (concise rule)
+//   + 0.15  rationale present
+//   + 0.10  dimension specified
+//
+// redundancy_penalty (0..1, subtracted):
+//   stem/dimension overlap with already-accepted Q via Jaccard on tokens.
+//
+// Final = max(0, info_gain - redundancy_penalty)
+
+const QUALITY_FLOOR = 0.4;
+
+const NAMED_INSTANCE_HINTS = /[A-Z][a-z]{2,}|《|》|·|式|派|主义|y\b|mo\b|月|年|周|篇|级|奖|文|学派|·|早期|中期|后期|HSK|JLPT|CEFR|N[12345]|B[12]|C[12]|A[12]/;
+const ABSTRACT_CATEGORY_RE = /^(浅|中|深|低|高|大|小|多|少|快|慢|易|难|抽象|具体|普通|特殊)$/;
+
+function _scoreQuestion(q, priorAcceptedTokens) {
+  if (!q || typeof q !== 'object') return { score: 0, info_gain: 0, redundancy_penalty: 0, reasons: ['not-object'] };
+  const reasons = [];
+  let info_gain = 0;
+
+  const opts = Array.isArray(q.options) ? q.options : [];
+  const labels = opts.map(o => (o && typeof o.label === 'string') ? o.label.trim() : '').filter(Boolean);
+  const distinctLabels = new Set(labels.map(l => l.toLowerCase()));
+  if (distinctLabels.size === labels.length && labels.length === QUESTION_OPTIONS_REQUIRED) {
+    info_gain += 0.25;
+  } else {
+    reasons.push('options-collapsed-or-missing');
+  }
+
+  // Penalize abstract single-char category labels in first 3 options (skip d=其他/自己写).
+  const abstractCount = labels.slice(0, 3).filter(l => ABSTRACT_CATEGORY_RE.test(l)).length;
+  if (abstractCount >= 2) {
+    info_gain -= 0.20;
+    reasons.push(`abstract-single-char-labels=${abstractCount}`);
+  }
+
+  // Named instance check: at least 1 of opts a/b/c (skip d=自己写) contains a named-instance hint
+  const namedHits = labels.slice(0, 3).filter(l => NAMED_INSTANCE_HINTS.test(l) && !ABSTRACT_CATEGORY_RE.test(l)).length;
+  if (namedHits >= 1) info_gain += 0.25;
+  else reasons.push('no-named-instances');
+
+  const stem = (q.prompt || '').trim();
+  // 14 chars CN, allow 80 for EN
+  if (stem.length > 0 && stem.length <= 80) info_gain += 0.20;
+  else reasons.push('stem-too-long-or-empty');
+
+  if (typeof q.rationale === 'string' && q.rationale.trim().length > 0) info_gain += 0.15;
+  else reasons.push('no-rationale');
+
+  if (typeof q.dimension === 'string' && q.dimension.trim().length > 0) info_gain += 0.10;
+  else reasons.push('no-dimension');
+
+  // Redundancy: Jaccard on tokens of (stem + dimension) vs priorAcceptedTokens union
+  let redundancy_penalty = 0;
+  if (priorAcceptedTokens && priorAcceptedTokens.size > 0) {
+    const myTokens = new Set(_qTokens(q));
+    if (myTokens.size > 0) {
+      let inter = 0;
+      for (const t of myTokens) if (priorAcceptedTokens.has(t)) inter++;
+      const jaccard = inter / (myTokens.size + priorAcceptedTokens.size - inter);
+      redundancy_penalty = Math.min(0.5, jaccard);
+      if (jaccard >= 0.5) reasons.push('high-redundancy');
+    }
+  }
+
+  const score = Math.max(0, Math.min(1, info_gain - redundancy_penalty));
+  return { score: Math.round(score * 100) / 100, info_gain: Math.round(info_gain * 100) / 100, redundancy_penalty: Math.round(redundancy_penalty * 100) / 100, reasons };
+}
+
+function _qTokens(q) {
+  const text = `${(q && q.prompt) || ''} ${(q && q.dimension) || ''}`.toLowerCase();
+  // CJK char-split + EN word-split. Single CJK chars count as tokens
+  // (intentional — Chinese semantic content is per-character; filtering ≥2
+  // would drop every CJK signal).
+  const spaced = text.replace(/([一-鿿])/g, ' $1 ');
+  return spaced.split(/[\s\p{P}\p{S}]+/u).filter(t => t && t.length >= 1);
+}
+
+function scoreQuestions(questions) {
+  if (!Array.isArray(questions)) return [];
+  const accepted = new Set();
+  const out = [];
+  for (const q of questions) {
+    const s = _scoreQuestion(q, accepted);
+    out.push({ id: (q && q.id) || null, ...s });
+    if (s.score >= QUALITY_FLOOR) {
+      for (const t of _qTokens(q)) accepted.add(t);
+    }
+  }
+  return out;
+}
+
+function filterByQuality(questions, floor) {
+  const threshold = Number.isFinite(floor) ? floor : QUALITY_FLOOR;
+  const scores = scoreQuestions(questions);
+  const kept = [];
+  const dropped = [];
+  for (let i = 0; i < questions.length; i++) {
+    const s = scores[i];
+    if (s && s.score >= threshold) kept.push(questions[i]);
+    else dropped.push({ q: questions[i], score: s });
+  }
+  return { kept, dropped, scores };
+}
+
 function _findUncitedTokens(tokens, questions) {
   if (!Array.isArray(tokens) || tokens.length === 0) return [];
   if (!Array.isArray(questions) || questions.length === 0) return tokens.slice();
@@ -462,23 +610,37 @@ ${answers.map((a, i) => `  ${i + 1}. Q: ${a.question || a.prompt || '?'}\n     d
 Synthesize the crystallized goal JSON per the SCHEMA. Output STRICT JSON only.`;
 
   const capability = options.capability || 'T3_MID';
-  const maxTokens = Number.isFinite(options.maxTokens) ? options.maxTokens : 1000;
+  // 2026-05-21: bumped default 1000→2500 mirroring questions stage. Crystallized
+  // schema is fuller (tags + milestones + 8 fields) — 1000 trips truncation
+  // on Chinese rationale strings. Retry-on-truncation matches questions path.
+  const maxTokens = Number.isFinite(options.maxTokens) ? options.maxTokens : 2500;
   const temperature = Number.isFinite(options.temperature) ? options.temperature : 0.35;
 
   try {
     const { executeChat } = require('../llm');
-    const t0 = Date.now();
-    const dispatch = await executeChat(capability, {
-      messages: [
-        { role: 'system', content: CRYSTALLIZE_SYSTEM_PROMPT },
-        { role: 'user', content: userMsg },
-      ],
-      json: true,
-      maxTokens,
-      temperature,
-      timeoutMs: 45_000,
-    });
-    const ms = Date.now() - t0;
+    const _call = async (mt) => {
+      const t0 = Date.now();
+      const dispatch = await executeChat(capability, {
+        messages: [
+          { role: 'system', content: CRYSTALLIZE_SYSTEM_PROMPT },
+          { role: 'user', content: userMsg },
+        ],
+        json: true,
+        maxTokens: mt,
+        temperature,
+        timeoutMs: 45_000,
+      });
+      return { dispatch, ms: Date.now() - t0 };
+    };
+    let dispatch, ms;
+    try {
+      ({ dispatch, ms } = await _call(maxTokens));
+    } catch (err) {
+      const m = String((err && err.message) || err);
+      if (/non-JSON|timed out|All providers in fallback|truncat/i.test(m)) {
+        ({ dispatch, ms } = await _call(Math.min(Math.round(maxTokens * 1.6), 4000)));
+      } else throw err;
+    }
 
     const result = dispatch && dispatch.result;
     const v = validateCrystallized(result);
@@ -893,6 +1055,9 @@ module.exports = {
   validateFollowup,
   validateCrystallized,
   inferArchetypeFromGoal,
+  scoreQuestions,
+  filterByQuality,
+  QUALITY_FLOOR,
   _internals: {
     ARCHETYPE_DIMENSIONS,
     ARCHETYPE_KEYWORDS,
@@ -906,5 +1071,7 @@ module.exports = {
     _extractLoadedTokens,
     _findUncitedTokens,
     _stubLoadedTokenQuestion,
+    _scoreQuestion,
+    _qTokens,
   },
 };

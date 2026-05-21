@@ -17,6 +17,33 @@
 
 const { LLMProviderError } = require('./provider');
 
+// v1.0 Infra v2 (2026-05-20) — cross-capability degradation chain. On full
+// exhaustion of a capability's provider pool we step DOWN one tier (T6→T4→T3)
+// before declaring failure. The Anti-Slop layer reads `fallback_path` off the
+// envelope so reviewers can see when a lesson body was produced at a weaker
+// capability than requested. Per S69 5-layer observability (Scout 2026-05-14):
+// every degradation emits one jsonl line to vault/.hypha/router-events.jsonl.
+const DEGRADATION_CHAIN = Object.freeze({
+  T6_STRONG: 'T4_JUDGE',
+  T4_JUDGE:  'T3_MID',
+  T3_MID:    null,
+  T2_LOCAL:  null,
+});
+
+const ROUTER_EVENTS_REL = '.hypha/router-events.jsonl';
+
+function _emitRouterEvent(event) {
+  // Best-effort — telemetry must never crash a paying user's lesson. Vault
+  // require is late so unit tests that inject mocks via require.cache for
+  // shield/index still observe a writable surface.
+  try {
+    const vault = require('../vault');
+    if (typeof vault.appendJSONL === 'function') {
+      vault.appendJSONL(ROUTER_EVENTS_REL, event);
+    }
+  } catch (_) {}
+}
+
 const DISPATCH_POLICY = {
   T6_STRONG: [
     { providerId: 'glm-direct',      model: 'glm-5.1',           weight: 60 },
@@ -376,30 +403,14 @@ async function _routeLocalFirst(capability, chatArgs) {
   }
 }
 
-async function executeChat(capability, chatArgs) {
-  const gate = _w84PreCallGate(capability, chatArgs);
-  // v1.0 boot-9 — local-first dispatch for T2_LOCAL. No-op in v1.0 since
-  // T2_LOCAL_AVAILABLE=false; v1.1+ this returns a real envelope before the
-  // cloud chain runs.
-  const localEnvelope = await _routeLocalFirst(capability, chatArgs);
-  if (localEnvelope) {
-    if (gate && gate.predicted_cost) localEnvelope.predicted_cost = gate.predicted_cost;
-    if (gate) localEnvelope.cost_gate = { state: gate.gate_state, reason: gate.gate_reason };
-    return localEnvelope;
-  }
-  const cheapEnvelope = await _routeCheapFirst(capability, chatArgs);
-  if (cheapEnvelope) {
-    if (gate && gate.predicted_cost) cheapEnvelope.predicted_cost = gate.predicted_cost;
-    if (gate) cheapEnvelope.cost_gate = { state: gate.gate_state, reason: gate.gate_reason };
-    return cheapEnvelope;
-  }
-
+async function _attemptCapability(capability, chatArgs) {
+  // Returns { envelope, errorTrace, tried, lastErr } — envelope is null when
+  // every provider in this capability's pool exhausted retries.
   const policy = DISPATCH_POLICY[capability];
-  if (!policy) throw new LLMProviderError(`Unknown capability "${capability}"`);
+  if (!policy) {
+    throw new LLMProviderError(`Unknown capability "${capability}"`);
+  }
   const tried = [];
-  // 2026-05-19 — track ALL per-provider failures, not just last. Old format
-  // "Last: DeepSeek returned empty content" hid GLM error behind a single line,
-  // making diagnosis impossible when both providers fail for different reasons.
   const errorTrace = [];
   let lastErr = null;
   const maxAttempts = Math.min(3, policy.length);
@@ -416,6 +427,7 @@ async function executeChat(capability, chatArgs) {
       lastErr = e;
       continue;
     }
+    const tAttempt = Date.now();
     try {
       const { content, usage } = await provider.chatWithUsage({ ...chatArgs, model: pick.model });
       markSuccess(pick.providerId);
@@ -427,10 +439,9 @@ async function executeChat(capability, chatArgs) {
         model: pick.model,
         capability,
         attempts: attempt + 1,
+        latency_ms: Date.now() - tAttempt,
       };
-      if (gate && gate.predicted_cost) envelope.predicted_cost = gate.predicted_cost;
-      if (gate) envelope.cost_gate = { state: gate.gate_state, reason: gate.gate_reason };
-      return envelope;
+      return { envelope, errorTrace, tried, lastErr: null };
     } catch (e) {
       markError(pick.providerId, e);
       const status = e?.status || e?.cause?.status;
@@ -442,23 +453,105 @@ async function executeChat(capability, chatArgs) {
       lastErr = e;
     }
   }
-  // v1.0 boot-7 (2026-05-20) — record exhausted-all-providers as a crash-class
-  // event so the user can attach this to a bug report. Lazy-required to avoid
-  // circular load issue if the tracker ever needs LLM. Best-effort only.
+  return { envelope: null, errorTrace, tried, lastErr };
+}
+
+async function executeChat(capability, chatArgs) {
+  const gate = _w84PreCallGate(capability, chatArgs);
+  const tStart = Date.now();
+  const requested = capability;
+  // v1.0 boot-9 — local-first dispatch for T2_LOCAL. No-op in v1.0 since
+  // T2_LOCAL_AVAILABLE=false; v1.1+ this returns a real envelope before the
+  // cloud chain runs.
+  const localEnvelope = await _routeLocalFirst(capability, chatArgs);
+  if (localEnvelope) {
+    if (gate && gate.predicted_cost) localEnvelope.predicted_cost = gate.predicted_cost;
+    if (gate) localEnvelope.cost_gate = { state: gate.gate_state, reason: gate.gate_reason };
+    _emitRouterEvent(_buildRouterEvent({
+      tier_requested: requested, capability_served: capability,
+      provider_chosen: localEnvelope.providerId, fallback_path: null,
+      latency_ms: Date.now() - tStart, success: true,
+      cost_cny: gate && gate.predicted_cost ? gate.predicted_cost.cny_est : 0,
+      route_decision: 'local-first',
+    }));
+    return localEnvelope;
+  }
+  const cheapEnvelope = await _routeCheapFirst(capability, chatArgs);
+  if (cheapEnvelope) {
+    if (gate && gate.predicted_cost) cheapEnvelope.predicted_cost = gate.predicted_cost;
+    if (gate) cheapEnvelope.cost_gate = { state: gate.gate_state, reason: gate.gate_reason };
+    _emitRouterEvent(_buildRouterEvent({
+      tier_requested: requested, capability_served: capability,
+      provider_chosen: cheapEnvelope.providerId, fallback_path: null,
+      latency_ms: Date.now() - tStart, success: true,
+      cost_cny: gate && gate.predicted_cost ? gate.predicted_cost.cny_est : 0,
+      route_decision: 'cheap-first',
+    }));
+    return cheapEnvelope;
+  }
+
+  // Cross-capability degradation chain. T6 fully exhausted → step to T4 → T3
+  // before raising. Each step appends to fallback_path for the audit envelope.
+  const fallbackPath = [];
+  const aggregatedErrors = [];
+  let current = capability;
+  let attempt = await _attemptCapability(current, chatArgs);
+  while (!attempt.envelope) {
+    aggregatedErrors.push(`[${current}] ${attempt.errorTrace.join(' | ')}`);
+    fallbackPath.push({ capability: current, tried: attempt.tried.slice(), error: attempt.lastErr && attempt.lastErr.message });
+    const next = DEGRADATION_CHAIN[current];
+    if (!next) break;
+    current = next;
+    attempt = await _attemptCapability(current, chatArgs);
+  }
+  if (attempt.envelope) {
+    const env = attempt.envelope;
+    if (fallbackPath.length > 0) env.fallback_path = fallbackPath;
+    if (gate && gate.predicted_cost) env.predicted_cost = gate.predicted_cost;
+    if (gate) env.cost_gate = { state: gate.gate_state, reason: gate.gate_reason };
+    _emitRouterEvent(_buildRouterEvent({
+      tier_requested: requested, capability_served: current,
+      provider_chosen: env.providerId, fallback_path: fallbackPath.length ? fallbackPath : null,
+      latency_ms: Date.now() - tStart, success: true,
+      cost_cny: gate && gate.predicted_cost ? gate.predicted_cost.cny_est : 0,
+      route_decision: fallbackPath.length ? 'cross-capability-fallback' : 'primary',
+    }));
+    return env;
+  }
   try {
     const t = require('../telemetry/local-tracker');
     t.recordError({
       code: 'llm_all_providers_failed',
       severity: 'error',
-      message: `capability=${capability} attempts=${errorTrace.length}`,
-      stack: lastErr && lastErr.stack,
-      context: { capability, attempts: errorTrace.length, tried: tried.slice(0, 4) },
+      message: `capability=${requested} exhausted including fallback chain`,
+      stack: attempt.lastErr && attempt.lastErr.stack,
+      context: { capability: requested, fallback_path: fallbackPath, errors: aggregatedErrors },
     });
   } catch (_) {}
+  _emitRouterEvent(_buildRouterEvent({
+    tier_requested: requested, capability_served: current,
+    provider_chosen: null, fallback_path: fallbackPath,
+    latency_ms: Date.now() - tStart, success: false, cost_cny: 0,
+    route_decision: 'exhausted',
+  }));
   throw new LLMProviderError(
-    `All providers in ${capability} failed.\n  ${errorTrace.join('\n  ')}`,
-    lastErr,
+    `All providers in fallback chain failed.\n  ${aggregatedErrors.join('\n  ')}`,
+    attempt.lastErr,
   );
+}
+
+function _buildRouterEvent(e) {
+  return {
+    ts: new Date().toISOString(),
+    route_decision: e.route_decision || null,
+    tier_requested: e.tier_requested,
+    capability_served: e.capability_served,
+    provider_chosen: e.provider_chosen,
+    fallback_path: e.fallback_path,
+    latency_ms: e.latency_ms,
+    success: !!e.success,
+    cost_cny: Number.isFinite(e.cost_cny) ? Number(Number(e.cost_cny).toFixed(6)) : 0,
+  };
 }
 
 let _recoveryTimer = null;
@@ -504,6 +597,8 @@ if (process.env.NODE_ENV !== 'test' && !process.env.HYPHA_LLM_NO_RECOVERY) {
 
 module.exports = {
   DISPATCH_POLICY,
+  DEGRADATION_CHAIN,
+  ROUTER_EVENTS_REL,
   executeChat,
   pickWeighted,
   markSuccess,
@@ -514,6 +609,8 @@ module.exports = {
   startRecoveryLoop,
   stopRecoveryLoop,
   _recoveryTick,
+  _attemptCapability,
+  _buildRouterEvent,
   // P8 cost-gate test seam (allow smoke to spy on NEAR_LIMIT warnings)
   setCostGateSink,
   _w84PreCallGate,

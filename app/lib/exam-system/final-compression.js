@@ -206,6 +206,154 @@ function getFinalState(slug) {
   return v.readJSON(_finalStateRel(slug), null);
 }
 
+// =====================================================================
+// v2-push-b2: Adaptive 7-day weighted plan
+// =====================================================================
+//
+// Hypothesis: uniform DEFAULT_FINAL_PLAN allocates one primary task per day
+// regardless of which topics the learner is actually weak in. With per-topic
+// failure-rate signal (e.g. from error-diagnosis.errorCountsByCause + tier
+// progress), we reallocate the 7-day slot pool proportionally — higher-
+// failure topics earn more compression slots, low-failure stay at floor.
+//
+// Algorithm:
+//   1. Pool = `daysRemaining` × 2 (primary + secondary slot per day).
+//   2. Floor each task type at 1 slot (so nothing is starved if it has any
+//      content). 5 task types × 1 = 5 floor.
+//   3. Distribute remaining (pool - floor) by failureRates weighting; rebuild
+//      day-by-day primary/secondary assignments preferring high-weight tasks
+//      earlier (most loaded days = closest-to-now → highest leverage).
+
+function _normalizeFailureRates(rates) {
+  // failureRates is a sparse map { task_type: 0..1 } or { cause: 0..1 } —
+  // we accept either by name-mapping cause groups to task types.
+  const out = {};
+  for (const t of Object.values(TASK_TYPES)) out[t] = 0;
+  if (!rates || typeof rates !== 'object') return out;
+  for (const [k, v] of Object.entries(rates)) {
+    const num = Number(v);
+    if (!Number.isFinite(num)) continue;
+    const clamped = Math.min(Math.max(num, 0), 1);
+    if (out.hasOwnProperty(k)) {
+      out[k] = clamped;
+      continue;
+    }
+    // Cause-name → task-type heuristic mapping (kept here, not in caller).
+    if (/vocab|parse|locate|swap|causal|tone|over-infer/i.test(k)) {
+      out[TASK_TYPES.REVIEW_ERRORS] = Math.max(out[TASK_TYPES.REVIEW_ERRORS], clamped);
+    } else if (/timeout/i.test(k)) {
+      out[TASK_TYPES.TIME_LIMITED_PRACTICE] = Math.max(out[TASK_TYPES.TIME_LIMITED_PRACTICE], clamped);
+    } else if (/essay|template|作文|模板/i.test(k)) {
+      out[TASK_TYPES.COMPRESS_ESSAY] = Math.max(out[TASK_TYPES.COMPRESS_ESSAY], clamped);
+    } else if (/mock|模拟/i.test(k)) {
+      out[TASK_TYPES.LIGHT_MOCK] = Math.max(out[TASK_TYPES.LIGHT_MOCK], clamped);
+    } else if (/vocab|word|词|高频/i.test(k)) {
+      out[TASK_TYPES.REVIEW_HIGH_FREQ] = Math.max(out[TASK_TYPES.REVIEW_HIGH_FREQ], clamped);
+    }
+  }
+  return out;
+}
+
+function _allocateSlots(failureRates, totalSlots) {
+  const taskTypes = Object.values(TASK_TYPES);
+  const floor = {};
+  for (const t of taskTypes) floor[t] = 1;
+  const floorSum = taskTypes.length;
+  const remaining = Math.max(0, totalSlots - floorSum);
+
+  const weightSum = taskTypes.reduce((s, t) => s + (failureRates[t] || 0), 0);
+  const slots = { ...floor };
+  if (weightSum <= 0 || remaining <= 0) {
+    // Uniform distribution of remaining over taskTypes.
+    let r = remaining;
+    let i = 0;
+    while (r > 0) {
+      slots[taskTypes[i % taskTypes.length]] += 1;
+      r--; i++;
+    }
+    return slots;
+  }
+  // Largest-remainder method: floor(weight/sum * remaining), distribute
+  // leftover slots by descending fractional part.
+  const fracs = [];
+  let allocated = 0;
+  for (const t of taskTypes) {
+    const exact = (failureRates[t] / weightSum) * remaining;
+    const base = Math.floor(exact);
+    slots[t] += base;
+    allocated += base;
+    fracs.push({ t, frac: exact - base });
+  }
+  fracs.sort((a, b) => b.frac - a.frac);
+  let leftover = remaining - allocated;
+  for (const { t } of fracs) {
+    if (leftover <= 0) break;
+    slots[t] += 1;
+    leftover--;
+  }
+  return slots;
+}
+
+/**
+ * Adaptive 7-day plan with difficulty-weighted slot reallocation.
+ *
+ * @param {string} slug
+ * @param {number} daysRemaining           — 1..7
+ * @param {object} [failureRates]          — { task_type|cause: 0..1 }; missing
+ *                                            keys default 0 (no extra slots).
+ * @returns {{ valid:boolean, plan?:object[], slot_allocation?:object, message?:string }}
+ */
+function weightedDailyPlan(slug, daysRemaining, failureRates) {
+  _validateSlug(slug);
+  const d = Number(daysRemaining);
+  if (!Number.isFinite(d) || d < 1 || d > 7) {
+    return { valid: false, message: 'daysRemaining must be 1..7' };
+  }
+  const totalSlots = d * 2;
+  const rates = _normalizeFailureRates(failureRates);
+  const slotAllocation = _allocateSlots(rates, totalSlots);
+
+  // Build flat task queue ordered by weight (highest first), each type
+  // repeated by its slot count. This queue feeds primary/secondary slots
+  // day-by-day, with the most-loaded days at the start (closest to exam).
+  const queue = [];
+  const ordered = Object.values(TASK_TYPES)
+    .map((t) => ({ t, weight: rates[t] || 0, slots: slotAllocation[t] }))
+    .sort((a, b) => (b.weight - a.weight) || (b.slots - a.slots));
+  for (const { t, slots } of ordered) {
+    for (let i = 0; i < slots; i++) queue.push(t);
+  }
+
+  const allTasks = finalTasks(slug);
+  const byType = {};
+  for (const bucket of allTasks) byType[bucket.type] = bucket;
+
+  const plan = [];
+  // D-d → D-1 (closest-to-exam first in the queue consumption).
+  for (let offset = -d; offset <= -1; offset++) {
+    const primaryT = queue.shift() || null;
+    const secondaryT = queue.shift() || null;
+    plan.push({
+      day_offset: offset,
+      days_until_exam: -offset,
+      primary: primaryT ? {
+        type: primaryT,
+        display: TASK_DISPLAY[primaryT],
+        items: (byType[primaryT] && byType[primaryT].items) || [],
+        weight: rates[primaryT] || 0,
+      } : null,
+      secondary: secondaryT ? {
+        type: secondaryT,
+        display: TASK_DISPLAY[secondaryT],
+        items: (byType[secondaryT] && byType[secondaryT].items) || [],
+        weight: rates[secondaryT] || 0,
+      } : null,
+    });
+  }
+
+  return { valid: true, plan, slot_allocation: slotAllocation, failure_rates_normalized: rates };
+}
+
 module.exports = {
   // Constants
   TASK_TYPES,
@@ -215,5 +363,9 @@ module.exports = {
   enterFinalCompression,
   finalTasks,
   dailyFinalPlan,
+  weightedDailyPlan,
   getFinalState,
+  // exposed for tests
+  _normalizeFailureRates,
+  _allocateSlots,
 };

@@ -120,6 +120,26 @@ function effectiveHoursNeeded({ target, prior, intrinsicLoad, alpha }) {
   return numerator / denominator;
 }
 
+// Context-sparsity scorer (v0.12, 2026-05-21). Counts which feasibility levers
+// the caller actually supplied vs defaulted. Sparsity in [0,1] where 0 = every
+// field supplied with non-default value, 1 = caller passed empty spec. Drives
+// confidence_band width below (sparse context → wider band → "ask more" hint).
+const SPARSITY_FIELDS = [
+  'targetDifficulty', 'priorKnowledge', 'timeWeeks', 'dailyHours',
+  'intrinsicLoad', 'priorConsistency', 'failedAttempts', 'alpha',
+];
+function _scoreSparsity(input) {
+  const raw = input || {};
+  let supplied = 0;
+  for (const k of SPARSITY_FIELDS) {
+    const v = raw[k];
+    if (v === undefined || v === null || v === '') continue;
+    if (typeof v === 'number' && !Number.isFinite(v)) continue;
+    supplied++;
+  }
+  return Math.max(0, Math.min(1, 1 - supplied / SPARSITY_FIELDS.length));
+}
+
 function classifyFeasibility(input) {
   const target = Math.max(0, Math.min(1, Number(input.targetDifficulty) || 0.5));
   const prior = Math.max(0, Math.min(1, Number(input.priorKnowledge) || 0));
@@ -151,11 +171,30 @@ function classifyFeasibility(input) {
   const failurePenalty = Math.pow(FAILED_ATTEMPT_PENALTY, failedAttempts);
   const pComplete = Math.max(0.02, Math.min(0.98, completionPrior * failurePenalty));
 
+  // Confidence band — pComplete ± half-width derived from sparsity + sigma.
+  // Sparse context widens band; ratio variance also widens it. Caller can read
+  // band[1] - band[0] to decide "show 3-tier hard cut" vs "suggest ask more".
+  const context_sparsity = round2(_scoreSparsity(input));
+  const sparsityWidth = 0.10 + 0.25 * context_sparsity;
+  const varianceWidth = Math.min(0.20, sigma * 0.30);
+  const halfWidth = sparsityWidth + varianceWidth;
+  const bandLow = round2(Math.max(0.02, pComplete - halfWidth));
+  const bandHigh = round2(Math.min(0.98, pComplete + halfWidth));
+  const verdict_strength = context_sparsity > 0.5 ? 'tentative'
+    : context_sparsity > 0.25 ? 'provisional'
+    : 'committed';
+  const suggest_more_context = context_sparsity > 0.5;
+
   return {
     tier,
+    verdict: tier,
     config: TIERS[tier],
     ratio: { p10: round2(p10), p50: round2(ratio), p90: round2(p90) },
     confidence,
+    confidence_band: [bandLow, bandHigh],
+    context_sparsity,
+    verdict_strength,
+    suggest_more_context,
     pComplete: round2(pComplete),
     gap: round2(gap),
     hoursNeeded: Math.round(hoursNeeded),
@@ -226,6 +265,8 @@ module.exports = {
   effectiveHoursNeeded,
   computeFocus,
   tierFor,
+  _scoreSparsity,
+  SPARSITY_FIELDS,
   TIERS,
   ELEMENT_MULT,
   CONSTANTS: {

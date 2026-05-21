@@ -32,6 +32,7 @@ function listPacks(vaultRoot) {
         archetype: pack.archetype || 'UNKNOWN',
         version: pack.version || '0.0',
         lesson_count: Array.isArray(pack.lessons) ? pack.lessons.length : 0,
+        lifecycle: typeof pack.lifecycle === 'string' ? pack.lifecycle : 'draft',
       });
     } catch (_) { /* malformed pack — skip silently in listing */ }
   }
@@ -51,6 +52,9 @@ function loadPack(vaultRoot, packId) {
     const pack = JSON.parse(raw);
     const validation = validatePack(pack);
     if (!validation.ok) return { ok: false, error: 'INVALID_PACK', validation };
+    // Backward-compatible default: packs predating the lifecycle field load
+    // as 'draft' so legacy fixtures and existing user vaults keep working.
+    if (typeof pack.lifecycle !== 'string') pack.lifecycle = 'draft';
     return { ok: true, pack };
   } catch (e) {
     return { ok: false, error: 'PARSE_FAIL', message: e && e.message ? e.message : String(e) };

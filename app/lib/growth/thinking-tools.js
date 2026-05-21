@@ -137,6 +137,21 @@ const TOOL_INDEX = Object.freeze(
   TOOLS.reduce((acc, t) => { acc[t.id] = t; return acc; }, {})
 );
 
+// S77 27-pattern combinatorics gives 3-tool clusters: each anchor tool
+// surfaces 2 "lateral pair" tools that productively re-frame the same problem
+// from a different cognitive axis (analogical / inversive / decomposing).
+// Pairs are bidirectional in concept but stored explicitly to keep ordering
+// stable for surface UX (anchor first → recommended pair).
+const TOOL_CLUSTERS = Object.freeze({
+  'first-principles': Object.freeze(['inversion', 'map-territory']),
+  '5-whys':           Object.freeze(['fishbone', 'first-principles']),
+  'fishbone':         Object.freeze(['5-whys', 'pre-mortem']),
+  'inversion':        Object.freeze(['pre-mortem', 'steelman']),
+  'pre-mortem':       Object.freeze(['inversion', 'steelman']),
+  'steelman':         Object.freeze(['inversion', 'map-territory']),
+  'map-territory':    Object.freeze(['first-principles', 'steelman']),
+});
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -245,15 +260,38 @@ async function listInvocations({ slug, limit = 20 } = {}) {
   }
 }
 
+function getToolCluster(toolId) {
+  if (typeof toolId !== 'string' || !toolId) {
+    return { ok: false, error: 'NOT_FOUND' };
+  }
+  const anchor = TOOL_INDEX[toolId];
+  if (!anchor) return { ok: false, error: 'NOT_FOUND' };
+  const pairIds = TOOL_CLUSTERS[toolId] || [];
+  const pair = pairIds
+    .map(id => TOOL_INDEX[id])
+    .filter(Boolean)
+    .map(t => ({ ...t }));
+  return {
+    ok: true,
+    cluster: {
+      anchor: { ...anchor },
+      pair,
+      rationale: '同问题, 另两条思考轴 (analogical / inversive / decomposing) 再过一次',
+    },
+  };
+}
+
 module.exports = {
   listTools,
   getTool,
   invokeTool,
   listInvocations,
+  getToolCluster,
   // exported for introspection / tests; not stable API
   _internals: {
     TOOLS,
     TOOL_INDEX,
+    TOOL_CLUSTERS,
     fillScaffold: _fillScaffold,
   },
 };

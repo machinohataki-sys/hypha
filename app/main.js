@@ -9345,6 +9345,40 @@ ipcMain.handle('lifetime:link-progress', async (_e, { slug, linkIdx } = {}) => {
   catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
 
+// v1.0 Infra v2 (2026-05-20) — monthly rollup analytics surface (read-only).
+ipcMain.handle('lifetime:monthly-rollup', async (_e, { slug } = {}) => {
+  try { return await require('./lib/lifetime-ledger').monthlyRollup(slug); }
+  catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+
+// v1.0 Infra v2 — pre-flight cost quote for lesson-gen request shape.
+// UI calls this to render a confirm dialog before T6 dispatch.
+ipcMain.handle('cost:preflight-quote', async (_e, opts = {}) => {
+  try { return require('./lib/llm/cost-predictor').preflightQuote(opts); }
+  catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+
+// v1.0 Infra v2 — cashflow shield gate state + reset countdown.
+ipcMain.handle('cashflow:gate-state', async (_e, { userId, tier } = {}) => {
+  try {
+    const shield = require('./lib/cashflow-shield/shield');
+    const s = shield.checkCashflowShield(userId, tier);
+    const reset = shield.getResetInfo();
+    return { ok: true, shield: s, reset };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+
+// v1.0 Infra v2 — router event tail for diagnostics surface (read-only,
+// last N entries). main process only — renderer goes through this IPC.
+ipcMain.handle('router:events-tail', async (_e, { limit = 50 } = {}) => {
+  try {
+    const vault = require('./lib/vault');
+    const all = vault.readJSONL('.hypha/router-events.jsonl');
+    const n = Math.max(1, Math.min(500, Number(limit) || 50));
+    return { ok: true, events: all.slice(-n) };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+
 // 阶 3 北极星 metric (2026-05-17) — 工业 lessons.length OUT, 三柱替换:
 //   mastery_concepts_ratified + spark_matured + artifacts_shipped
 //
@@ -13473,6 +13507,219 @@ ipcMain.handle('frontier:status', () => {
     return { ok: true, hasFrontier: false, source: 'none' };
   } catch (err) {
     return { ok: false, error: err.message };
+  }
+});
+
+// ── v2-push B1+B2+B3 IPC wiring (2026-05-21) ─────────────────────────────
+// Exposes 18 new lib surfaces shipped in batches B1-B3. Handlers stay thin
+// — argument shape + envelope only; lib does the work. Group names mirror
+// the renderer-side namespace: companion / growth / exam / commons /
+// creation / infra / cold-start / note / goal. We resolve lib modules
+// lazily (require inside handler) to keep cold-start cheap when a surface
+// is never invoked.
+
+ipcMain.handle('companion:coherence-trend', async (_e, args = {}) => {
+  try {
+    const lib = require('./lib/companion');
+    const trend = lib.getCoherenceTrend({
+      sessionId: args.sessionId,
+      lastNDays: args.lastNDays,
+    });
+    return { ok: true, trend };
+  } catch (err) {
+    return { ok: false, error: 'COMPANION_COHERENCE_TREND_FAILED', message: err && err.message };
+  }
+});
+ipcMain.handle('companion:coherence-log', async (_e, args = {}) => {
+  try {
+    const lib = require('./lib/companion');
+    const result = lib.logCoherenceScore({
+      lesson_id: args.lesson_id,
+      session_id: args.session_id,
+      scope: args.scope,
+      score: args.score,
+    });
+    return { ok: true, ...(result && typeof result === 'object' ? result : { result }) };
+  } catch (err) {
+    return { ok: false, error: 'COMPANION_COHERENCE_LOG_FAILED', message: err && err.message };
+  }
+});
+
+ipcMain.handle('growth:cross-spark-strength', async (_e, args = {}) => {
+  try {
+    const cs = require('./lib/growth/cross-spark');
+    const strength = cs._internals.computeStrength(args.snippet_a || '', args.snippet_b || '');
+    return { ok: true, strength };
+  } catch (err) {
+    return { ok: false, error: 'CROSS_SPARK_STRENGTH_FAILED', message: err && err.message };
+  }
+});
+ipcMain.handle('growth:north-star-alert', async (_e, args = {}) => {
+  try {
+    const ns = require('./lib/growth/north-star-metrics');
+    const res = await ns.listNorthStarAlerts({ limit: args.limit });
+    return res;
+  } catch (err) {
+    return { ok: false, error: 'NORTH_STAR_ALERT_FAILED', message: err && err.message };
+  }
+});
+
+ipcMain.handle('exam:scope-shrink', async (_e, args = {}) => {
+  try {
+    const scope = require('./lib/exam-system/scope-engine');
+    const res = scope.applyScopeShrink(args.slug, args.directive);
+    return { ok: true, ...(res && typeof res === 'object' ? res : { result: res }) };
+  } catch (err) {
+    return { ok: false, error: 'EXAM_SCOPE_SHRINK_FAILED', message: err && err.message };
+  }
+});
+ipcMain.handle('exam:judge-4axis', async (_e, args = {}) => {
+  try {
+    const judge = require('./lib/exam-system/judge');
+    const input = (args && args.item) ? args.item : args || {};
+    const options = (args && args.options) ? args.options : {};
+    const judgement = await judge.judgeOpenAnswer(input, options);
+    return { ok: true, judgement };
+  } catch (err) {
+    return { ok: false, error: 'EXAM_JUDGE_4AXIS_FAILED', message: err && err.message };
+  }
+});
+
+ipcMain.handle('commons:lifecycle-transition', async (_e, args = {}) => {
+  try {
+    const lc = require('./lib/commons/pack-lifecycle');
+    const res = lc.transitionPack(
+      vault.resolveRoot(),
+      args.packId,
+      args.toState,
+      { actor: args.actor, reason: args.reason, supersedePriorIds: args.supersedePriorIds },
+    );
+    return res;
+  } catch (err) {
+    return { ok: false, error: 'COMMONS_LIFECYCLE_FAILED', message: err && err.message };
+  }
+});
+ipcMain.handle('commons:license-validate', async (_e, args = {}) => {
+  try {
+    const v = require('./lib/commons/license-validator');
+    const pack = args.pack ? args.pack : { license: args.license };
+    return v.validatePackLicense(pack);
+  } catch (err) {
+    return { ok: false, error: 'COMMONS_LICENSE_VALIDATE_FAILED', message: err && err.message };
+  }
+});
+
+ipcMain.handle('creation:dependency-graph-list', async (_e, args = {}) => {
+  try {
+    const dg = require('./lib/creation/dependency-graph');
+    const edges = dg.listEdges(args && args.vaultRoot ? args.vaultRoot : undefined);
+    return { ok: true, edges };
+  } catch (err) {
+    return { ok: false, error: 'DEPENDENCY_GRAPH_LIST_FAILED', message: err && err.message };
+  }
+});
+ipcMain.handle('creation:dependency-cascade-events', async (_e, args = {}) => {
+  try {
+    const kw = require('./lib/creation/kill-watcher');
+    const events = kw.loadCascadeEvents(args && args.vaultRoot ? args.vaultRoot : undefined);
+    return { ok: true, events };
+  } catch (err) {
+    return { ok: false, error: 'CASCADE_EVENTS_FAILED', message: err && err.message };
+  }
+});
+
+ipcMain.handle('infra:cost-preflight', async (_e, args = {}) => {
+  try {
+    const cp = require('./lib/llm/cost-predictor');
+    const quote = cp.preflightQuote({
+      messages: args.messages,
+      capability: args.capability,
+      generation_length_factor: args.generation_length_factor,
+      max_output_tokens: args.max_output_tokens,
+    });
+    return quote;
+  } catch (err) {
+    return { ok: false, error: 'COST_PREFLIGHT_FAILED', message: err && err.message };
+  }
+});
+ipcMain.handle('infra:lifetime-monthly-rollup', async (_e, args = {}) => {
+  try {
+    const ll = require('./lib/lifetime-ledger');
+    const slug = (args && args.slug) ? args.slug : args;
+    const rollup = await ll.monthlyRollup(slug);
+    return { ok: true, ...(rollup && typeof rollup === 'object' ? rollup : { rollup }) };
+  } catch (err) {
+    return { ok: false, error: 'LIFETIME_MONTHLY_ROLLUP_FAILED', message: err && err.message };
+  }
+});
+// Read tail of vault/.hypha/router-events.jsonl. Best-effort — empty array
+// when missing. Limit caps the slice; default 100.
+ipcMain.handle('infra:router-events-tail', async (_e, args = {}) => {
+  try {
+    const all = vault.readJSONL('.hypha/router-events.jsonl');
+    const rows = Array.isArray(all) ? all : [];
+    const limit = (args && Number.isFinite(args.limit) && args.limit > 0) ? Math.floor(args.limit) : 100;
+    const tail = rows.slice(-limit);
+    return { ok: true, events: tail };
+  } catch (err) {
+    return { ok: false, error: 'ROUTER_EVENTS_TAIL_FAILED', message: err && err.message };
+  }
+});
+
+ipcMain.handle('cold-start:get-playbook', async (_e, args = {}) => {
+  try {
+    const pp = require('./lib/onboarding/preping-priors');
+    const playbook = pp.getStarterPlaybook(args.archetype);
+    if (!playbook) return { ok: false, error: 'UNKNOWN_ARCHETYPE', archetype: args.archetype };
+    return { ok: true, playbook };
+  } catch (err) {
+    return { ok: false, error: 'COLD_START_PLAYBOOK_FAILED', message: err && err.message };
+  }
+});
+ipcMain.handle('cold-start:classify-persona', async (_e, args = {}) => {
+  try {
+    const pc = require('./lib/onboarding/persona-classifier');
+    const verdict = pc.classifyFromOnboarding(args && args.answers ? args.answers : args || {});
+    return { ok: true, ...(verdict && typeof verdict === 'object' ? verdict : { verdict }) };
+  } catch (err) {
+    return { ok: false, error: 'PERSONA_CLASSIFY_FAILED', message: err && err.message };
+  }
+});
+
+ipcMain.handle('note:atlas-entropy-badge', async (_e, args = {}) => {
+  try {
+    const ad = require('./lib/note-system/atlas-decay');
+    const badge = ad.entropyBadge({
+      conceptTimeline: args.conceptTimeline || args.currentTimeline,
+      nowMs: args.nowMs,
+      threshold: args.threshold,
+    });
+    return { ok: true, badge };
+  } catch (err) {
+    return { ok: false, error: 'ATLAS_ENTROPY_BADGE_FAILED', message: err && err.message };
+  }
+});
+ipcMain.handle('note:atlas-decay', async (_e, args = {}) => {
+  try {
+    const ad = require('./lib/note-system/atlas-decay');
+    const result = ad.applyHalfLifeDecay(args.timeline || args.conceptTimeline, {
+      nowMs: args.nowMs,
+      halfLifeDays: args.halfLifeDays,
+    });
+    return { ok: true, ...result };
+  } catch (err) {
+    return { ok: false, error: 'ATLAS_DECAY_FAILED', message: err && err.message };
+  }
+});
+
+ipcMain.handle('goal:feasibility-with-confidence', async (_e, args = {}) => {
+  try {
+    const fb = require('./lib/feasibility');
+    const ctx = (args && args.ctx) ? args.ctx : args || {};
+    const result = fb.classifyFeasibility(ctx);
+    return { ok: true, result };
+  } catch (err) {
+    return { ok: false, error: 'FEASIBILITY_CONFIDENCE_FAILED', message: err && err.message };
   }
 });
 

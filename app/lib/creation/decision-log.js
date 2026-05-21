@@ -32,10 +32,23 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const vault = require('../vault');
+const dependencyGraph = require('./dependency-graph');
 
 const FILE_NAME = 'decisions.jsonl';
 const MIN_DECISION_CHARS = 10;
 const MIN_PREDICTION_CHARS = 10;
+
+// Vague-falsifier guard (Scout S63 — falsifier must be concrete + measurable).
+// Reject if any vague hedge phrase, OR if the falsifier lacks at least one
+// concrete anchor (number / %, comparator <>≤≥, or full ISO date).
+const VAGUE_FALSIFIER_RE = /\b(we['’]ll see|tbd|probably|likely|maybe|might)\b/i;
+const CONCRETE_FALSIFIER_RE = /(\d+|%|<|>|≤|≥|\d{4}-\d{2}-\d{2})/;
+
+function _isVagueFalsifier(falsifier) {
+  if (VAGUE_FALSIFIER_RE.test(falsifier)) return true;
+  if (!CONCRETE_FALSIFIER_RE.test(falsifier)) return true;
+  return false;
+}
 
 // Validate optional prediction sub-document. Returns either a normalised
 // `{claim, falsifier, deadline_iso}` triple or null (silently dropped).
@@ -70,7 +83,33 @@ function _validatePrediction(pred, ctx) {
     try { console.warn(`${ctx}: prediction.deadline_iso not parseable ISO date, dropped`); } catch (_) {}
     return null;
   }
+  if (_isVagueFalsifier(falsifier)) {
+    try { console.warn(`${ctx}: prediction.falsifier rejected — vague hedge or no numeric/comparator/date anchor, dropped (got: "${falsifier}")`); } catch (_) {}
+    return null;
+  }
   return { claim, falsifier, deadline_iso: deadlineRaw };
+}
+
+// Normalise optional `depends_on: string[]`. Drops non-strings + empty + dups;
+// caps length at 32 (sanity, not security). Returns null on empty/invalid.
+function _normaliseDependsOn(raw, ctx) {
+  if (raw === undefined || raw === null) return null;
+  if (!Array.isArray(raw)) {
+    try { console.warn(`${ctx}: depends_on must be array, dropped`); } catch (_) {}
+    return null;
+  }
+  const out = [];
+  const seen = new Set();
+  for (const v of raw) {
+    if (typeof v !== 'string') continue;
+    const t = v.trim();
+    if (!t) continue;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+    if (out.length >= 32) break;
+  }
+  return out.length ? out : null;
 }
 
 // Slug guard — mirrors product-registry._safeProductId rejection rules.
@@ -86,6 +125,23 @@ function _safeSlug(slug) {
 function _filePath(safeSlug) {
   const root = vault.resolveRoot();
   return path.join(root, safeSlug, FILE_NAME);
+}
+
+// Monotonic ISO stamper. On fast systems (Linux/macOS CI) two consecutive
+// appendDecision calls can land in the same millisecond → identical ts → the
+// dependency-graph rejects edges where from_id === to_id (self-edge). Forcing
+// strict-increase by ≥1 ms here keeps every entry uniquely addressable while
+// preserving valid ISO 8601 format. The stamper is module-local; Decision Log
+// is the only ts-as-identity store that needs this (Assumption Ledger uses
+// _newAssumptionId with random suffix).
+let _lastTs = '';
+function _monotonicNowIso() {
+  let candidate = new Date().toISOString();
+  if (candidate <= _lastTs) {
+    candidate = new Date(Date.parse(_lastTs) + 1).toISOString();
+  }
+  _lastTs = candidate;
+  return candidate;
 }
 
 function appendDecision(slug, row) {
@@ -104,8 +160,9 @@ function appendDecision(slug, row) {
   }
   const source = row.source === 'auto-extract' ? 'auto-extract' : 'manual';
   const prediction = _validatePrediction(row.prediction, 'decision-log');
+  const dependsOn = _normaliseDependsOn(row.depends_on, 'decision-log');
   const stamped = {
-    ts: typeof row.ts === 'string' && row.ts ? row.ts : new Date().toISOString(),
+    ts: typeof row.ts === 'string' && row.ts ? row.ts : _monotonicNowIso(),
     lesson_idx: lessonIdx,
     decision: decisionText,
     context: typeof row.context === 'string' ? row.context : '',
@@ -116,12 +173,24 @@ function appendDecision(slug, row) {
     source,
   };
   if (prediction) stamped.prediction = prediction;
+  if (dependsOn && dependsOn.length) stamped.depends_on = dependsOn;
   const abs = _filePath(safe);
   try {
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.appendFileSync(abs, JSON.stringify(stamped) + '\n', 'utf8');
   } catch (err) {
     return { ok: false, error: `decision-log: write failed: ${err.message}` };
+  }
+  // Decision entry_id = ts (per kill-watcher anchor convention). depends_on
+  // becomes from=this.ts → to=targetId edges, kind='depends_on'. Warn-not-fail
+  // when referenced ids do not (yet) exist — the target may be added later.
+  if (dependsOn && dependsOn.length) {
+    for (const toId of dependsOn) {
+      const res = dependencyGraph.addEdge({ from_id: stamped.ts, to_id: toId, kind: 'depends_on' });
+      if (!res.ok) {
+        try { console.warn(`decision-log: depends_on edge skipped (${stamped.ts} -> ${toId}): ${res.error}`); } catch (_) {}
+      }
+    }
   }
   return { ok: true, row: stamped };
 }
@@ -155,4 +224,12 @@ function listDecisions(slug, { limit, since } = {}) {
 module.exports = {
   appendDecision,
   listDecisions,
+  // Vague-falsifier guard shared with sister modules (e.g. growth/project-spine
+  // milestone falsifier) — single regex source defends against drift.
+  _falsifierGuard: {
+    VAGUE_FALSIFIER_RE,
+    CONCRETE_FALSIFIER_RE,
+    MIN_PREDICTION_CHARS,
+    isVagueFalsifier: _isVagueFalsifier,
+  },
 };

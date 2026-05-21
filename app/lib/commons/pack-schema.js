@@ -12,6 +12,8 @@ const LICENSES = new Set(['CC-BY-4.0', 'CC-BY-NC-4.0', 'CC-BY-SA-4.0', 'MIT', 'p
 
 const LESSON_ROLES = new Set(['prerequisite', 'core', 'ultimate']);
 
+const LIFECYCLE_STATES = new Set(['draft', 'ratified', 'superseded', 'deprecated']);
+
 const ID_PATTERN = /^[a-z0-9][a-z0-9-]{2,79}$/;
 const VERSION_PATTERN = /^\d+\.\d+(\.\d+)?$/;
 
@@ -84,6 +86,14 @@ function validatePack(pack) {
     }
   }
 
+  // optional lifecycle: enum if present. Default ('draft') applied at load
+  // time in pack-loader so existing packs without the field stay valid.
+  if (pack.lifecycle !== undefined) {
+    if (typeof pack.lifecycle !== 'string' || !LIFECYCLE_STATES.has(pack.lifecycle)) {
+      errors.push(`lifecycle: must be one of ${[...LIFECYCLE_STATES].join(',')} if present`);
+    }
+  }
+
   // optional intelligence_card: object shape only
   if (pack.intelligence_card !== undefined) {
     if (!pack.intelligence_card || typeof pack.intelligence_card !== 'object' || Array.isArray(pack.intelligence_card)) {
@@ -108,4 +118,4 @@ function validatePack(pack) {
   return { ok: errors.length === 0, errors };
 }
 
-module.exports = { validatePack, ARCHETYPES, LICENSES, LESSON_ROLES };
+module.exports = { validatePack, ARCHETYPES, LICENSES, LESSON_ROLES, LIFECYCLE_STATES };

@@ -96,6 +96,70 @@ async function aggregateByLink(slug, linkIdx) {
   return out;
 }
 
+// Monthly rollup helper — derives `YYYY-MM` bucket from each entry's weekIso
+// (W01 Monday anchor in UTC). Per-axis stats include sum, weeks-touched,
+// avg/week, and p95/week. Read-only — no UI in this batch, called by analytics
+// + the smoke harness.
+//
+// p95 = nearest-rank on the per-week-per-axis distribution: ceil(0.95 * n) - 1
+// indexed into the sorted weekly values. With n=1 we return the single value;
+// with n=2..19 the index lands on the max bucket. Acceptable for monthly views
+// where weeks-per-month ∈ [4,5] — surfaces "best week" not noisy outliers.
+async function monthlyRollup(slug) {
+  if (!slug) return { months: {} };
+  const { entries } = await getLedger(slug);
+  const byMonth = {};
+  for (const e of entries) {
+    const month = _monthFromWeekIso(e.weekIso);
+    if (!month) continue;
+    if (!byMonth[month]) byMonth[month] = { week_axis: {}, weeks: new Set() };
+    byMonth[month].weeks.add(e.weekIso);
+    const ac = e.axis_counts || {};
+    for (const [axis, n] of Object.entries(ac)) {
+      const num = Number(n);
+      if (!Number.isFinite(num)) continue;
+      if (!byMonth[month].week_axis[axis]) byMonth[month].week_axis[axis] = {};
+      byMonth[month].week_axis[axis][e.weekIso] =
+        (byMonth[month].week_axis[axis][e.weekIso] || 0) + num;
+    }
+  }
+  const out = {};
+  for (const [month, m] of Object.entries(byMonth)) {
+    const weekCount = m.weeks.size;
+    const axisStats = {};
+    for (const [axis, perWeek] of Object.entries(m.week_axis)) {
+      const vals = Object.values(perWeek).map(Number).filter(Number.isFinite);
+      const sum = vals.reduce((s, n) => s + n, 0);
+      const sorted = vals.slice().sort((a, b) => a - b);
+      const p95Idx = Math.max(0, Math.ceil(0.95 * sorted.length) - 1);
+      axisStats[axis] = {
+        sum: Number(sum.toFixed(6)),
+        weeks: vals.length,
+        avg_per_week: vals.length ? Number((sum / vals.length).toFixed(6)) : 0,
+        p95_per_week: sorted.length ? Number(sorted[p95Idx].toFixed(6)) : 0,
+      };
+    }
+    out[month] = { weeks_total: weekCount, axes: axisStats };
+  }
+  return { months: out };
+}
+
+function _monthFromWeekIso(weekIso) {
+  if (typeof weekIso !== 'string') return null;
+  const m = /^(\d{4})-W(\d{2})$/.exec(weekIso);
+  if (!m) return null;
+  const year = parseInt(m[1], 10);
+  const week = parseInt(m[2], 10);
+  if (!Number.isFinite(year) || !Number.isFinite(week)) return null;
+  // ISO 8601 W01 = week containing Jan 4. Derive Monday of W01 then add weeks.
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const jan4Dow = jan4.getUTCDay() || 7;
+  const week1Monday = new Date(Date.UTC(year, 0, 4 - (jan4Dow - 1)));
+  const weekMonday = new Date(week1Monday.getTime() + (week - 1) * 7 * 86400000);
+  const mm = String(weekMonday.getUTCMonth() + 1).padStart(2, '0');
+  return `${weekMonday.getUTCFullYear()}-${mm}`;
+}
+
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
@@ -131,6 +195,8 @@ module.exports = {
   getLedger,
   appendEntry,
   aggregateByLink,
+  monthlyRollup,
   LEDGER_REL,
   _isoWeek, // exported for smoke verification only
+  _monthFromWeekIso,
 };

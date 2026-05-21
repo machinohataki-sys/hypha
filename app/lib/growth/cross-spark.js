@@ -37,6 +37,39 @@ const LESSON_SNIPPET_CHARS = 500;
 // persona body snippet 头字符数 (frontmatter 之后)
 const PERSONA_SNIPPET_CHARS = 800;
 
+// Strength gate. Below 0.3 → noise (LLM resonance survives token-level Jaccard
+// floor or the link is too thin to act on). Override per-call via `minStrength`.
+const MIN_STRENGTH_DEFAULT = 0.3;
+// Stopword + tokenization for strength scoring. Mixed zh/en — keep narrow
+// (filters obvious connectives only, do not over-filter content tokens).
+const STRENGTH_STOPWORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'on', 'is', 'are', 'was',
+  'were', 'be', 'with', 'for', 'as', 'at', 'by', 'this', 'that', 'these', 'those',
+  '的', '是', '在', '和', '与', '了', '也', '都', '就', '而', '但', '又',
+]);
+
+function _tokenize(s) {
+  if (typeof s !== 'string') return [];
+  // \p{L}+ matches Unicode letter runs (handles CJK + Latin); lowercase Latin
+  // for case-insensitive overlap.
+  const raw = s.toLowerCase().match(/\p{L}+/gu) || [];
+  return raw.filter(t => t.length > 1 && !STRENGTH_STOPWORDS.has(t));
+}
+
+// Jaccard over token sets — single in-file pure function, no embeddings dep.
+// Returns 0..1. Empty sets → 0 (not 1, NaN). Used both for spark strength
+// scoring and surface-level resonance gating.
+function _computeStrength(conceptText, candidateSnippet) {
+  const a = new Set(_tokenize(conceptText));
+  const b = new Set(_tokenize(candidateSnippet));
+  if (a.size === 0 || b.size === 0) return 0;
+  let inter = 0;
+  for (const t of a) if (b.has(t)) inter += 1;
+  const union = a.size + b.size - inter;
+  if (union === 0) return 0;
+  return inter / union;
+}
+
 function _readText(abs) {
   try { return fs.readFileSync(abs, 'utf-8'); } catch (_) { return ''; }
 }
@@ -197,7 +230,13 @@ function _classifyLlmError(err) {
   return null;
 }
 
-async function generateCrossSparks({ slug, concept, k = 3, dryRun = false } = {}) {
+async function generateCrossSparks({
+  slug,
+  concept,
+  k = 3,
+  dryRun = false,
+  minStrength = MIN_STRENGTH_DEFAULT,
+} = {}) {
   try {
     if (!concept || typeof concept !== 'string') {
       return { ok: false, error: 'EXCEPTION', message: 'concept required (non-empty string)' };
@@ -258,7 +297,23 @@ async function generateCrossSparks({ slug, concept, k = 3, dryRun = false } = {}
       };
     }
 
-    // 4. persist (unless dryRun)
+    // Attach token-Jaccard strength per spark (concept ⋂ source snippet).
+    // Survives gate `>= minStrength`; rejected count surfaced for callers.
+    const candidateById = new Map(candidates.map(c => [c.source_id, c]));
+    const threshold = (typeof minStrength === 'number' && minStrength >= 0 && minStrength <= 1)
+      ? minStrength
+      : MIN_STRENGTH_DEFAULT;
+    const scored = sparks.map(s => {
+      const cand = candidateById.get(s.source_id);
+      const strength = cand
+        ? Number(_computeStrength(concept, cand.snippet).toFixed(3))
+        : 0;
+      return { ...s, strength };
+    });
+    const accepted = scored.filter(s => s.strength >= threshold);
+    const rejectedWeak = scored.length - accepted.length;
+
+    // 4. persist (unless dryRun) — persist accepted only
     if (!dryRun && slug) {
       try {
         const sparksAbs = path.join(vaultRoot, String(slug), '.cross-sparks.jsonl');
@@ -267,7 +322,7 @@ async function generateCrossSparks({ slug, concept, k = 3, dryRun = false } = {}
           ts: new Date().toISOString(),
           concept,
           source_archetype: sourceArchetype,
-          sparks,
+          sparks: accepted,
         };
         fs.appendFileSync(sparksAbs, JSON.stringify(row) + '\n', 'utf-8');
       } catch (err) {
@@ -278,7 +333,9 @@ async function generateCrossSparks({ slug, concept, k = 3, dryRun = false } = {}
 
     return {
       ok: true,
-      sparks,
+      sparks: accepted,
+      strengthGate: threshold,
+      rejectedWeak,
       candidatesUsed: candidates.length,
       llmAttempts: (dispatch && dispatch.attempts) || 1,
     };
@@ -317,10 +374,13 @@ module.exports = {
     ARCHETYPES,
     MAX_CANDIDATES,
     MAX_PERSONA,
+    MIN_STRENGTH_DEFAULT,
     collectPersonaWisdom: _collectPersonaWisdom,
     collectOtherLessons: _collectOtherLessons,
     assembleCandidates: _assembleCandidates,
     buildMessages: _buildMessages,
     coerceSparks: _coerceSparks,
+    computeStrength: _computeStrength,
+    tokenize: _tokenize,
   },
 };

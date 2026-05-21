@@ -305,14 +305,65 @@ function _appendEvent(slug, row) {
 // use these so trigger wiring stays a single function call per site.
 // ============================================================
 
-async function tryLessonComplete({ slug, lessonIdx, harnessResult }) {
+async function tryLessonComplete({ slug, lessonIdx, harnessResult, transcript, probes }) {
   if (!detectLessonComplete({ slug, lessonIdx, harnessResult })) return null;
-  return dispatchTrigger(TRIGGER.LESSON_COMPLETE, {
+  const result = await dispatchTrigger(TRIGGER.LESSON_COMPLETE, {
     slug,
     key: String(lessonIdx),
     lessonIdx,
     harness_pass: true,
   });
+  // AMD-MEOW-P8 B2.M1 — auto-invoke persona-coherence on session-end.
+  // Compute S+R when caller supplied a transcript window; log row + emit
+  // boundary-warning event when combined < 0.5. Best-effort — never blocks
+  // trigger dispatch on coherence engine failures.
+  let coherenceScore = null;
+  try {
+    if (Array.isArray(transcript) && transcript.length > 0) {
+      const companion = require('./companion');
+      const coherenceLog = require('./companion/coherence-log');
+      const emissions = transcript
+        .filter((t) => t && (t.text || t.censored))
+        .map((t) => ({ text: t.text || t.censored, allowed: t.allowed !== false }));
+      const probeList = Array.isArray(probes) ? probes : [];
+      const score = companion.scorePersonaCoherence({ emissions, probes: probeList });
+      coherenceScore = score;
+      coherenceLog.logCoherenceScore({
+        lesson_id: lessonIdx != null ? String(lessonIdx) : null,
+        session_id: `${slug}:L${lessonIdx}`,
+        scope: 'session',
+        score: { S: score.stability, R: score.robustness, combined: score.score },
+      });
+      if (score.score < 0.5) {
+        _appendEvent(slug, {
+          kind: 'companion_boundary_warning',
+          lesson_idx: lessonIdx,
+          coherence: score.score,
+          stability: score.stability,
+          robustness: score.robustness,
+          gate_open: score.gate_open,
+        });
+      }
+    }
+  } catch (_) { /* coherence is advisory; never breaks dispatch */ } // intentional: persona-coherence side-effect must not regress lesson_complete dispatch
+
+  // AMD-MEOW-P8 B4 — multi-session memory rollup on session-end.
+  // Append a rolled-up summary (emotional arc, repair count, coherence avg,
+  // themes) so the NEXT session can prelude with continuity. Best-effort —
+  // never blocks dispatch. No-transcript path skips this entirely so the
+  // memory file stays signal-only (regression V16 in v2 smoke).
+  try {
+    if (Array.isArray(transcript) && transcript.length > 0) {
+      const sessionMemory = require('./companion/session-memory');
+      const summary = sessionMemory.summarizeTranscript({ transcript, coherenceScore });
+      sessionMemory.saveSessionMemory({
+        session_id: `${slug}:L${lessonIdx}`,
+        lesson_id: lessonIdx != null ? String(lessonIdx) : null,
+        summary,
+      });
+    }
+  } catch (_) { /* session memory is advisory; never breaks dispatch */ } // intentional: rollup write must not regress lesson_complete dispatch
+  return result;
 }
 
 async function tryInterruptResume({ slug, lastLessonAt, currentTs }) {

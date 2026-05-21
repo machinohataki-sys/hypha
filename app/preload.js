@@ -1747,4 +1747,46 @@ contextBridge.exposeInMainWorld('ptor', {
   util: {
     formatRelativeTime: (ts, opts) => _hyphaRelativeTime.formatRelativeTime(ts, opts),
   },
+  // v2-push B1+B2+B3 bridges (2026-05-21). 18 surfaces wired to IPC handlers
+  // appended after frontier:status in main.js. Grouped under ptor.v2 so
+  // existing namespaces stay untouched.
+  v2: {
+    companion: {
+      coherenceTrend: (args) => ipcRenderer.invoke('companion:coherence-trend', args || {}),
+      coherenceLog:   (args) => ipcRenderer.invoke('companion:coherence-log',   args || {}),
+    },
+    growth: {
+      crossSparkStrength: (snippet_a, snippet_b) =>
+        ipcRenderer.invoke('growth:cross-spark-strength', { snippet_a, snippet_b }),
+      northStarAlert: (args) => ipcRenderer.invoke('growth:north-star-alert', args || {}),
+    },
+    exam: {
+      scopeShrink: (args) => ipcRenderer.invoke('exam:scope-shrink', args || {}),
+      judge4Axis:  (args) => ipcRenderer.invoke('exam:judge-4axis',  args || {}),
+    },
+    commons: {
+      lifecycleTransition: (args) => ipcRenderer.invoke('commons:lifecycle-transition', args || {}),
+      licenseValidate:     (args) => ipcRenderer.invoke('commons:license-validate',     args || {}),
+    },
+    creation: {
+      dependencyGraphList:     (args) => ipcRenderer.invoke('creation:dependency-graph-list',     args || {}),
+      dependencyCascadeEvents: (args) => ipcRenderer.invoke('creation:dependency-cascade-events', args || {}),
+    },
+    infra: {
+      costPreflight:         (args) => ipcRenderer.invoke('infra:cost-preflight',          args || {}),
+      lifetimeMonthlyRollup: (args) => ipcRenderer.invoke('infra:lifetime-monthly-rollup', args || {}),
+      routerEventsTail:      (args) => ipcRenderer.invoke('infra:router-events-tail',      args || {}),
+    },
+    coldStart: {
+      getPlaybook:     (args) => ipcRenderer.invoke('cold-start:get-playbook',     args || {}),
+      classifyPersona: (args) => ipcRenderer.invoke('cold-start:classify-persona', args || {}),
+    },
+    note: {
+      atlasEntropyBadge: (args) => ipcRenderer.invoke('note:atlas-entropy-badge', args || {}),
+      atlasDecay:        (args) => ipcRenderer.invoke('note:atlas-decay',         args || {}),
+    },
+    goal: {
+      feasibilityWithConfidence: (args) => ipcRenderer.invoke('goal:feasibility-with-confidence', args || {}),
+    },
+  },
 });

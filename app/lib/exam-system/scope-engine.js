@@ -487,6 +487,149 @@ function _cloneScope(scope) {
   };
 }
 
+// =====================================================================
+// v2-push-b2: Adaptive Scope Shrinking
+// =====================================================================
+//
+// Hypothesis (蓝图 §13.1 extension): when a learner fails N consecutive
+// questions inside a tier, the in-flight scope is over-budget for the
+// learner's current mastery. Auto-shrink: drop the failing tier's frontier,
+// retreat to the prerequisite tier (one rung shallower in TIER_ORDER).
+//
+// must_master fails → already at floor; surface "rebuild prerequisites"
+// signal but do not shrink below must_master.
+// high_yield  fails → shrink to must_master only.
+// recognition fails → shrink to high_yield + must_master.
+// out_of_scope fails → effectively never (already excluded); idempotent.
+//
+// Persistence: vault/<slug>/exam/tier-attempts.json
+// Schema: { tiers: { <tier>: { recent: [bool, ...max 16] } }, updated_at }
+
+const _ATTEMPTS_REL = (slug) => `${slug}/exam/tier-attempts.json`;
+const _SHRINK_THRESHOLD = 3;
+const _ATTEMPT_HISTORY_MAX = 16;
+
+function _readAttempts(slug) {
+  const v = _getVault();
+  if (!v || typeof v.readJSON !== 'function') return { tiers: {} };
+  const got = v.readJSON(_ATTEMPTS_REL(slug), null);
+  if (got && typeof got === 'object' && got.tiers && typeof got.tiers === 'object') return got;
+  return { tiers: {} };
+}
+
+function _writeAttempts(slug, state) {
+  const v = _getVault();
+  if (!v || typeof v.writeJSON !== 'function') return;
+  v.writeJSON(_ATTEMPTS_REL(slug), { ...state, updated_at: new Date().toISOString() });
+}
+
+/**
+ * Record one attempt against a tier. isFail = true → learner missed.
+ * Returns the updated tier history (most recent last).
+ *
+ * @param {string} slug
+ * @param {string} tier  — one of TIER_ORDER
+ * @param {boolean} isFail
+ * @returns {{ tier: string, recent: boolean[], consecutive_fails: number }}
+ */
+function recordTierAttempt(slug, tier, isFail) {
+  _validateSlug(slug);
+  if (!TIER_ORDER.includes(tier)) throw new Error(`invalid tier: ${tier}`);
+  const state = _readAttempts(slug);
+  const bucket = state.tiers[tier] || { recent: [] };
+  const next = bucket.recent.slice();
+  next.push(Boolean(isFail));
+  while (next.length > _ATTEMPT_HISTORY_MAX) next.shift();
+  state.tiers[tier] = { recent: next };
+  _writeAttempts(slug, state);
+  let consecutive = 0;
+  for (let i = next.length - 1; i >= 0; i--) {
+    if (next[i] === true) consecutive++; else break;
+  }
+  return { tier, recent: next, consecutive_fails: consecutive };
+}
+
+/**
+ * Inspect whether scope should shrink. Returns a directive object the caller
+ * applies (UI banner / auto-shrink toggle / nothing). Caller decides whether
+ * to mutate the active scope — this function only reports.
+ *
+ * @param {string} slug
+ * @returns {{ shrink: boolean, tier?: string, retreat_to?: string[], consecutive_fails?: number, reason?: string }}
+ */
+function shouldShrinkScope(slug) {
+  _validateSlug(slug);
+  const state = _readAttempts(slug);
+  // Check from frontier (out_of_scope) inward — shrink the outermost failing tier first.
+  for (const tier of [TIERS.RECOGNITION, TIERS.HIGH_YIELD, TIERS.MUST_MASTER]) {
+    const bucket = state.tiers && state.tiers[tier];
+    if (!bucket || !Array.isArray(bucket.recent)) continue;
+    let consecutive = 0;
+    for (let i = bucket.recent.length - 1; i >= 0; i--) {
+      if (bucket.recent[i] === true) consecutive++; else break;
+    }
+    if (consecutive >= _SHRINK_THRESHOLD) {
+      const idx = TIER_ORDER.indexOf(tier);
+      const retreat = idx > 0 ? TIER_ORDER.slice(0, idx) : [TIERS.MUST_MASTER];
+      return {
+        shrink: true,
+        tier,
+        retreat_to: retreat,
+        consecutive_fails: consecutive,
+        reason: tier === TIERS.MUST_MASTER
+          ? `must_master 连续失败 ${consecutive} 次 — 已在底层, 建议重建 prerequisite`
+          : `${tier} 连续失败 ${consecutive} 次, 退到 ${retreat.join(' + ')}`,
+      };
+    }
+  }
+  return { shrink: false };
+}
+
+/**
+ * Apply a shrink directive to the saved scope. Items in failing tier and
+ * above are moved to recognition (preserved, not lost). Returns the new scope.
+ *
+ * @param {string} slug
+ * @param {object} [directive] — output of shouldShrinkScope; if omitted, recomputed
+ */
+function applyScopeShrink(slug, directive) {
+  _validateSlug(slug);
+  const d = directive || shouldShrinkScope(slug);
+  if (!d || !d.shrink) return { shrunk: false, scope: getScope(slug) };
+  const scope = getScope(slug);
+  const failingTier = d.tier;
+  const failingIdx = TIER_ORDER.indexOf(failingTier);
+  // For each tier from failingTier through recognition, demote one level.
+  const next = _cloneScope(scope);
+  if (failingTier !== TIERS.MUST_MASTER) {
+    const drained = Array.isArray(next[failingTier]) ? next[failingTier].slice() : [];
+    next[failingTier] = [];
+    // Demote: push into the tier below (one rung shallower).
+    const belowTier = TIER_ORDER[failingIdx - 1];
+    if (belowTier && Array.isArray(next[belowTier])) {
+      // De-dup as we merge.
+      const seen = new Set(next[belowTier]);
+      for (const item of drained) if (!seen.has(item)) next[belowTier].push(item);
+    }
+  }
+  next.shrunk_at = new Date().toISOString();
+  next.shrunk_from = failingTier;
+  setScope(slug, next);
+  return { shrunk: true, scope: next, directive: d };
+}
+
+/**
+ * Reset attempt history for a tier (e.g. after user passes a re-test).
+ */
+function resetTierAttempts(slug, tier) {
+  _validateSlug(slug);
+  if (!TIER_ORDER.includes(tier)) throw new Error(`invalid tier: ${tier}`);
+  const state = _readAttempts(slug);
+  state.tiers[tier] = { recent: [] };
+  _writeAttempts(slug, state);
+  return { ok: true, tier };
+}
+
 module.exports = {
   // Constants
   TIERS,
@@ -497,4 +640,9 @@ module.exports = {
   setScope,
   classifyTopic,
   tierProgress,
+  // v2-push-b2: adaptive shrink
+  recordTierAttempt,
+  shouldShrinkScope,
+  applyScopeShrink,
+  resetTierAttempts,
 };

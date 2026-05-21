@@ -27,6 +27,14 @@ const path = require('path');
 const DIFFICULTY_CHAIN_THRESHOLD = 0.7;
 const YEARS_CHAIN_THRESHOLD = 3;
 
+// Soft threshold zone (v0.12, 2026-05-21). Binary 0.7 cut treats 0.68 and 0.72
+// as opposite verdicts even though estimator noise ~±0.05. Ambiguous zone
+// surfaces choice to user instead of guessing. Backward-compat: default
+// behavior unchanged when caller passes softThreshold:false OR sets a single
+// threshold.
+const DIFFICULTY_AMBIGUOUS_LOW = 0.65;
+const DIFFICULTY_AMBIGUOUS_HIGH = 0.75;
+
 // Pure-difficulty fallback used when expected-years-estimator is unavailable.
 // Maps difficulty score → conservative years using the same anchor points as
 // the user spec: 0.95→20y / 0.85→10y / 0.65→3y / 0.35→1y / 0.05→0.3y.
@@ -73,7 +81,7 @@ function _loadEstimator() {
 //
 // returns: { flow, reason, difficulty, conservative_years, evidence,
 //            estimator_used, error? }
-async function routeGoal({ goalContract = {}, archetype = null } = {}) {
+async function routeGoal({ goalContract = {}, archetype = null, softThreshold = false } = {}) {
   let difficulty = 0.6;
   try {
     const gg = _loadGoalGuardian();
@@ -112,17 +120,40 @@ async function routeGoal({ goalContract = {}, archetype = null } = {}) {
     }
   }
 
-  const route =
-    difficulty >= DIFFICULTY_CHAIN_THRESHOLD && conservative_years >= YEARS_CHAIN_THRESHOLD
+  // Default binary (backward compat). softThreshold:true unlocks ambiguous zone.
+  let route;
+  let zone = 'definite';
+  let alternatives = null;
+  if (softThreshold &&
+      conservative_years >= YEARS_CHAIN_THRESHOLD &&
+      difficulty >= DIFFICULTY_AMBIGUOUS_LOW &&
+      difficulty < DIFFICULTY_AMBIGUOUS_HIGH) {
+    route = 'ambiguous';
+    zone = 'ambiguous';
+    alternatives = ['single', 'chain'];
+  } else if (softThreshold && difficulty >= DIFFICULTY_AMBIGUOUS_HIGH && conservative_years >= YEARS_CHAIN_THRESHOLD) {
+    route = 'chain';
+  } else if (softThreshold && difficulty <= DIFFICULTY_AMBIGUOUS_LOW) {
+    route = 'single';
+  } else {
+    route = (difficulty >= DIFFICULTY_CHAIN_THRESHOLD && conservative_years >= YEARS_CHAIN_THRESHOLD)
       ? 'chain'
       : 'single';
+  }
 
   const reason =
     route === 'chain'
       ? `难度 ${difficulty.toFixed(2)} · 预计 ${conservative_years}年, 分阶段规划`
-      : `单门课 ${conservative_years}年内可见效`;
+      : route === 'ambiguous'
+        ? `难度 ${difficulty.toFixed(2)} 在 ${DIFFICULTY_AMBIGUOUS_LOW}-${DIFFICULTY_AMBIGUOUS_HIGH} 模糊带, 由你选`
+        : `单门课 ${conservative_years}年内可见效`;
 
-  return { flow: route, reason, difficulty, conservative_years, evidence, estimator_used };
+  const result = { flow: route, reason, difficulty, conservative_years, evidence, estimator_used };
+  if (softThreshold) {
+    result.zone = zone;
+    if (alternatives) result.alternatives = alternatives;
+  }
+  return result;
 }
 
 module.exports = {
@@ -130,4 +161,6 @@ module.exports = {
   _fallbackYearsFromDifficulty,
   DIFFICULTY_CHAIN_THRESHOLD,
   YEARS_CHAIN_THRESHOLD,
+  DIFFICULTY_AMBIGUOUS_LOW,
+  DIFFICULTY_AMBIGUOUS_HIGH,
 };

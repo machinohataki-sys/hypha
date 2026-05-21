@@ -22,6 +22,9 @@
 const { generateValid, loadContract, validateExpression, SUPPORTED_TRIGGERS } = require('./tone-engine');
 const { enforceBoundary, getKeywordMapping } = require('./boundary-guard');
 const { KEYWORD_MAPPING } = require('./keyword-mapping');
+const personaCoherence = require('./persona-coherence');
+const coherenceLog = require('./coherence-log');
+const sessionMemory = require('./session-memory');
 const { MOCK_TAG_KEY, MOCK_TAG_VALUE } = require('../v0-mock-marker');
 
 /**
@@ -152,4 +155,23 @@ module.exports = {
   preferredTone,
   KEYWORD_MAPPING,
   SUPPORTED_TRIGGERS,
+  // AMD-MEOW-P8 persona coherence surface.
+  scorePersonaCoherence: personaCoherence.scorePersonaCoherence,
+  scoreStability: personaCoherence.scoreStability,
+  scoreRobustness: personaCoherence.scoreRobustness,
+  loadEnrichedContract: personaCoherence.loadEnrichedContract,
+  findRepairPattern: personaCoherence.findRepairPattern,
+  PERSONA_COHERENCE_GATE: personaCoherence.GATE_THRESHOLD,
+  // B2.M1 (2026-05-21) — persistence + trend layer over persona-coherence.
+  logCoherenceScore: coherenceLog.logCoherenceScore,
+  readCoherenceLog: coherenceLog.readCoherenceLog,
+  getCoherenceTrend: coherenceLog.getTrend,
+  // B4 (2026-05-21) — multi-session memory continuity. Append-only roll-up
+  // at lesson_complete; caller-driven prelude read at next session start.
+  // No force-inject — caller decides where to thread the prelude.
+  saveSessionMemory: sessionMemory.saveSessionMemory,
+  loadRecentSessions: sessionMemory.loadRecentSessions,
+  buildContextPrelude: sessionMemory.buildContextPrelude,
+  clearSessionMemory: sessionMemory.clearMemory,
+  summarizeTranscript: sessionMemory.summarizeTranscript,
 };
