@@ -18,6 +18,26 @@ not a git-log dump.
 - Source extractor caps tightened: 200 MB per file, 8 files per call,
   800 MB total per ingest.
 
+## [1.0.0-rc.3] - 2026-05-21
+
+CI release-pipeline iteration on top of rc.2 — fixes macOS publish job
+and build.yml dry-run on tag pushes. No product code changes.
+
+### Fixed
+- `release.yml` macOS publish no longer crashes on empty `CSC_LINK` /
+  `APPLE_ID` envs. Workflow now uses bash on all 3 OSes and only exports
+  signing variables when their secrets are non-empty. Without signing,
+  `CSC_IDENTITY_AUTO_DISCOVERY=false` keeps electron-builder happy.
+- `build.yml` dry-run no longer demands `GH_TOKEN`. Passes
+  `--publish never` so electron-builder skips the auto-publish path
+  that the `github` provider in `package.json` would otherwise trigger.
+
+### Carried forward from rc.2 (verified shipped via Win + Linux installers)
+- 10-system v1.0 codebase (all systems audited per CLAUDE.md boot-12).
+- PDF native upgrade (`native-pdf-v2` with pdfjs-dist + OCR fallback).
+- Local-first telemetry, vault snapshot, auto-updater scaffold, payment
+  rails stub, electron-builder 3-OS config, icon.icns generator.
+
 ## [1.0.0-rc.2] - 2026-05-21
 
 CI / release-pipeline iteration on top of rc.1. No product code changes.

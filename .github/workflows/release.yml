@@ -57,15 +57,32 @@ jobs:
         with: { node-version: 20, cache: npm }
       - run: npm ci --no-audit --no-fund
       - name: Publish via electron-builder
+        # Bash shell on all 3 OSes (Git Bash on Windows runner). Lets us
+        # conditionally export signing vars only when their secrets are set
+        # — empty CSC_LINK / APPLE_ID values otherwise crash electron-builder
+        # on macOS (treats "" as a file path).
+        shell: bash
         env:
           # GitHub auto-provides GITHUB_TOKEN; electron-builder reads GH_TOKEN.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Windows signing (skip cleanly if absent)
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          # macOS notarization (skip cleanly if absent)
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.APPLE_ID != '' }}
-        run: npm run build:${{ matrix.target }} -- --publish always
+          # All signing secrets piped in; empty string when not configured.
+          _CSC_LINK: ${{ secrets.CSC_LINK }}
+          _CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          _APPLE_ID: ${{ secrets.APPLE_ID }}
+          _APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          _APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Only export signing env when the secret is non-empty.
+          if [ -n "$_CSC_LINK" ]; then
+            export CSC_LINK="$_CSC_LINK"
+            export CSC_KEY_PASSWORD="$_CSC_KEY_PASSWORD"
+          fi
+          if [ -n "$_APPLE_ID" ]; then
+            export APPLE_ID="$_APPLE_ID"
+            export APPLE_APP_SPECIFIC_PASSWORD="$_APPLE_APP_SPECIFIC_PASSWORD"
+            export APPLE_TEAM_ID="$_APPLE_TEAM_ID"
+            export CSC_IDENTITY_AUTO_DISCOVERY=true
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          npm run build:${{ matrix.target }} -- --publish always

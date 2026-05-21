@@ -73,7 +73,10 @@ jobs:
         env:
           # Hard-skip signing for unsigned dry build. release.yml owns secrets.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npm run build:${{ matrix.target }}
+        # --publish never overrides the github provider in package.json's
+        # build.publish block. Without this, electron-builder auto-publishes
+        # on tag pushes and demands GH_TOKEN even in this dry-run workflow.
+        run: npm run build:${{ matrix.target }} -- --publish never
 
       - name: Upload dist artifacts
         uses: actions/upload-artifact@v4

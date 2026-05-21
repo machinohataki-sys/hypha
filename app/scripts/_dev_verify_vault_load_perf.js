@@ -1,4 +1,5 @@
 'use strict';
+// SKIP_HEADLESS — perf thresholds are env-sensitive (CI runners vary 3x in disk IO speed); meant for local dev calibration, not CI gate.
 
 // HYPHA boot-12 (2026-05-20) — vault load + perf smoke for v1.0.
 //
